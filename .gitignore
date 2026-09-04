@@ -8,3 +8,4 @@ __pycache__/
 kaggle.json
 .env
 *.pt
+.venv/
