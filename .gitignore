@@ -1,0 +1,10 @@
+data/
+artifacts/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.engine
+*.onnx
+kaggle.json
+.env
+*.pt
