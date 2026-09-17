@@ -260,10 +260,12 @@ Every citation of Model A's in-distribution performance must accompany the cross
 
 | Evaluation Split | Total Images | Leaked Train Duplicates | Top-1 Accuracy | Macro-F1 | Empirical Diagnosis |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **In-Distribution (`test_indist` Original)** | 3,281 | 1,248 (38.04%) | **96.56%** (96.04% ONNX) | **94.85%** (94.54% ONNX) | Optimistic; inflated by 38% near-duplicate leakage. |
-| **In-Distribution (`test_indist` Cleaned)** | 2,033 | 0 (0.00%) | **95.08%** (-0.96 pts) | **94.08%** (-0.46 pts) | Genuine in-distribution morphology benchmark. |
-| **Validation Set (`val` Original)** | 3,320 | 1,349 (40.63%) | **94.28%** | **91.32%** | Calibration split contaminated by 40% leakage. |
-| **Validation Set (`val` Cleaned)** | 1,971 | 0 (0.00%) | **93.10%** | **90.99%** | Clean calibration: $T_{cal} = 0.6100$, $\tau_{energy} = -2.7424$. |
+| **In-Distribution (`test_indist` Original)** | 3,281 | 1,248 pHash (38.04%) | **96.56%** (96.04% ONNX) | **94.85%** (94.54% ONNX) | Optimistic; contains cross-group duplicate leakage. |
+| **In-Distribution (`test_indist` pHash-Cleaned)** | 2,033 | 0 pHash candidates | **95.08%** (-1.48 pts) | **94.08%** (-0.77 pts) | Aggressive filter (~40% false-positive rate on non-duplicates). |
+| **In-Distribution (`test_indist` SSIM-Cleaned)** | 2,606 | 675 SSIM-confirmed (20.57%) | **95.97%** (-0.59 pts) | **94.78%** (-0.07 pts) | Duplicate removal benchmark; confirms duplicate leakage barely inflates in-distribution test scores (-0.07 pts F1), but says nothing about generalization across sources. |
+| **Validation Set (`val` Original)** | 3,320 | 1,349 pHash (40.63%) | **94.28%** | **91.32%** | Original calibration split ($T_{cal} = 0.5970$, $\tau_{energy} = -2.8529$). |
+| **Validation Set (`val` pHash-Cleaned)** | 1,971 | 0 pHash candidates | **93.10%** | **90.99%** | Intermediate calibration ($T_{cal} = 0.6100$, $\tau_{energy} = -2.7424$). |
+| **Validation Set (`val` SSIM-Cleaned)** | 2,616 | 704 SSIM-confirmed (21.20%) | **93.85%** | **91.12%** | Authoritative calibration ($T_{cal} = \mathbf{0.6162}$, $\tau_{energy} = \mathbf{-2.7957}$). |
 | **Cross-Source Held-Out (`test_sourceheldout`)** | 1,571 | 0 (Unseen cameras) | **32.08%** (33.93% ONNX) | **37.40%** (39.71% ONNX) | **CRITICAL COLLAPSE (-57.45 pts macro-F1)**. |
 
 > [!WARNING]
@@ -273,7 +275,7 @@ Every citation of Model A's in-distribution performance must accompany the cross
 > - `rice__brown_spot`: **1.50%** recall (131/133 missed)
 > - `rice__blast`: **7.45%** recall (236/255 missed)
 > - `rice__bacterial_leaf_blight`: **11.67%** recall (159/180 missed)
-> The headline figure of 94.8% / 96.5% measures memorization of source capture conditions, not robust crop leaf pathology.
+> In total, 6 of the 9 evaluated disease classes fail to generalize across sources. In-distribution duplicate removal via SSIM demonstrates that duplicate leakage barely inflates in-distribution scores, but it does not prove genuine invariant morphology or protect against cross-source failure. The headline figure of 94.8% / 96.5% reflects dataset-specific memorization of source capture conditions, not robust pathology.
 
 
 

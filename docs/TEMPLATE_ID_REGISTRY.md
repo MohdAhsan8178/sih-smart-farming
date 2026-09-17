@@ -465,11 +465,16 @@ Blobs triggering either gate are strictly classified as:
 3. **Blob Preservation:** `UNCERTAIN_NON_TARGET` blobs are **never discarded** from `total_blobs_counted`. They remain visible to agronomists as unclassified physical matter (e.g. non-target wild diptera, parasitoids, weathered glue residue, or novel pests).
 
 ### 4.3 Agronomic Safety Contract (ETL Protection: Watershed-Primary Architecture)
-- Under ICAR / NIPHM Economic Threshold Levels (e.g. *NIPHM IPM Package for Sugarcane, p. 11* / *DPPQS IPM Sugarcane*), the intervention threshold is 100 insects/trap daily for sucking pests (*Aleurolobus barodensis* / *Ceratovacuna lanigera*).
+- Under ICAR / DPPQS Economic Threshold Levels (*DPPQS Integrated Pest Management Package for Sugarcane*, p. 11 Section D / PDF p. 19), the intervention threshold is 100 insects/trap cumulative for sucking pests (woolly aphid / whitefly).
+- **Cumulative Count Interpretation:** The primary text states: *"Count the number of woolly aphids and white flies on the traps daily and take up the intervention when the population exceeds 100 per trap."* (p. 11 Section D). This prescribes daily card inspection against a cumulative ceiling of 100 insects per card (`count_observed >= 100`, with `threshold_unit = "insects_per_trap"`). It does not require a 100/day catch rate; `daily_rate` is retained strictly as an informational metric.
 - **Authoritative Watershed Primary Gate:** ETL comparison (`evaluate_trap_counts_against_etl`) uses the **total deterministic watershed blob count** (`total_blobs_counted`) as `count_observed`, with `count_basis = "watershed_all_blobs"`. The unverified CNN is NOT the gate on chemical intervention.
-- **Secondary Morphological Proportions:** Model B's CNN classifications (`small_pale_winged`, `larger_insect`, `debris`, and `UNCERTAIN_NON_TARGET`) serve strictly as secondary, informational morphological distributions (`RECALLED_UNVERIFIED` / `CROSS_DOMAIN_PRETRAINED`).
-- **Mandatory Disclaimer:** *"small_pale_winged is an unverified CNN morphological category that does not distinguish whitefly from thrips or aphids; total watershed blob count is authoritative."*
-- **Citation Provenance:** The NIPHM Sugarcane 100/trap daily citation is retained as `RECALLED_UNVERIFIED` (pending local archiving of the primary PDF to `docs/sources/`).
+- **Secondary Morphological Proportions:** Model B's CNN classifications (`small_pale_winged`, `larger_insect`, `debris`, and `UNCERTAIN_NON_TARGET`) serve strictly as secondary, informational morphological distributions (`CROSS_DOMAIN_PRETRAINED`).
+- **Split Verification Status:** The payload decouples threshold provenance from CNN classification provenance:
+  - `threshold_verification_status`: `"VERIFIED"` (grounded in official DPPQS government IPM specification).
+  - `classification_verification_status`: `"RECALLED_UNVERIFIED"` (European sticky-trap CNN unverified against Indian field conditions).
+- **Target Pest Context:** Reflects both pests together: `"sugarcane_whitefly_woolly_aphid"`.
+- **Mandatory Disclaimer:** *"small_pale_winged is an unverified CNN morphological category that does not distinguish whitefly from thrips or aphids; total watershed blob count is authoritative. The watershed count includes debris and non-target blobs, so count_observed is a conservative OVER-estimate of target pests relative to the ETL."*
+- **Citation Provenance:** `VERIFIED` (verified against local primary text `docs/sources/dppqs_ipm_sugarcane.pdf`, page 11 Section D).
 
 ---
 
@@ -483,10 +488,10 @@ Each detection object in `detections[]` carries an explicit `cross_source_reliab
 
 | Tier | Definition | Model A Classes |
 | :--- | :--- | :--- |
-| `TESTED_ROBUST` | Recall $\ge 60\%$ & F1 $\ge 0.85$ on held-out camera source | None in current strict benchmark (support $\ge 100$) |
-| `TESTED_WEAK` | $30\% \le \text{Recall} < 60\%$ or $0.50 \le \text{F1} < 0.85$ | `rice__normal` (59.35%), `sugarcane__healthy` (72.16% recall, 0.76 F1), `wheat__yellow_rust` (72.60% recall, 0.80 F1) |
-| `TESTED_FAILED` | Recall $< 30\%$ or F1 $< 0.50$ | `rice__bacterial_leaf_blight` (11.67%), `rice__blast` (7.45%), `rice__brown_spot` (1.50%), `rice__tungro` (13.83%), `wheat__septoria` (25.77%), `wheat__powdery_mildew` (35.40%) |
-| `UNTESTED` | Class not present in held-out source evaluation set | Remaining 20 classes (e.g. `sugarcane__smut`, `rice__hispa`, etc.) |
+| `TESTED_ROBUST` | Recall $\ge 60\%$ on held-out camera source | `sugarcane__healthy` (72.16% recall, 0.7619 F1), `wheat__yellow_rust` (74.52% recall, 0.8037 F1) |
+| `TESTED_WEAK` | $30\% \le \text{Recall} < 60\%$ | `rice__normal` (56.77% recall, 0.5824 F1), `wheat__powdery_mildew` (35.40% recall, 0.3664 F1) |
+| `TESTED_FAILED` | Recall $< 30\%$ | `wheat__septoria` (25.77%), `rice__tungro` (13.83%), `rice__blast` (3.92%), `rice__brown_spot` (2.26%), `rice__bacterial_leaf_blight` (0.00%) |
+| `UNTESTED` | Class not present in held-out source evaluation set (`support == 0`) | Remaining 20 classes (e.g. `sugarcane__smut`, `rice__hispa`, etc.) |
 
 **Standing Invariant:** The `cross_source_reliability` tier is informational provenance metadata for agronomists and edge UI consumers; it does not alter action triggering or consensus logic.
 

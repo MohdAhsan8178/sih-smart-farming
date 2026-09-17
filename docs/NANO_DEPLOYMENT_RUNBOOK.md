@@ -520,7 +520,27 @@ To verify that the mobile app polling the gateway does not block or crash the sc
    ```
 4. Verify that 0 errors occur and all requests return HTTP 200 instantly (SQLite WAL concurrency guarantee).
 
+### 8.4 Model B Fallback: Compiling TensorRT Engine with trtexec
+Model B defaults to ONNX Runtime execution (`onnxruntime-gpu` / CPU wheel). In environments where TensorRT acceleration is required for batch patch classification on the Jetson Nano, compile the dynamic batch Model B ONNX artifact (opset 13) into an FP16 TensorRT engine using `trtexec`:
+
+```bash
+/usr/src/tensorrt/bin/trtexec \
+  --onnx=artifacts/onnx/model_b.onnx \
+  --saveEngine=artifacts/engines/model_b.engine \
+  --fp16 \
+  --minShapes=input:1x3x64x64 \
+  --optShapes=input:64x3x64x64 \
+  --maxShapes=input:256x3x64x64 \
+  --workspace=256
+```
+
+> [!NOTE]
+> - **Input Contract:** Tensor name `input`, shape `[batch_size, 3, 64, 64]`, dtype `float32`, RGB channel order normalized with ImageNet mean/std.
+> - **Batch Profile:** Dynamic batching with minimum shape `1`, nominal optimization shape `64`, and upper ceiling `256` blobs per inference pass.
+> - **Fallback Scope:** Currently retained as documentation and engine build specification; edge runtime defaults to ONNX Runtime per H5.2.
+
 ---
+
 
 ## 9. Post-Execution eMMC Headroom Verification
 
