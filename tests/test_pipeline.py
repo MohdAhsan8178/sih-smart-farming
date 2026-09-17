@@ -540,10 +540,16 @@ def test_section_b_icar_niphm_etl_comparison():
 
     # 4. Quantitative evaluation for sugarcane whitefly
     eval_exceeds = evaluate_trap_counts_against_etl({"sugarcane_whitefly": 150}, days_monitored=1.0)
-    assert eval_exceeds[0]["status"] == "EXCEEDS_ETL"
+    assert eval_exceeds[0]["status"] == "ABOVE_ETL"
+    assert eval_exceeds[0]["threshold_available"] is True
+
+    eval_at = evaluate_trap_counts_against_etl({"sugarcane_whitefly": 100}, days_monitored=1.0)
+    assert eval_at[0]["status"] == "AT_ETL"
+    assert eval_at[0]["threshold_available"] is True
 
     eval_below = evaluate_trap_counts_against_etl({"sugarcane_whitefly": 50}, days_monitored=1.0)
     assert eval_below[0]["status"] == "BELOW_ETL"
+    assert eval_below[0]["threshold_available"] is True
 
     # 5. Monitoring window enforcement ([1.0, 7.0] days)
     # < 1.0 day -> INVALID_MONITORING_WINDOW

@@ -229,9 +229,10 @@ def test_watershed_primary_etl_evaluation():
     item_ex = res_exceeds[0]
     assert item_ex["count_observed"] == 350.0
     assert item_ex["daily_rate"] == 116.67
-    assert item_ex["status"] == "EXCEEDS_ETL"
+    assert item_ex["status"] == "ABOVE_ETL"
+    assert item_ex["threshold_available"] is True
 
-    # Case 3 (H3.1): 150 blobs over 3 days -> EXCEEDS_ETL cumulative (under old rate logic, 150/3 = 50 was BELOW)
+    # Case 3 (H3.1 & J1.1): 150 blobs over 3 days -> ABOVE_ETL cumulative (150 > 100)
     res_150 = evaluate_trap_counts_against_etl(
         pest_counts={"sugarcane_whitefly": 50},
         days_monitored=3.0,
@@ -242,7 +243,21 @@ def test_watershed_primary_etl_evaluation():
     item_150 = res_150[0]
     assert item_150["count_observed"] == 150.0
     assert item_150["daily_rate"] == 50.0  # daily rate is informational
-    assert item_150["status"] == "EXCEEDS_ETL"  # cumulative 150 >= 100 exceeds ETL
+    assert item_150["status"] == "ABOVE_ETL"  # cumulative 150 > 100 exceeds ETL
+    assert item_150["threshold_available"] is True
+
+    # Case 4 (J1.1 Boundary Test): exactly 100 blobs over 3 days -> AT_ETL
+    res_100 = evaluate_trap_counts_against_etl(
+        pest_counts={"sugarcane_whitefly": 50},
+        days_monitored=3.0,
+        total_blobs_counted=100,
+        morphological_distribution=morph_dist,
+    )
+    assert len(res_100) == 1
+    item_100 = res_100[0]
+    assert item_100["count_observed"] == 100.0
+    assert item_100["status"] == "AT_ETL"  # exactly equal to threshold
+    assert item_100["threshold_available"] is True
 
 
 def test_h3_3_verification_status_frozen_enum_compliance():

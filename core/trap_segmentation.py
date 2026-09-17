@@ -990,6 +990,7 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
                 "days_monitored": float(days_monitored),
                 "daily_rate": daily_rate,
                 "weekly_rate": weekly_rate,
+                "threshold_available": False,
                 "threshold_value": None,
                 "threshold_unit": None,
                 "status": "UNKNOWN_PEST",
@@ -1010,18 +1011,41 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
 
         if reg_status == "NOT_SAMPLED_BY_STICKY_TRAP":
             status = "NOT_SAMPLED_BY_STICKY_TRAP"
+            thresh_avail = False
         elif thresh is None:
             status = "NO_PUBLISHED_ETL"
+            thresh_avail = False
         else:
-            # DPPQS: cumulative catch on the card since placement exceeds 100/trap
+            thresh_avail = True
+            # DPPQS: cumulative catch on the card since placement exceeds 100/trap (strictly > 100)
             if unit == "insects_per_trap":
-                status = "EXCEEDS_ETL" if observed >= thresh else "BELOW_ETL"
+                if observed > thresh:
+                    status = "ABOVE_ETL"
+                elif observed == thresh:
+                    status = "AT_ETL"
+                else:
+                    status = "BELOW_ETL"
             elif unit == "insects_per_trap_weekly":
-                status = "EXCEEDS_ETL" if weekly_rate >= thresh else "BELOW_ETL"
+                if weekly_rate > thresh:
+                    status = "ABOVE_ETL"
+                elif weekly_rate == thresh:
+                    status = "AT_ETL"
+                else:
+                    status = "BELOW_ETL"
             elif unit == "insects_per_trap_daily":
-                status = "EXCEEDS_ETL" if daily_rate >= thresh else "BELOW_ETL"
+                if daily_rate > thresh:
+                    status = "ABOVE_ETL"
+                elif daily_rate == thresh:
+                    status = "AT_ETL"
+                else:
+                    status = "BELOW_ETL"
             else:
-                status = "EXCEEDS_ETL" if observed >= thresh else "BELOW_ETL"
+                if observed > thresh:
+                    status = "ABOVE_ETL"
+                elif observed == thresh:
+                    status = "AT_ETL"
+                else:
+                    status = "BELOW_ETL"
 
         res_item = {
             "target_pest_context": target_pest_ctx,
@@ -1030,6 +1054,7 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
             "days_monitored": float(days_monitored),
             "daily_rate": daily_rate,
             "weekly_rate": weekly_rate,
+            "threshold_available": thresh_avail,
             "threshold_value": thresh,
             "threshold_unit": unit,
             "status": status,
