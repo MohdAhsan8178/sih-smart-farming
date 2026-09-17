@@ -22,6 +22,27 @@ def _as_2d(logits):
     return a, False
 
 
+def stable_logsumexp(a, axis=None, keepdims=False):
+    """
+    Numerically stable pure NumPy logsumexp: avoids scipy dependency on Jetson Nano.
+    Handles extreme logits (e.g. +/- 1000) without overflow or underflow.
+    """
+    a = np.asarray(a)
+    max_a = np.max(a, axis=axis, keepdims=True)
+    safe_max = np.where(np.isneginf(max_a), 0.0, max_a)
+    shifted = a - safe_max
+    exp_sum = np.sum(np.exp(shifted), axis=axis, keepdims=True)
+    res = np.log(exp_sum) + safe_max
+    if not keepdims and axis is not None:
+        res = np.squeeze(res, axis=axis)
+    if np.any(np.isneginf(max_a)):
+        if keepdims or axis is None:
+            res = np.where(np.isneginf(max_a), -np.inf, res)
+        else:
+            res = np.where(np.isneginf(np.squeeze(max_a, axis=axis)), -np.inf, res)
+    return res
+
+
 def open_set_energy(logits, crop_cols, T=1.0):
     """
     E(x) = -T * logsumexp(logits[crop_cols] / T)
@@ -62,6 +83,9 @@ def posthoc_logit_adjust(logits, log_priors, tau=1.0):
     return a - tau * np.asarray(log_priors, dtype=np.float64)[None, :]
 
 
+# NOTE (Sep 2026 Step 13 D1): Stage 1/2 model trains with weighted loss (sqrt-inverse-frequency).
+# Applying post-hoc logit adjustment on top double-corrects for class imbalance;
+# log_priors and tau_prior must be re-calibrated in Step 15.
 def decide(logits, crop_cols, notcrop_col, log_priors,
            tau_energy, T_cal=1.0, tau_conf=0.60, tau_prior=1.0):
     """

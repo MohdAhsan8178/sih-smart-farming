@@ -1,0 +1,15 @@
+TOTAL UNIQUE OFFENDING ITEMS: 7726
+  spaces: 6848
+  commas: 4
+  parentheses: 4539
+  brackets: 0
+  quotes: 0
+  ampersands: 21
+  colons: 0
+  hashes: 0
+  percent_signs: 166
+  non_ascii_unicode: 0
+  leading_dots: 0
+  leading_trailing_spaces: 0
+  names_over_200_chars: 5
+  other_outside_alphanumeric_dot_dash_underscore: 112

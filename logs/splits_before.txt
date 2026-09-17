@@ -1,0 +1,8 @@
+5af6979da0e4363d77fec7da9cf51bc2  splits/all_images.csv
+22cb28e768739533211f91f23abeb58e  splits/class_mapping.csv
+9d196e6d65aad9085321e353f816d079  splits/openset_categories.csv
+875e950fb802c25890edd20bfb7623a2  splits/test_crossdomain.csv
+a847aaa6d8a93588dae307aae00625fa  splits/test_external_riceblast.csv
+93a2ade740ce763c6c34c4d5d6c665d9  splits/test_indist.csv
+60bb601f3fe04da4fa124d30ba622286  splits/train.csv
+f69d5b3f9fcef03e7c923bfecd368724  splits/val.csv

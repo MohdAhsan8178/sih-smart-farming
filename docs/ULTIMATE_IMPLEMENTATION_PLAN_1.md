@@ -584,7 +584,7 @@ Then **visually inspect**: save a 4×4 grid of augmented samples to `artifacts/r
 **Depends on:** 11
 **Goal:** A deliberately plain baseline so the augmentation delta can be measured. **This exists to be beaten.**
 
-**Build `train/model.py`:** flat 31-class head via `timm.create_model(BACKBONE, pretrained=True, num_classes=31, drop_rate, drop_path_rate)`. Nothing else. No attention modules, no ensembles.
+**Build `train/model.py`:** flat classification head via `timm.create_model(BACKBONE, pretrained=True, num_classes=num_classes, drop_rate, drop_path_rate)`. Head width is resolved dynamically from `configs/classes.py` at runtime (`len(CLASS_NAMES)`), not a hardcoded literal. Nothing else. No attention modules, no ensembles.
 
 **Build `train/train_model_a.py`:** with a `--stage` flag.
 - Stage 1: standard augmentation only (resize, flip, normalize), no class balancing, no distillation
@@ -597,7 +597,7 @@ Then **visually inspect**: save a 4×4 grid of augmented samples to `artifacts/r
 python train/train_model_a.py --stage 1 --epochs 30 --out artifacts/checkpoints/stage1.pt
 ```
 
-**Acceptance:** `stage1_metrics.json` contains `val_macro_f1`, `val_top1`, and `per_class_recall` for all 31 classes. Record the macro-F1 — it is the "before" number in your headline slide.
+**Acceptance:** `stage1_metrics.json` contains `val_macro_f1`, `val_top1`, and `per_class_recall` for all taxonomy classes resolved dynamically from `configs/classes.py`. Record the macro-F1 — it is the "before" number in your headline slide.
 
 **DO NOT:** tune anything at this stage. A tuned baseline understates your improvement.
 
@@ -823,8 +823,9 @@ sudo nvpmodel -m 0 && sudo jetson_clocks
 import numpy as np, cv2, tensorrt as trt, pycuda.driver as cuda
 
 class TRTClassifier:
-    def __init__(self, engine_path, batch=9, size=224, num_classes=31):
-        ...
+    def __init__(self, engine_path, batch=9, size=224, num_classes=None):
+        from configs.classes import NUM_CLASSES
+        num_classes = num_classes or NUM_CLASSES
         # fused graph takes uint8 NHWC BGR — no float conversion on the host
         self.h_in  = cuda.pagelocked_empty((batch, size, size, 3), np.uint8)
         self.h_out = cuda.pagelocked_empty((batch, num_classes), np.float32)
@@ -955,6 +956,8 @@ Must print: frames seen, frames passing the gate, tiles classified, per-cell ver
 
 > None of Part 5 uses AI. Saying that confidently is a strength — it is what lets the whole system run on a 2019 board.
 
+> **Scope Note (7 Sep 2026):** Autonomous irrigation actuation is dropped. No solenoid valve, no MOSFET driver, no YF-S201 flow meter will be purchased. The system produces irrigation prescriptions displayed to the farmer, who irrigates manually. Actuation is advisory-only. `edge/actuation.py` and `edge/flow.py` are retained as validated reference implementations for future closed-loop deployment and are NOT wired into any runtime path.
+
 ---
 
 ## STEP 23 — Sensor abstraction layer                       [AGENT] ~1 h
@@ -983,7 +986,7 @@ Every sensor class needs a `--simulate` mode returning plausible synthetic value
 ## STEP 24 — CWSI and water stress                          [AGENT] ~1 h
 
 **Depends on:** 23
-**Goal:** Irrigation advice from a closed-form equation. No model.
+**Goal:** Irrigation advice from a closed-form equation (advisory-only prescriptions for manual farmer execution; autonomous actuation is dropped). No model.
 
 **Use `core/thermal.py` — already written and tested.** Do not reimplement.
 
@@ -997,11 +1000,12 @@ else:
 ```
 
 **Three rules that are easy to get wrong:**
-1. **Compute CWSI on the inspection pass only (1.5–2.5 m), never the survey pass.** At 10 m an MLX90640 pixel spans ~32 cm, mixing 55–65 °C soil with 30 °C canopy — the average reads as severe stress on a healthy plant.
+1. **Compute CWSI continuously on the fixed ground mast station, NEVER on the drone.** Flying at 1.5–2.5 m subjects the canopy to rotor downwash (forced convection pulling sunlit leaf temp toward ambient air temp, destroying the CWSI signal). The fixed mast provides stable geometry and continuous solar-noon monitoring without downwash distortion. MLX90640 spatial resolution enables Otsu soil rejection; MLX90614 provides continuous drift trace / cross-check. In the fixed-mast path, `veg_fraction` is permanently None because the RGB camera is on the aerial drone.
 2. **The gate separates plant tissue from bare soil, not healthy from stressed.** A non-transpiring canopy *is* CWSI = 1.0 — the drought alarm. It must never be rejected.
 3. **CWSI is valid only in the early-afternoon window under clear skies** (~11:00–16:00). Gate on time of day.
+4. **Empirical NWSB baseline requires at least 14 solar-noon observations.** Until 14 clear-sky solar noon observations exist across varying VPD, baseline fitting returns None (`baseline_insufficient`) and CWSI calculation is withheld.
 
-**Human task:** obtain published `(Tc−Ta)_LL` baselines for rice and sugarcane and put them in `configs/crop_baselines.py`. State in the PPT that you use published baselines and would calibrate locally in deployment.
+**Human task:** obtain published `(Tc−Ta)_LL` baselines for rice and sugarcane and put them in `configs/crop_baselines.py`. State in the PPT that you use published baselines and would calibrate locally in deployment via 14 solar-noon observation sessions.
 
 **Acceptance:** `python3 -m pytest tests/ -k thermal -v` passes, plus a manual check that a synthetic 45.5 °C canopy at Ta = 38 is **accepted** (not rejected as soil) and 60 °C soil at the same Ta is **rejected**.
 
@@ -1033,13 +1037,16 @@ else:
 ## STEP 26 — Vegetation indices and growth staging          [AGENT] ~45 min
 
 **Depends on:** 23
-**Goal:** Survey-pass stress mapping without a multispectral camera.
+**Goal:** Survey-pass stress mapping using RGB vegetation indices and dormant dual-bandpass IMX219-77IR + DB660/850 NDVI.
 
-Compute ExG, VARI, TGI, NGRDI per grid cell; track canopy cover fraction over time for growth staging.
+Use `core/indices.py` and `core/ndvi.py`:
+- Compute ExG, VARI, TGI, NGRDI, GMR, DGCI per grid cell; segment canopy using absolute ExG (`PROVISIONAL_EXG_VEG_THRESHOLD = 20`) rather than Otsu, and enforce minimum canopy floor (`PROVISIONAL_MIN_CANOPY_FRACTION = 0.15`).
+- Dual-bandpass NDVI (660nm Red, 850nm NIR): counterintuitive Bayer mapping (Blue=NIR, Red=660nm). Cross-talk unmixing via `apply_channel_response_correction` raises `NotImplementedError` until bench calibration matrix $K^{-1}$ is measured (`scripts/calibrate_dual_bandpass.py`). Empirical line calibration (ELM) with reference panels requires confirmed reflectances.
+- Commercial 5-band multispectral and hyperspectral cameras are explicitly out of scope due to cost (₹40k–₹25L+), payload mass (500g–1.5kg), and offline workstation GPU processing requirements that contradict the edge-computing architecture.
 
-**Be honest about the limits in the PPT:** RGB indices saturate at high biomass, and at least one comparative study found neither TGI nor VARI reliable as a general-purpose crop health indicator. **Use them for relative within-field comparison and change detection, not absolute health scoring** — which is exactly what flagging cells for the inspection pass needs.
+**Be honest about the limits in the PPT:** RGB indices saturate at high biomass, and at least one comparative study found neither TGI nor VARI reliable as a general-purpose crop health indicator. Two-band NDVI lacks RedEdge (705–740 nm) and cannot compute NDRE. **Use them for relative within-field comparison and change detection, not absolute health scoring** — which is exactly what flagging cells for the inspection pass needs.
 
-**Acceptance:** given a test image, outputs a per-cell index map plus a flagged-cell list. Cells below the 20th percentile are flagged for inspection.
+**Acceptance:** given a test image, outputs a per-cell index map plus a flagged-cell list. Cells below the 20th percentile are flagged for inspection. `pytest tests/test_pipeline.py -k indices -v` passes.
 
 ---
 
@@ -1066,6 +1073,8 @@ Compute ExG, VARI, TGI, NGRDI per grid cell; track canopy cover fraction over ti
  "severity":"moderate","timestamp":"..."}
 ```
 
+**Irrigation Actuation Scope:** Actuation hardware (solenoid valves, MOSFET switches, flow meters) is dropped. Drought risk and irrigation needs produce manual irrigation prescriptions (recommended water depth, AWD scheduling) in this JSON finding for farmer execution; no hardware control loop is triggered.
+
 **Acceptance:** feed a synthetic 7-day sensor time series and confirm each rule fires at the right point and stays silent otherwise. Every alert must carry the rule that triggered it — explainability is the point of doing this in code.
 
 ---
@@ -1081,7 +1090,7 @@ Compute ExG, VARI, TGI, NGRDI per grid cell; track canopy cover fraction over ti
 rules_engine → structured finding (JSON) → LLM API → readable text
 ```
 
-**The critical design rule:** the LLM **never diagnoses**. It receives a decided finding and verbalises it. An LLM hallucination cannot invent a disease or recommend a wrong chemical — the worst case is awkward phrasing.
+**The critical design rule:** the LLM **never diagnoses**. It receives a decided finding and verbalises it (including irrigation prescriptions for manual execution). An LLM hallucination cannot invent a disease or recommend a wrong chemical — the worst case is awkward phrasing.
 
 **Requirements:**
 - System prompt states explicitly: *"You are a translator. Render the finding below into simple [language] for a smallholder farmer. Do not add diagnoses, do not add recommendations not present in the JSON, do not change any number."*
@@ -1253,8 +1262,9 @@ Add integration tests for anything you built in Parts 5–7 that makes a decisio
 
 **Two flight modes:**
 ```
-SURVEY    8-15 m AGL, fast   : RGB vegetation indices -> flag cells.  NO CWSI here.
-INSPECT   1.5-2.5 m, slow    : full AI pipeline + CWSI on flagged cells only
+SURVEY    8-15 m AGL, fast   : RGB vegetation indices (or dual-bandpass NDVI survey) -> flag candidate stress cells.
+INSPECT   1.5-2.5 m, slow    : high-resolution RGB disease diagnosis & nutrient estimation on flagged cells.
+NOTE: Thermal CWSI is NOT flown on either pass — it runs continuously on the fixed ground mast station.
 ```
 
 **Acceptance:** a 3-minute flight producing gated frames with valid GPS/altitude tags and at least one correct diagnosis.

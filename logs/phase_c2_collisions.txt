@@ -1,0 +1,27 @@
+Total directories checked: 132
+Total files checked: 35562
+Total case-insensitive collisions found: 3
+
+--- COLLISIONS ---
+In parent 'openset/other_crop_diseases/tomato_leaf_mosaic_virus', collision on lowercased name 'train_tomato_mosaic_virus.jpg':
+  [FILE] old: openset/other_crop_diseases/tomato_leaf_mosaic_virus/train_Tomato+mosaic+virus.jpg -> new: train_Tomato_mosaic_virus.jpg
+  [FILE] old: openset/other_crop_diseases/tomato_leaf_mosaic_virus/train_tomato_mosaic_virus.jpg -> new: train_tomato_mosaic_virus.jpg
+In parent 'openset/other_crop_diseases/tomato_septoria_leaf_spot', collision on lowercased name 'train_septoria_tomato.jpg':
+  [FILE] old: openset/other_crop_diseases/tomato_septoria_leaf_spot/train_septoria+tomato.jpg -> new: train_septoria_tomato.jpg
+  [FILE] old: openset/other_crop_diseases/tomato_septoria_leaf_spot/train_septoria_tomato.jpg -> new: train_septoria_tomato.jpg
+In parent 'openset/other_crop_diseases/tomato_septoria_leaf_spot', collision on lowercased name 'train_septoria_leaf_spot.jpg':
+  [FILE] old: openset/other_crop_diseases/tomato_septoria_leaf_spot/train_Septoria+Leaf+Spot.jpg -> new: train_Septoria_Leaf_Spot.jpg
+  [FILE] old: openset/other_crop_diseases/tomato_septoria_leaf_spot/train_Septoria_Leaf_Spot.jpg -> new: train_Septoria_Leaf_Spot.jpg
+
+--- DISTINCT CHARACTERS REPLACED ---
+Count of distinct characters replaced: 10
+  Character: ' ' (ASCII/Unicode 32, hex 0x20)
+  Character: '%' (ASCII/Unicode 37, hex 0x25)
+  Character: '&' (ASCII/Unicode 38, hex 0x26)
+  Character: '(' (ASCII/Unicode 40, hex 0x28)
+  Character: ')' (ASCII/Unicode 41, hex 0x29)
+  Character: '+' (ASCII/Unicode 43, hex 0x2b)
+  Character: ',' (ASCII/Unicode 44, hex 0x2c)
+  Character: '=' (ASCII/Unicode 61, hex 0x3d)
+  Character: '?' (ASCII/Unicode 63, hex 0x3f)
+  Character: '~' (ASCII/Unicode 126, hex 0x7e)

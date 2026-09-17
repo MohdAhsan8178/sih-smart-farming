@@ -1,0 +1,9 @@
+Total rows in rename_map.csv: 35562
+  Found truncation: openset/other_crop_diseases/blueberry_leaf/train_plant-fruit-berry-leaf-flower-food-herb-produce-blueberry-1090218.jpg
+  Found truncation: openset/other_crop_diseases/squash_powdery_mildew_leaf/train_powdery-mildew-on-squash-plants-forum-news-service-file-photo.jpg
+  Found truncation: openset/other_crop_diseases/grape_leaf/train_nature-plant-grape-vine-wine-fruit-food-green-produce-556232.jpg
+  Found truncation: openset/other_crop_diseases/cherry_leaf/train_tree-branch-blossom-plant-fruit-berry-leaf-flower-ripe-913933.jpg
+  Found truncation: openset/other_crop_diseases/apple_leaf/train_apple-tree-branch-blossom-plant-fruit-berry-leaf-flower-928225.jpg
+  Found suffix override: openset/other_crop_diseases/tomato_leaf_mosaic_virus/train_Tomato_mosaic_virus_a.jpg
+  Found suffix override: openset/other_crop_diseases/tomato_septoria_leaf_spot/train_septoria_tomato_a.jpg
+  Found suffix override: openset/other_crop_diseases/tomato_septoria_leaf_spot/train_Septoria_Leaf_Spot_a.jpg

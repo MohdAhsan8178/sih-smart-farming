@@ -1,0 +1,12 @@
+20:    "print(\"=== /kaggle/input listing (maxdepth 4) ===\")\n",
+21:    "print(subprocess.run([\"find\", \"/kaggle/input\", \"-maxdepth\", \"4\"], capture_output=True, text=True).stdout)"
+37:    "# Search for directory containing train/train_model_a.py under /kaggle/input\n",
+38:    "matches = list(Path(\"/kaggle/input\").rglob(\"train/train_model_a.py\"))\n",
+40:    "    find_out = subprocess.run([\"find\", \"/kaggle/input\", \"-maxdepth\", \"4\"], capture_output=True, text=True).stdout\n",
+42:    "        f\"FATAL: Expected exactly 1 match for 'train/train_model_a.py' under /kaggle/input, \"\n",
+44:    "Full tree under /kaggle/input:\n",
+137:    "# Search for directory containing splits_packaged/train.csv under /kaggle/input\n",
+138:    "matches = list(Path(\"/kaggle/input\").rglob(\"splits_packaged/train.csv\"))\n",
+140:    "    find_out = subprocess.run([\"find\", \"/kaggle/input\", \"-maxdepth\", \"4\"], capture_output=True, text=True).stdout\n",
+142:    "        f\"FATAL: Expected exactly 1 match for 'splits_packaged/train.csv' under /kaggle/input, \"\n",
+144:    "Full tree under /kaggle/input:\n",

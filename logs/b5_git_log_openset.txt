@@ -1,0 +1,29 @@
+commit bb05c08c5919065c767fc0b8298bc6dd9803da8e
+Author: Mohd Ahsan <mohdahsan@192.168.1.7>
+Date:   Fri Sep 4 15:29:59 2026 +0530
+
+    Step 7: Define disjoint category structures for not_crop and openset
+
+ splits/openset_categories.csv | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+commit 30918107c215d2c1603eec85a7df71134f55ccd0
+Author: Mohd Ahsan <mohdahsan@192.168.1.7>
+Date:   Fri Sep 4 15:01:58 2026 +0530
+
+    Step 2: Centralize all paths and constants in configs
+
+ configs/paths.py | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+commit a183f8fcba032e35818fb8d30b4c709770b721e1
+Author: Mohd Ahsan <mohdahsan@192.168.1.7>
+Date:   Fri Sep 4 15:01:05 2026 +0530
+
+    Initial commit: repository scaffold and verified core pipeline
+
+ core/rejection.py                      |  121 +++
+ docs/AI_Handbook_4.md                  | 1809 ++++++++++++++++++++++++++++++++
+ docs/BUILD_CHECKLIST_1.md              |  485 +++++++++
+ docs/ULTIMATE_IMPLEMENTATION_PLAN_1.md | 1400 ++++++++++++++++++++++++
+ 4 files changed, 3815 insertions(+)

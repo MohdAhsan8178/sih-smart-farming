@@ -1,0 +1,139 @@
+"""
+edge package
+------------
+Edge sensing, agronomic modeling, actuation, and LoRa telemetry for Jetson Nano / node gateways.
+"""
+
+from edge.irrigation_model import (
+    calculate_et0_penman_monteith,
+    calculate_et0_hargreaves,
+    get_crop_coefficient,
+    calculate_crop_et,
+    calculate_net_irrigation,
+    calculate_paddy_land_prep_requirement,
+    calculate_paddy_daily_requirement,
+    calculate_paddy_terminal_drainage,
+    evaluate_paddy_awd_status,
+    AWDWaterBudgetAdvisor,
+    FAO56_CROP_COEFFICIENTS,
+    PROVISIONAL_IRRIGATION_EFFICIENCIES,
+    WATER_LEVEL_SENSOR_PRESENT,
+    PROVISIONAL_PADDY_SATURATION_MM,
+    PROVISIONAL_PADDY_LAND_PREP_PONDING_MM,
+    PROVISIONAL_PADDY_PERCOLATION_MM_DAY,
+    PROVISIONAL_PADDY_PERCOLATION_BY_SOIL,
+    PROVISIONAL_AWD_REIRRIGATION_DEFICIT_MM,
+    PROVISIONAL_AWD_REFILL_DEPTH_MM,
+    PROVISIONAL_PADDY_RECOVERY_DAYS,
+    PROVISIONAL_PADDY_TERMINAL_DRAINAGE_DAYS
+)
+from edge.adc import (
+    ADS1115Driver,
+    raw_to_voltage,
+    voltage_to_moisture_pct,
+    PROVISIONAL_V_DRY,
+    PROVISIONAL_V_WET
+)
+from edge.flow import (
+    FlowMonitor,
+    pulses_to_liters,
+    liters_to_pulses,
+    frequency_to_flow_rate_lpm,
+    PROVISIONAL_YF_S201_PULSES_PER_LITER,
+    PROVISIONAL_YF_S201_HZ_PER_LPM
+)
+from edge.actuation import (
+    ActuationController,
+    MockGPIO,
+    PROVISIONAL_MAX_IRRIGATION_DURATION_S,
+    PROVISIONAL_FLOW_DISAGREEMENT_TIMEOUT_S,
+    PROVISIONAL_LEAK_PULSE_THRESHOLD
+)
+from edge.lora import (
+    SX1278Driver,
+    crc16_ccitt,
+    build_lora_packet,
+    parse_lora_packet,
+    encode_telemetry_payload,
+    decode_telemetry_payload
+)
+from edge.thermal_point import (
+    MLX90614Driver,
+    raw_to_celsius_mlx90614,
+    calculate_smbus_pec,
+    verify_smbus_pec
+)
+from edge.camera import (
+    build_gstreamer_pipeline,
+    create_frame_metadata,
+    correct_from_reference_card,
+    SENSOR_ID_RGB,
+    SENSOR_ID_NIR,
+    WBMODE_OFF,
+    PROVISIONAL_EXPOSURE_NS,
+    PROVISIONAL_GAIN,
+    PROVISIONAL_DIGITAL_GAIN,
+    PROVISIONAL_SATURATION_THRESHOLD_DN,
+    PROVISIONAL_SATURATION_ALERT_FRACTION
+)
+
+__all__ = [
+    "calculate_et0_penman_monteith",
+    "calculate_et0_hargreaves",
+    "get_crop_coefficient",
+    "calculate_crop_et",
+    "calculate_net_irrigation",
+    "calculate_paddy_land_prep_requirement",
+    "calculate_paddy_daily_requirement",
+    "calculate_paddy_terminal_drainage",
+    "evaluate_paddy_awd_status",
+    "AWDWaterBudgetAdvisor",
+    "FAO56_CROP_COEFFICIENTS",
+    "PROVISIONAL_IRRIGATION_EFFICIENCIES",
+    "WATER_LEVEL_SENSOR_PRESENT",
+    "PROVISIONAL_PADDY_SATURATION_MM",
+    "PROVISIONAL_PADDY_LAND_PREP_PONDING_MM",
+    "PROVISIONAL_PADDY_PERCOLATION_MM_DAY",
+    "PROVISIONAL_PADDY_PERCOLATION_BY_SOIL",
+    "PROVISIONAL_AWD_REIRRIGATION_DEFICIT_MM",
+    "PROVISIONAL_AWD_REFILL_DEPTH_MM",
+    "PROVISIONAL_PADDY_RECOVERY_DAYS",
+    "PROVISIONAL_PADDY_TERMINAL_DRAINAGE_DAYS",
+    "ADS1115Driver",
+    "raw_to_voltage",
+    "voltage_to_moisture_pct",
+    "PROVISIONAL_V_DRY",
+    "PROVISIONAL_V_WET",
+    "FlowMonitor",
+    "pulses_to_liters",
+    "liters_to_pulses",
+    "frequency_to_flow_rate_lpm",
+    "PROVISIONAL_YF_S201_PULSES_PER_LITER",
+    "PROVISIONAL_YF_S201_HZ_PER_LPM",
+    "ActuationController",
+    "MockGPIO",
+    "PROVISIONAL_MAX_IRRIGATION_DURATION_S",
+    "PROVISIONAL_FLOW_DISAGREEMENT_TIMEOUT_S",
+    "PROVISIONAL_LEAK_PULSE_THRESHOLD",
+    "SX1278Driver",
+    "crc16_ccitt",
+    "build_lora_packet",
+    "parse_lora_packet",
+    "encode_telemetry_payload",
+    "decode_telemetry_payload",
+    "MLX90614Driver",
+    "raw_to_celsius_mlx90614",
+    "calculate_smbus_pec",
+    "verify_smbus_pec",
+    "build_gstreamer_pipeline",
+    "create_frame_metadata",
+    "correct_from_reference_card",
+    "SENSOR_ID_RGB",
+    "SENSOR_ID_NIR",
+    "WBMODE_OFF",
+    "PROVISIONAL_EXPOSURE_NS",
+    "PROVISIONAL_GAIN",
+    "PROVISIONAL_DIGITAL_GAIN",
+    "PROVISIONAL_SATURATION_THRESHOLD_DN",
+    "PROVISIONAL_SATURATION_ALERT_FRACTION",
+]

@@ -1,0 +1,13 @@
+Starting upload for file core.zip
+  0%|          | 0.00/32.3k [00:00<?, ?B/s]100%|██████████| 32.3k/32.3k [00:01<00:00, 32.9kB/s]
+Upload successful: core.zip (32KB)
+Starting upload for file configs.zip
+  0%|          | 0.00/2.31k [00:00<?, ?B/s]100%|██████████| 2.31k/2.31k [00:01<00:00, 2.10kB/s]
+Upload successful: configs.zip (2KB)
+Starting upload for file train.zip
+  0%|          | 0.00/35.7k [00:00<?, ?B/s]100%|██████████| 35.7k/35.7k [00:01<00:00, 35.9kB/s]
+Upload successful: train.zip (36KB)
+Starting upload for file requirements-train.txt
+  0%|          | 0.00/196 [00:00<?, ?B/s]100%|██████████| 196/196 [00:00<00:00, 213B/s]
+Upload successful: requirements-train.txt (196B)
+Dataset version is being created. Please check progress at https://www.kaggle.com/datasets/mohdahsan8178/sih-code

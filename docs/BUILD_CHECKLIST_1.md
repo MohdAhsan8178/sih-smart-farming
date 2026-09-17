@@ -50,13 +50,15 @@ The implementation plan tells you **when** to build things. This tells you **wha
 | ☐ | `trap_config.py` | **HUMAN** | 31 |
 | ☐ | `field_demo.yaml` | BUILD | 34 |
 
-### `core/` — all COPY, none rewritten
+### `core/`
 | ✓ | File | Tag | Step |
 |---|---|---|---|
 | ☐ | `aggregate.py` | **COPY** | 1 |
 | ☐ | `rejection.py` | **COPY** | 1 |
-| ☐ | `thermal.py` | **COPY** | 1 |
-| ☐ | `trap_segmentation.py` | **COPY** | 1 |
+| ☐ | `thermal.py` | **MODIFIED** | 1, 24 |
+| ☐ | `trap_segmentation.py` | **MODIFIED** | 1, 31 |
+| ☐ | `indices.py` | **IMPLEMENTED** | 26 |
+| ☐ | `ndvi.py` | **IMPLEMENTED** | 26 |
 
 ### `train/` — modern Python, never runs on the Nano
 | ✓ | File | Tag | Step |
@@ -76,6 +78,7 @@ The implementation plan tells you **when** to build things. This tells you **wha
 | ☐ | `train_model_b.py` | BUILD | 30 |
 
 ### `edge/` — **Python 3.6 compatible**, runs on the Nano
+> **Scope Note (7 Sep 2026):** Autonomous irrigation actuation is dropped. No solenoid valve, MOSFET driver, or YF-S201 flow meter will be purchased. Actuation is advisory-only: the system produces irrigation prescriptions for manual farmer execution. `edge/actuation.py` and `edge/flow.py` are retained as validated reference implementations for future closed-loop deployment and are NOT wired into any runtime path.
 | ✓ | File | Tag | Step |
 |---|---|---|---|
 | ☐ | `build_engine.sh` | BUILD | 18 |
@@ -87,7 +90,15 @@ The implementation plan tells you **when** to build things. This tells you **wha
 | ☐ | `agronomy.py` | BUILD | 25–26 |
 | ☐ | `rules_engine.py` | BUILD | 27 |
 | ☐ | `advisory.py` | BUILD | 28 |
+| ☐ | `camera.py` | **IMPLEMENTED** | 23 |
 | ☐ | `storage.py` | BUILD | 33 |
+| ☐ | `actuation.py` | REFERENCE (ADVISORY-ONLY) | 27 |
+| ☐ | `flow.py` | REFERENCE (ADVISORY-ONLY) | 27 |
+
+### `scripts/`
+| ✓ | File | Tag | Step |
+|---|---|---|---|
+| ☐ | `calibrate_dual_bandpass.py` | **IMPLEMENTED** | 26 |
 
 ### `gateway/`, `dashboard/`, `firmware/`, `tests/`
 | ✓ | File | Tag | Step |
@@ -177,31 +188,54 @@ The implementation plan tells you **when** to build things. This tells you **wha
 
 ---
 
-## 3. `core/` — the four tested modules
+## 3. `core/` and Sensing Modules — Tested Implementations
 
-> **All four are COPY. Copying is the entire task.** These functions have been broken twice across three red-team rounds. They are now tested. Rewriting them re-opens that surface.
+> Note: `aggregate.py` and `rejection.py` remain tested and frozen. `thermal.py` and `trap_segmentation.py` have received required defect fixes and calibration gates. `indices.py`, `ndvi.py`, `edge/camera.py`, and `scripts/calibrate_dual_bandpass.py` implement the vegetation sensing pipeline.
 
 ### ☐ `core/aggregate.py` — **COPY**, Step 1
 **Provides:** `aggregate_frame(tile_probs, healthy_cols, notcrop_col, ...)` → `(state, class_id, score)` with state in `DISEASE|HEALTHY|NOT_CROP|UNCERTAIN`; `aggregate_cell(frame_results, k, n, min_score)` → dict with state in `DISEASE|HEALTHY|UNCERTAIN|NO_DATA`.
 **Guards:** frames with no healthy path (alarms on pristine fields); top-k averaging diluting a single-tile lesion; `None` conflating healthy with never-visited.
+**Verify:** `pytest tests/test_pipeline.py -k aggregate -v`
 
 ### ☐ `core/rejection.py` — **COPY**, Step 1
 **Provides:** `open_set_energy(logits, crop_cols, T)` (1D and 2D safe); `posthoc_logit_adjust`; `softmax`; `decide(...)`; `fit_energy_threshold(...)`
 **Guards:** energy summed over all logits including `not_crop`; confidence gated on prior-adjusted probabilities; `AxisError` on 1D input.
+**Verify:** `pytest tests/test_pipeline.py -k rejection -v`
 
-### ☐ `core/thermal.py` — **COPY**, Step 1
-**Provides:** `canopy_temperature(thermal, air_temp_c, veg_fraction=None, ...)` → `(temp, fraction)` or `(None, reason)`; `vegetation_mask(bgr)`; `excess_green(bgr)`; `cwsi(...)`
-**Guards:** the inverted spread gate; the `Ta+7` ceiling that suppressed every drought alarm; Otsu bisecting a pure canopy.
+### ☐ `core/thermal.py` — **MODIFIED**, Step 1, 24
+**Status:** MODIFIED — pure-canopy bisection fixed via unimodality ratio guard (`PROVISIONAL_OTSU_MIN_INTERCLASS_VARIANCE_RATIO = 0.85`), fixed-mast rescope applied (veg_fraction=None in mast path), 14-observation baseline gate added.
+**Provides:** `canopy_temperature(thermal, air_temp_c, veg_fraction=None, ...)`; `cwsi(...)`; `fit_non_water_stressed_baseline(...)`.
+**Guards:** Pure-canopy bisection where sun/shade leaf variance falsely split pure canopy; `Ta+15` biophysical gate; NWSB baseline fit requiring $\ge 14$ solar-noon observations.
+**Verify:** `pytest tests/test_pipeline.py -k thermal -v`
 
-### ☐ `core/trap_segmentation.py` — **COPY**, Step 1
-**Provides:** `segment_trap_blobs(bgr, min_area, max_area, abs_floor_px, crop)`; `extract_markers`; `_fill_holes`
-**Guards:** a global `0.3 × dist.max()` threshold erasing micro-pests; `adaptiveThreshold` hollowing large insects; the label-loop off-by-one.
+### ☐ `core/trap_segmentation.py` — **MODIFIED**, Step 1, 31
+**Status:** MODIFIED — dual-threshold marker extraction applied, adaptive thresholding replacing Otsu, label off-by-one fixed.
+**Provides:** `segment_trap_blobs(bgr, min_area, max_area, abs_floor_px, crop)`; `extract_markers`; `_fill_holes`.
+**Guards:** A global `0.3 × dist.max()` threshold erasing micro-pests; `adaptiveThreshold` hollowing large insects; the label-loop off-by-one.
+**Verify:** `pytest tests/test_pipeline.py -k trap -v`
 
-**Verify all four:**
-```bash
-python -m pytest tests/ -v        # 15 passed
-git diff --stat core/             # must show NO changes after the initial copy
-```
+### ☐ `core/indices.py` — **IMPLEMENTED**, Step 26
+**Status:** IMPLEMENTED — six RGB vegetation indices (VARI, TGI, NGRDI, GMR, DGCI, ExG) with band-addressed mapping (`BandMap`) and byte-identical BGR/RGB delegation adapters.
+**Provides:** `vari`, `tgi`, `ngrdi`, `gmr`, `dgci`, `exg`, `vegetation_mask` (absolute ExG threshold), `compute_canopy_indices`.
+**Guards:** Pure-green canopy bisection guarded by absolute ExG threshold (`PROVISIONAL_EXG_VEG_THRESHOLD = 20`); canopy fraction floor (`PROVISIONAL_MIN_CANOPY_FRACTION = 0.15`).
+**Verify:** `pytest tests/test_pipeline.py -k indices -v`
+
+### ☐ `core/ndvi.py` — **IMPLEMENTED**, Step 26
+**Status:** IMPLEMENTED — dual-bandpass (660nm Red, 850nm NIR) NDVI calculation, silicon cross-talk unmixing, and empirical line method (ELM) calibration.
+**Provides:** `compute_ndvi`, `apply_channel_response_correction`, `apply_empirical_line_calibration`, `ndvi_from_dual_bandpass`.
+**Guards:** Inverted Bayer channel mapping (Blue=NIR, Red=660nm); bench cross-talk calibration gate (raises `NotImplementedError` if `calib_matrix is None`); ELM panel reflectance gate (raises `RuntimeError` if unconfirmed and `--allow-provisional` is False).
+**Verify:** `pytest tests/test_pipeline.py -k "ndvi or cross_talk or empirical_line" -v`
+
+### ☐ `edge/camera.py` — **IMPLEMENTED**, Step 23
+**Status:** IMPLEMENTED — dual CSI camera capture abstraction on Jetson Nano with hardware port isolation (CSI-0 = RGB inspection, CSI-1 = NIR survey).
+**Provides:** `DualCameraPipeline`, `CameraConfig`, GStreamer pipeline generation with nvarguscamerasrc and locked AWB/AE.
+**Guards:** Separation of survey and inspection cameras without inter-port pixel-level fusion (preventing rolling-shutter shear and temporal sync failure).
+**Verify:** `pytest tests/test_pipeline.py -k camera -v`
+
+### ☐ `scripts/calibrate_dual_bandpass.py` — **IMPLEMENTED**, Step 26
+**Status:** IMPLEMENTED — optical bench cross-talk response calibration script for computing $K^{-1}$ from 660nm and 850nm reference illumination measurements.
+**Provides:** `compute_unmixing_matrix`, verification of invertibility, export to JSON calibration file for `core/ndvi.py`.
+**Verify:** `python scripts/calibrate_dual_bandpass.py --mock --output /tmp/test_calib.json`
 
 ---
 
@@ -250,9 +284,9 @@ print('ok', [len(x) for x in d])"
 **Verify:** `x.shape == (B,3,224,224)`, dtype float, normalized range.
 
 ### ☐ `train/model.py` — BUILD, Step 12
-**Must:** `build_model(backbone, num_classes=31, pretrained=True, drop_rate, drop_path_rate)` returning a plain `timm` model. Flat 31-class head.
+**Must:** `build_model(backbone, num_classes=None, pretrained=True, drop_rate, drop_path_rate)` returning a plain `timm` model. Flat classification head with width resolved dynamically from `configs/classes.py` at runtime (`len(CLASS_NAMES)`), not a literal constant.
 **MUST NOT:** add attention modules, ensembles, or LSTM heads. Each addition risks ONNX export failure and none helps as much as the augmentation pipeline.
-**Verify:** `build_model()(torch.randn(2,3,224,224)).shape == (2,31)`
+**Verify:** `build_model()(torch.randn(2,3,224,224)).shape == (2, len(CLASS_NAMES))`
 
 ### ☐ `train/train_model_a.py` — BUILD, Steps 12–13
 **Must:** a `--stage {1,2,3}` flag. Stage 1 = plain baseline. Stage 2 = full augmentation + class balancing + slicing + mixup/cutmix. Stage 3 = **online** consistent-teaching distillation (teacher sees the *identical* augmented tensor). AdamW, discriminative LR, OneCycle, EMA, AMP, grad clip. **Select checkpoints on macro-F1, never accuracy.** Write `artifacts/reports/stage{N}_metrics.json` with `val_macro_f1`, `val_top1`, `per_class_recall`.
@@ -318,7 +352,7 @@ with ImageNet mean/std in **true RGB order**. Export at `opset=13`, `batch=ENGIN
 **Verify:** `--source test_video.mp4 --dry-run --report` prints frames seen, gate pass rate, tiles classified, per-cell verdicts, and **2–4 scenes/sec**; exits cleanly.
 
 ### ☐ `edge/sensors.py` — BUILD, Step 23
-**Must provide:** thermal (MLX90640 or MLX90614), DHT22/SHT31 → temp + RH + derived VPD, capacitive soil probes, CSI camera with **AWB and AE locked to fixed gains**, GPS + IMU + rangefinder. **Every class needs a `--simulate` mode** returning plausible synthetic values.
+**Must provide:** fixed ground mast thermal station (MLX90640 spatial array for canopy extraction + MLX90614 for continuous cross-check/drift), DHT22/SHT31 → temp + RH + derived VPD, capacitive soil probes, dual CSI cameras (CSI-0 RGB inspection, CSI-1 dual-bandpass NIR survey) with **AWB and AE locked to fixed gains**, GPS + IMU + rangefinder. **Every class needs a `--simulate` mode** returning plausible synthetic values.
 **MUST NOT:** leave auto-white-balance enabled. A camera that re-balances every frame makes colourimetry meaningless.
 **Verify:** `python3 edge/sensors.py --selftest --simulate` prints one reading per sensor with units and timestamp.
 
@@ -331,11 +365,12 @@ with ImageNet mean/std in **true RGB order**. Export at `opset=13`, `batch=ENGIN
 ### ☐ `edge/rules_engine.py` — BUILD, Step 27
 **Must implement:** heat stress (consecutive hours above crop-critical temperature); flood (24/72 h rainfall + saturation persistence); drought (water-balance deficit + CWSI trend); disease-favourable (leaf wetness × temperature windows); pest pressure (trap counts vs ETL + slope).
 **Must emit the structured finding JSON:** `{crop, condition, confidence, area_pct, cell, cwsi, soil_moisture_pct, risk_flags, action, severity, timestamp}` — this is the contract with `advisory.py`.
+**Irrigation Actuation Scope Note (7 Sep 2026):** Autonomous irrigation actuation is dropped. No solenoid valve, MOSFET driver, or YF-S201 flow meter will be purchased. The system produces irrigation prescriptions displayed to the farmer, who irrigates manually. Actuation is advisory-only. `edge/actuation.py` and `edge/flow.py` are retained as validated reference implementations only and are NOT wired into any runtime path.
 **Must:** attach the triggering rule name to every alert. Explainability is the point of doing this in code.
 **Verify:** a synthetic 7-day time series fires each rule at the right point and stays silent otherwise.
 
 ### ☐ `edge/advisory.py` — BUILD, Step 28
-**Must:** take a structured finding, call the LLM API with a system prompt stating *"You are a translator. Render the finding below into simple [language] for a smallholder farmer. Do not add diagnoses, do not add recommendations not present in the JSON, do not change any number."* Support Hindi + one regional language + English, plus a 160-char SMS variant. **Offline fallback: a pre-written template per finding type.**
+**Must:** take a structured finding, call the LLM API with a system prompt stating *"You are a translator. Render the finding below into simple [language] for a smallholder farmer. Do not add diagnoses, do not add recommendations not present in the JSON, do not change any number."* Support Hindi + one regional language + English, plus a 160-char SMS variant. **Offline fallback: a pre-written template per finding type.** Irrigation recommendations are rendered as actionable manual prescriptions for the farmer.
 **MUST NOT:** pass raw sensor readings or model logits to the LLM for interpretation. The LLM renders a decided finding; it never diagnoses.
 **Verify:** **with the network disabled**, every finding type still produces sensible template output. Run it with WiFi off — that is the test that matters.
 

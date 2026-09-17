@@ -1,0 +1,182 @@
+[{"stream_name":"stderr","time":12.424658727,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":12.424729829,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":12.424738668,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":12.42474385,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stderr","time":13.216644131,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":13.216687221,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":13.216693479,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":13.216697748,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stdout","time":20.815585568,"data":"W\u0026B key: Kaggle Secret (length 86).\n"}
+,{"stream_name":"stderr","time":46.55684694,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.\n"}
+,{"stream_name":"stderr","time":46.556880882,"data":"\n"}
+,{"stream_name":"stderr","time":46.556887342,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.\n"}
+,{"stream_name":"stderr","time":46.657450462,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Currently logged in as: \u001b[33mahsanmohdcr7\u001b[0m to \u001b[32mhttps://api.wandb.ai\u001b[0m. Use \u001b[1m`wandb login --relogin`\u001b[0m to force relogin\n"}
+,{"stream_name":"stderr","time":46.657482367,"data":"\n"}
+,{"stream_name":"stderr","time":46.657488811,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Currently logged in as: \u001b[33mahsanmohdcr7\u001b[0m to \u001b[32mhttps://api.wandb.ai\u001b[0m. Use \u001b[1m`wandb login --relogin`\u001b[0m to force relogin\n"}
+,{"stream_name":"stdout","time":46.753378258,"data":"Using W\u0026B entity: prism-team\n"}
+,{"stream_name":"stderr","time":48.718545644,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Tracking run with wandb version 0.26.1\n"}
+,{"stream_name":"stderr","time":48.718584359,"data":"\n"}
+,{"stream_name":"stderr","time":48.718592448,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Tracking run with wandb version 0.26.1\n"}
+,{"stream_name":"stderr","time":48.719814165,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Run data is saved locally in \u001b[35m\u001b[1m/kaggle/working/wandb/run-20260916_154308-podk23lc\u001b[0m\n"}
+,{"stream_name":"stderr","time":48.719841553,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Run \u001b[1m`wandb offline`\u001b[0m to turn off syncing.\n"}
+,{"stream_name":"stderr","time":48.720027238,"data":"\n"}
+,{"stream_name":"stderr","time":48.720034185,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Run data is saved locally in \u001b[35m\u001b[1m/kaggle/working/wandb/run-20260916_154308-podk23lc\u001b[0m\n"}
+,{"stream_name":"stderr","time":48.720040938,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Run \u001b[1m`wandb offline`\u001b[0m to turn off syncing.\n"}
+,{"stream_name":"stderr","time":48.721104613,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Syncing run \u001b[33mmodel-b-mobilenetv3-v4\u001b[0m\n"}
+,{"stream_name":"stderr","time":48.721126593,"data":"\n"}
+,{"stream_name":"stderr","time":48.721138805,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: Syncing run \u001b[33mmodel-b-mobilenetv3-v4\u001b[0m\n"}
+,{"stream_name":"stderr","time":48.722320304,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: ⭐️ View project at \u001b[34m\u001b[4mhttps://wandb.ai/prism-team/sih-model-b-trap-pest-classifier\u001b[0m\n"}
+,{"stream_name":"stderr","time":48.722401196,"data":"\n"}
+,{"stream_name":"stderr","time":48.722408247,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: ⭐️ View project at \u001b[34m\u001b[4mhttps://wandb.ai/prism-team/sih-model-b-trap-pest-classifier\u001b[0m\n"}
+,{"stream_name":"stderr","time":48.723401149,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: 🚀 View run at \u001b[34m\u001b[4mhttps://wandb.ai/prism-team/sih-model-b-trap-pest-classifier/runs/podk23lc\u001b[0m\n"}
+,{"stream_name":"stderr","time":48.723419365,"data":"\n"}
+,{"stream_name":"stderr","time":48.723424136,"data":"\u001b[34m\u001b[1mwandb\u001b[0m: 🚀 View run at \u001b[34m\u001b[4mhttps://wandb.ai/prism-team/sih-model-b-trap-pest-classifier/runs/podk23lc\u001b[0m\n"}
+,{"stream_name":"stdout","time":49.640249239,"data":"\u003e\u003e\u003e W\u0026B RUN URL: https://wandb.ai/prism-team/sih-model-b-trap-pest-classifier/runs/podk23lc\n"}
+,{"stream_name":"stdout","time":50.303633634,"data":"kagglehub path: /kaggle/input/datasets/mohdahsan8178/sih-model-b-dataset\n"}
+,{"stream_name":"stdout","time":116.782102552,"data":"Found manifest: /kaggle/input/datasets/mohdahsan8178/sih-model-b-dataset/model_b_manifest_v4.csv\n"}
+,{"stream_name":"stdout","time":116.782139107,"data":"Manifest rows: 30555\n"}
+,{"stream_name":"stdout","time":117.139292165,"data":"split              openset_eval  test_cross_card  test_indist  train   val  \\\n"}
+,{"stream_name":"stdout","time":117.139368785,"data":"class_name                                                                   \n"}
+,{"stream_name":"stdout","time":117.139385091,"data":"debris                        0              603          569   3154   339   \n"}
+,{"stream_name":"stdout","time":117.139401465,"data":"larger_insect                 0              556          418   2622   413   \n"}
+,{"stream_name":"stdout","time":117.139407493,"data":"openset_hard                579                0            0      0     0   \n"}
+,{"stream_name":"stdout","time":117.139413179,"data":"small_pale_winged             0              948         2004  15300  3050   \n"}
+,{"stream_name":"stdout","time":117.139419306,"data":"All                         579             2107         2991  21076  3802   \n"}
+,{"stream_name":"stdout","time":117.139424274,"data":"\n"}
+,{"stream_name":"stdout","time":117.139429589,"data":"split                All  \n"}
+,{"stream_name":"stdout","time":117.139434054,"data":"class_name                \n"}
+,{"stream_name":"stdout","time":117.139438371,"data":"debris              4665  \n"}
+,{"stream_name":"stdout","time":117.139442568,"data":"larger_insect       4009  \n"}
+,{"stream_name":"stdout","time":117.139447036,"data":"openset_hard         579  \n"}
+,{"stream_name":"stdout","time":117.139451928,"data":"small_pale_winged  21302  \n"}
+,{"stream_name":"stdout","time":117.139456321,"data":"All                30555  \n"}
+,{"stream_name":"stdout","time":117.139460693,"data":"IMAGE_ROOT: /kaggle/input/datasets/mohdahsan8178/sih-model-b-dataset/model_b_patches_v4/model_b_patches_v4\n"}
+,{"stream_name":"stdout","time":117.343788601,"data":"Device: cuda\n"}
+,{"stream_name":"stderr","time":117.436360299,"data":"Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n"}
+,{"stream_name":"stderr","time":117.43639532,"data":"\n"}
+,{"stream_name":"stderr","time":117.43640185,"data":"Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n"}
+,{"stream_name":"stdout","time":256.590671689,"data":"Epoch 01 | Train Loss: 0.8309 | Val Macro-F1: 0.9913 | Bal-Acc: 99.17%\n"}
+,{"stream_name":"stdout","time":315.00410885,"data":"Epoch 02 | Train Loss: 0.0989 | Val Macro-F1: 0.9903 | Bal-Acc: 98.66%\n"}
+,{"stream_name":"stdout","time":370.976708542,"data":"Epoch 03 | Train Loss: 0.0744 | Val Macro-F1: 0.9918 | Bal-Acc: 99.17%\n"}
+,{"stream_name":"stdout","time":427.419082504,"data":"Epoch 04 | Train Loss: 0.0660 | Val Macro-F1: 0.9945 | Bal-Acc: 99.53%\n"}
+,{"stream_name":"stdout","time":478.594324,"data":"Epoch 05 | Train Loss: 0.0600 | Val Macro-F1: 0.9923 | Bal-Acc: 99.67%\n"}
+,{"stream_name":"stdout","time":524.004823131,"data":"Epoch 06 | Train Loss: 0.0562 | Val Macro-F1: 0.9823 | Bal-Acc: 99.28%\n"}
+,{"stream_name":"stdout","time":566.404826686,"data":"Epoch 07 | Train Loss: 0.0470 | Val Macro-F1: 0.9954 | Bal-Acc: 99.47%\n"}
+,{"stream_name":"stdout","time":609.074455812,"data":"Epoch 08 | Train Loss: 0.0439 | Val Macro-F1: 0.9955 | Bal-Acc: 99.60%\n"}
+,{"stream_name":"stdout","time":654.097941669,"data":"Epoch 09 | Train Loss: 0.0420 | Val Macro-F1: 0.9973 | Bal-Acc: 99.65%\n"}
+,{"stream_name":"stdout","time":698.90878403,"data":"Epoch 10 | Train Loss: 0.0413 | Val Macro-F1: 0.9955 | Bal-Acc: 99.67%\n"}
+,{"stream_name":"stdout","time":742.532394917,"data":"Epoch 11 | Train Loss: 0.0375 | Val Macro-F1: 0.9950 | Bal-Acc: 99.73%\n"}
+,{"stream_name":"stdout","time":787.689500054,"data":"Epoch 12 | Train Loss: 0.0356 | Val Macro-F1: 0.9941 | Bal-Acc: 99.64%\n"}
+,{"stream_name":"stdout","time":832.576108845,"data":"Epoch 13 | Train Loss: 0.0283 | Val Macro-F1: 0.9954 | Bal-Acc: 99.54%\n"}
+,{"stream_name":"stdout","time":877.416879849,"data":"Epoch 14 | Train Loss: 0.0323 | Val Macro-F1: 0.9964 | Bal-Acc: 99.64%\n"}
+,{"stream_name":"stdout","time":877.416915129,"data":"Early stopping at epoch 14.\n"}
+,{"stream_name":"stdout","time":877.416921178,"data":"\n"}
+,{"stream_name":"stdout","time":877.416926714,"data":"Loaded best checkpoint (val Macro-F1 = 0.9973)\n"}
+,{"stream_name":"stdout","time":896.214251748,"data":"\n"}
+,{"stream_name":"stdout","time":896.214284158,"data":"==============================================================\n"}
+,{"stream_name":"stdout","time":896.214290196,"data":"IN-DISTRIBUTION TEST (group-isolated cards)\n"}
+,{"stream_name":"stdout","time":896.214294964,"data":"==============================================================\n"}
+,{"stream_name":"stdout","time":896.214299686,"data":"Macro-F1           : 0.9921\n"}
+,{"stream_name":"stdout","time":896.214304544,"data":"Balanced Accuracy  : 99.52%\n"}
+,{"stream_name":"stdout","time":896.214308946,"data":"                   precision    recall  f1-score   support\n"}
+,{"stream_name":"stdout","time":896.214313544,"data":"\n"}
+,{"stream_name":"stdout","time":896.214318554,"data":"small_pale_winged     0.9990    0.9940    0.9965      2004\n"}
+,{"stream_name":"stdout","time":896.214323538,"data":"    larger_insect     0.9697    0.9952    0.9823       418\n"}
+,{"stream_name":"stdout","time":896.214329821,"data":"           debris     0.9982    0.9965    0.9974       569\n"}
+,{"stream_name":"stdout","time":896.214340563,"data":"\n"}
+,{"stream_name":"stdout","time":896.214343864,"data":"         accuracy                         0.9947      2991\n"}
+,{"stream_name":"stdout","time":896.214347011,"data":"        macro avg     0.9890    0.9952    0.9921      2991\n"}
+,{"stream_name":"stdout","time":896.21435016,"data":"     weighted avg     0.9948    0.9947    0.9947      2991\n"}
+,{"stream_name":"stdout","time":896.214353281,"data":"\n"}
+,{"stream_name":"stdout","time":909.551218362,"data":"\n"}
+,{"stream_name":"stdout","time":909.551250841,"data":"==============================================================\n"}
+,{"stream_name":"stdout","time":909.551265907,"data":"FINAL CROSS-CARD BENCHMARK (84 HELD-OUT 4TU CARDS)  \u003c-- HEADLINE\n"}
+,{"stream_name":"stdout","time":909.551271033,"data":"==============================================================\n"}
+,{"stream_name":"stdout","time":909.551275402,"data":"Macro-F1 (HEADLINE): 0.9861\n"}
+,{"stream_name":"stdout","time":909.551279629,"data":"Balanced Accuracy  : 98.61%\n"}
+,{"stream_name":"stdout","time":909.551283721,"data":"\n"}
+,{"stream_name":"stdout","time":909.551287968,"data":"Confusion Matrix (rows = true, cols = predicted):\n"}
+,{"stream_name":"stdout","time":909.551292544,"data":"                     small_pale_winged    larger_insect    debris    \n"}
+,{"stream_name":"stdout","time":909.551297016,"data":"small_pale_winged    934                  7                7         \n"}
+,{"stream_name":"stdout","time":909.551301206,"data":"larger_insect        13                   541              2         \n"}
+,{"stream_name":"stdout","time":909.551305385,"data":"debris               0                    0                603       \n"}
+,{"stream_name":"stdout","time":909.551309733,"data":"\n"}
+,{"stream_name":"stdout","time":909.551313748,"data":"                   precision    recall  f1-score   support\n"}
+,{"stream_name":"stdout","time":909.551318062,"data":"\n"}
+,{"stream_name":"stdout","time":909.551321917,"data":"small_pale_winged     0.9863    0.9852    0.9858       948\n"}
+,{"stream_name":"stdout","time":909.551325998,"data":"    larger_insect     0.9872    0.9730    0.9801       556\n"}
+,{"stream_name":"stdout","time":909.551330244,"data":"           debris     0.9853    1.0000    0.9926       603\n"}
+,{"stream_name":"stdout","time":909.551334641,"data":"\n"}
+,{"stream_name":"stdout","time":909.551338629,"data":"         accuracy                         0.9862      2107\n"}
+,{"stream_name":"stdout","time":909.55134277,"data":"        macro avg     0.9863    0.9861    0.9861      2107\n"}
+,{"stream_name":"stdout","time":909.551347037,"data":"     weighted avg     0.9862    0.9862    0.9862      2107\n"}
+,{"stream_name":"stdout","time":909.551351292,"data":"\n"}
+,{"stream_name":"stdout","time":909.551355254,"data":"Operational ETL Leakage (Whitefly -\u003e Larger): 0.74%  [PASS, ceiling 5.0%]\n"}
+,{"stream_name":"stdout","time":909.551359773,"data":"larger_insect recall (the morphology-bearing number): 97.30%\n"}
+,{"stream_name":"stdout","time":914.360828127,"data":"\n"}
+,{"stream_name":"stdout","time":914.360867458,"data":"Fitted Temperature T_cal      = 0.9997\n"}
+,{"stream_name":"stdout","time":914.3608728,"data":"Fitted Energy Threshold       = -3.8061  (95% ID TPR)\n"}
+,{"stream_name":"stderr","time":914.378733827,"data":"/tmp/ipykernel_23/1342426415.py:442: RuntimeWarning: overflow encountered in exp\n"}
+,{"stream_name":"stderr","time":914.37876729,"data":"  id_energy = -T_cal * np.log(np.sum(np.exp(l_valb / T_cal), axis=1))\n"}
+,{"stream_name":"stderr","time":914.378773515,"data":"\n"}
+,{"stream_name":"stderr","time":914.378778388,"data":"/tmp/ipykernel_23/1342426415.py:442: RuntimeWarning: overflow encountered in exp\n"}
+,{"stream_name":"stderr","time":914.3787829,"data":"  id_energy = -T_cal * np.log(np.sum(np.exp(l_valb / T_cal), axis=1))\n"}
+,{"stream_name":"stdout","time":918.324323744,"data":"OOD Rejection on hard non-targets: 80.31%\n"}
+,{"stream_name":"stderr","time":918.325257434,"data":"/tmp/ipykernel_23/1342426415.py:447: RuntimeWarning: overflow encountered in exp\n"}
+,{"stream_name":"stderr","time":918.325278984,"data":"  ood_energy = -T_cal * np.log(np.sum(np.exp(l_ood / T_cal), axis=1))\n"}
+,{"stream_name":"stderr","time":918.32529765,"data":"\n"}
+,{"stream_name":"stderr","time":918.32530173,"data":"/tmp/ipykernel_23/1342426415.py:447: RuntimeWarning: overflow encountered in exp\n"}
+,{"stream_name":"stderr","time":918.325305905,"data":"  ood_energy = -T_cal * np.log(np.sum(np.exp(l_ood / T_cal), axis=1))\n"}
+,{"stream_name":"stdout","time":918.819436352,"data":"\u001b[1;34mwandb\u001b[0m: \n"}
+,{"stream_name":"stdout","time":918.820355566,"data":"\u001b[1;34mwandb\u001b[0m: 🚀 View run \u001b[33mmodel-b-mobilenetv3-v4\u001b[0m at: \u001b[34mhttps://wandb.ai/prism-team/sih-model-b-trap-pest-classifier/runs/podk23lc\u001b[0m\n"}
+,{"stream_name":"stdout","time":918.820376223,"data":"\u001b[1;34mwandb\u001b[0m: Find logs at: \u001b[1;35mwandb/run-20260916_154308-podk23lc/logs\u001b[0m\n"}
+,{"stream_name":"stderr","time":922.090290153,"data":"Traceback (most recent call last):\n"}
+,{"stream_name":"stderr","time":922.090324197,"data":"  File \"\u003cstring\u003e\", line 1, in \u003cmodule\u003e\n"}
+,{"stream_name":"stderr","time":922.090341131,"data":"  File \"/usr/local/lib/python3.12/dist-packages/papermill/execute.py\", line 131, in execute_notebook\n"}
+,{"stream_name":"stderr","time":922.090387377,"data":"    raise_for_execution_errors(nb, output_path)\n"}
+,{"stream_name":"stderr","time":922.090498005,"data":"  File \"/usr/local/lib/python3.12/dist-packages/papermill/execute.py\", line 251, in raise_for_execution_errors\n"}
+,{"stream_name":"stderr","time":922.090661267,"data":"    raise error\n"}
+,{"stream_name":"stderr","time":922.090877696,"data":"papermill.exceptions.PapermillExecutionError: \n"}
+,{"stream_name":"stderr","time":922.090885207,"data":"---------------------------------------------------------------------------\n"}
+,{"stream_name":"stderr","time":922.090889232,"data":"Exception encountered at \"In [1]\":\n"}
+,{"stream_name":"stderr","time":922.090892842,"data":"---------------------------------------------------------------------------\n"}
+,{"stream_name":"stderr","time":922.090897054,"data":"ModuleNotFoundError                       Traceback (most recent call last)\n"}
+,{"stream_name":"stderr","time":922.090900553,"data":"/tmp/ipykernel_23/1342426415.py in \u003ccell line: 0\u003e()\n"}
+,{"stream_name":"stderr","time":922.090904357,"data":"    459 dummy_input = torch.randn(1, 3, 64, 64).to(device)\n"}
+,{"stream_name":"stderr","time":922.090907744,"data":"    460 onnx_path = WORK_DIR / \"model_b_calibrated.onnx\"\n"}
+,{"stream_name":"stderr","time":922.090911188,"data":"--\u003e 461 torch.onnx.export(model, dummy_input, str(onnx_path), opset_version=13,\n"}
+,{"stream_name":"stderr","time":922.090914776,"data":"    462                   input_names=[\"input\"], output_names=[\"logits\"],\n"}
+,{"stream_name":"stderr","time":922.090918469,"data":"    463                   dynamic_axes={\"input\": {0: \"batch\"}, \"logits\": {0: \"batch\"}})\n"}
+,{"stream_name":"stderr","time":922.090922314,"data":"\n"}
+,{"stream_name":"stderr","time":922.090925768,"data":"/usr/local/lib/python3.12/dist-packages/torch/onnx/__init__.py in export(model, args, f, kwargs, verbose, input_names, output_names, opset_version, dynamo, external_data, dynamic_shapes, custom_translation_table, report, optimize, verify, profile, dump_exported_program, artifacts_dir, fallback, export_params, keep_initializers_as_inputs, dynamic_axes, training, operator_export_type, do_constant_folding, custom_opsets, export_modules_as_functions, autograd_inlining)\n"}
+,{"stream_name":"stderr","time":922.090931939,"data":"    280     \"\"\"\n"}
+,{"stream_name":"stderr","time":922.090936364,"data":"    281     if dynamo is True or isinstance(model, torch.export.ExportedProgram):\n"}
+,{"stream_name":"stderr","time":922.090941151,"data":"--\u003e 282         from torch.onnx._internal.exporter import _compat\n"}
+,{"stream_name":"stderr","time":922.090975249,"data":"    283 \n"}
+,{"stream_name":"stderr","time":922.090986233,"data":"    284         if isinstance(args, torch.Tensor):\n"}
+,{"stream_name":"stderr","time":922.090989868,"data":"\n"}
+,{"stream_name":"stderr","time":922.090993016,"data":"/usr/local/lib/python3.12/dist-packages/torch/onnx/_internal/exporter/_compat.py in \u003cmodule\u003e\n"}
+,{"stream_name":"stderr","time":922.090996667,"data":"     14 from torch.onnx import _constants as onnx_constants\n"}
+,{"stream_name":"stderr","time":922.091000122,"data":"     15 from torch.onnx._internal._lazy_import import onnx, onnxscript_apis, onnxscript_ir as ir\n"}
+,{"stream_name":"stderr","time":922.091003584,"data":"---\u003e 16 from torch.onnx._internal.exporter import (\n"}
+,{"stream_name":"stderr","time":922.091006979,"data":"     17     _constants,\n"}
+,{"stream_name":"stderr","time":922.091010199,"data":"     18     _core,\n"}
+,{"stream_name":"stderr","time":922.091013551,"data":"\n"}
+,{"stream_name":"stderr","time":922.091016613,"data":"/usr/local/lib/python3.12/dist-packages/torch/onnx/_internal/exporter/_core.py in \u003cmodule\u003e\n"}
+,{"stream_name":"stderr","time":922.091020908,"data":"     17 from typing import Any, Literal\n"}
+,{"stream_name":"stderr","time":922.091024921,"data":"     18 \n"}
+,{"stream_name":"stderr","time":922.091028977,"data":"---\u003e 19 import onnxscript\n"}
+,{"stream_name":"stderr","time":922.091033183,"data":"     20 import onnxscript.evaluator\n"}
+,{"stream_name":"stderr","time":922.091037251,"data":"     21 from onnxscript import ir\n"}
+,{"stream_name":"stderr","time":922.091040571,"data":"\n"}
+,{"stream_name":"stderr","time":922.091044219,"data":"ModuleNotFoundError: No module named 'onnxscript'\n"}
+,{"stream_name":"stderr","time":922.091047674,"data":"\n"}
+,{"stream_name":"stderr","time":924.578320999,"data":"/usr/local/lib/python3.12/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
+,{"stream_name":"stderr","time":924.578354179,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
+,{"stream_name":"stderr","time":924.808191404,"data":"/usr/local/lib/python3.12/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
+,{"stream_name":"stderr","time":924.808219666,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
+,{"stream_name":"stderr","time":925.53445358,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to notebook\n"}
+,{"stream_name":"stderr","time":925.848561084,"data":"[NbConvertApp] Writing 49950 bytes to __notebook__.ipynb\n"}
+,{"stream_name":"stderr","time":928.26596117,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to html\n"}
+,{"stream_name":"stderr","time":929.212145649,"data":"[NbConvertApp] Writing 389694 bytes to __results__.html\n"}
+]

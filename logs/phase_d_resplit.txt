@@ -1,0 +1,29 @@
+[resplit] Reading /Users/mohdahsan/Downloads/SIH/sih-smart-farming/splits/all_images.csv...
+[resplit] Total manifest images: 30039 (22303 unique groups)
+[resplit] Cross-domain pool: 9389 images (4796 unique groups)
+[resplit] In-distribution pool: 20650 images (17507 unique groups)
+
+[resplit] Saved splits to /Users/mohdahsan/Downloads/SIH/sih-smart-farming/splits_v2:
+  train.csv:            24083 images (17844 unique groups, 29 classes)
+  val.csv:               2956 images ( 2228 unique groups, 29 classes)
+  test_indist.csv:       2069 images ( 1752 unique groups, 29 classes)
+  test_crossdomain.csv:   931 images (  479 unique groups, 12 classes)
+
+=== LEAKAGE VERIFICATION (group_id) ===
+  train vs val group_id overlap:              0
+  train vs test_indist group_id overlap:      0
+  train vs test_crossdomain group_id overlap: 0
+  val vs test_indist group_id overlap:        0
+  val vs test_crossdomain group_id overlap:   0
+  test_indist vs test_crossdomain overlap:    0
+
+=== LEAKAGE VERIFICATION (path) ===
+  train vs val path overlap:              0
+  train vs test_indist path overlap:      0
+  train vs test_crossdomain path overlap: 0
+  val vs test_indist path overlap:        0
+  val vs test_crossdomain path overlap:   0
+  test_indist vs test_crossdomain path:   0
+
+[resplit] Verification SUCCESS: Zero group_id leakage and zero path leakage across all boundaries.
+[resplit] Persisted raw class weights measurement to: /Users/mohdahsan/Downloads/SIH/sih-smart-farming/splits_v2/class_weights.json

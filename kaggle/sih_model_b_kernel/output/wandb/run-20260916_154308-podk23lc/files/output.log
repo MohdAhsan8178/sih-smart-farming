@@ -1,0 +1,88 @@
+>>> W&B RUN URL: https://wandb.ai/prism-team/sih-model-b-trap-pest-classifier/runs/podk23lc
+kagglehub path: /kaggle/input/datasets/mohdahsan8178/sih-model-b-dataset
+Found manifest: /kaggle/input/datasets/mohdahsan8178/sih-model-b-dataset/model_b_manifest_v4.csv
+Manifest rows: 30555
+split              openset_eval  test_cross_card  test_indist  train   val  \
+class_name
+debris                        0              603          569   3154   339
+larger_insect                 0              556          418   2622   413
+openset_hard                579                0            0      0     0
+small_pale_winged             0              948         2004  15300  3050
+All                         579             2107         2991  21076  3802
+
+split                All
+class_name
+debris              4665
+larger_insect       4009
+openset_hard         579
+small_pale_winged  21302
+All                30555
+IMAGE_ROOT: /kaggle/input/datasets/mohdahsan8178/sih-model-b-dataset/model_b_patches_v4/model_b_patches_v4
+Device: cuda
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Epoch 01 | Train Loss: 0.8309 | Val Macro-F1: 0.9913 | Bal-Acc: 99.17%
+Epoch 02 | Train Loss: 0.0989 | Val Macro-F1: 0.9903 | Bal-Acc: 98.66%
+Epoch 03 | Train Loss: 0.0744 | Val Macro-F1: 0.9918 | Bal-Acc: 99.17%
+Epoch 04 | Train Loss: 0.0660 | Val Macro-F1: 0.9945 | Bal-Acc: 99.53%
+Epoch 05 | Train Loss: 0.0600 | Val Macro-F1: 0.9923 | Bal-Acc: 99.67%
+Epoch 06 | Train Loss: 0.0562 | Val Macro-F1: 0.9823 | Bal-Acc: 99.28%
+Epoch 07 | Train Loss: 0.0470 | Val Macro-F1: 0.9954 | Bal-Acc: 99.47%
+Epoch 08 | Train Loss: 0.0439 | Val Macro-F1: 0.9955 | Bal-Acc: 99.60%
+Epoch 09 | Train Loss: 0.0420 | Val Macro-F1: 0.9973 | Bal-Acc: 99.65%
+Epoch 10 | Train Loss: 0.0413 | Val Macro-F1: 0.9955 | Bal-Acc: 99.67%
+Epoch 11 | Train Loss: 0.0375 | Val Macro-F1: 0.9950 | Bal-Acc: 99.73%
+Epoch 12 | Train Loss: 0.0356 | Val Macro-F1: 0.9941 | Bal-Acc: 99.64%
+Epoch 13 | Train Loss: 0.0283 | Val Macro-F1: 0.9954 | Bal-Acc: 99.54%
+Epoch 14 | Train Loss: 0.0323 | Val Macro-F1: 0.9964 | Bal-Acc: 99.64%
+Early stopping at epoch 14.
+
+Loaded best checkpoint (val Macro-F1 = 0.9973)
+
+==============================================================
+IN-DISTRIBUTION TEST (group-isolated cards)
+==============================================================
+Macro-F1           : 0.9921
+Balanced Accuracy  : 99.52%
+                   precision    recall  f1-score   support
+
+small_pale_winged     0.9990    0.9940    0.9965      2004
+    larger_insect     0.9697    0.9952    0.9823       418
+           debris     0.9982    0.9965    0.9974       569
+
+         accuracy                         0.9947      2991
+        macro avg     0.9890    0.9952    0.9921      2991
+     weighted avg     0.9948    0.9947    0.9947      2991
+
+
+==============================================================
+FINAL CROSS-CARD BENCHMARK (84 HELD-OUT 4TU CARDS)  <-- HEADLINE
+==============================================================
+Macro-F1 (HEADLINE): 0.9861
+Balanced Accuracy  : 98.61%
+
+Confusion Matrix (rows = true, cols = predicted):
+                     small_pale_winged    larger_insect    debris
+small_pale_winged    934                  7                7
+larger_insect        13                   541              2
+debris               0                    0                603
+
+                   precision    recall  f1-score   support
+
+small_pale_winged     0.9863    0.9852    0.9858       948
+    larger_insect     0.9872    0.9730    0.9801       556
+           debris     0.9853    1.0000    0.9926       603
+
+         accuracy                         0.9862      2107
+        macro avg     0.9863    0.9861    0.9861      2107
+     weighted avg     0.9862    0.9862    0.9862      2107
+
+Operational ETL Leakage (Whitefly -> Larger): 0.74%  [PASS, ceiling 5.0%]
+larger_insect recall (the morphology-bearing number): 97.30%
+
+Fitted Temperature T_cal      = 0.9997
+/tmp/ipykernel_23/1342426415.py:442: RuntimeWarning: overflow encountered in exp
+  id_energy = -T_cal * np.log(np.sum(np.exp(l_valb / T_cal), axis=1))
+Fitted Energy Threshold       = -3.8061  (95% ID TPR)
+/tmp/ipykernel_23/1342426415.py:447: RuntimeWarning: overflow encountered in exp
+  ood_energy = -T_cal * np.log(np.sum(np.exp(l_ood / T_cal), axis=1))
+OOD Rejection on hard non-targets: 80.31%

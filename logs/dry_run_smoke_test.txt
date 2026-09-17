@@ -1,0 +1,61 @@
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /Users/mohdahsan/.netrc.
+wandb: Currently logged in as: ahsanmohdcr7 to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 642a996c
+wandb: Tracking run with wandb version 0.28.2
+wandb: Run data is saved locally in /Users/mohdahsan/Downloads/SIH/sih-smart-farming/wandb/run-20260909_190054-642a996c
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run clean-breeze-2
+wandb: ⭐️ View project at https://wandb.ai/prism-team/SIH
+wandb: 🚀 View run at https://wandb.ai/prism-team/SIH/runs/642a996c
+wandb: updating run metadata
+wandb: uploading output.log; uploading wandb-summary.json; uploading config.yaml
+wandb: uploading summary, console lines 13-14
+wandb: 
+wandb: Run history:
+wandb:                                 epoch ▁
+wandb:                           lr/backbone ▁
+wandb:                               lr/head ▁
+wandb:                       recall/not_crop ▁
+wandb:    recall/rice__bacterial_leaf_blight ▁
+wandb:    recall/rice__bacterial_leaf_streak ▁
+wandb: recall/rice__bacterial_panicle_blight ▁
+wandb:                    recall/rice__blast ▁
+wandb:               recall/rice__brown_spot ▁
+wandb:             recall/rice__downy_mildew ▁
+wandb:                                   +27 ...
+wandb: 
+wandb: Run summary:
+wandb:                                 epoch 1
+wandb:                           lr/backbone 5e-05
+wandb:                               lr/head 0.00046
+wandb:                       recall/not_crop 0
+wandb:    recall/rice__bacterial_leaf_blight 0.58696
+wandb:    recall/rice__bacterial_leaf_streak 0
+wandb: recall/rice__bacterial_panicle_blight 0
+wandb:                    recall/rice__blast 0.02778
+wandb:               recall/rice__brown_spot 0
+wandb:             recall/rice__downy_mildew 0
+wandb:                                   +45 ...
+wandb: 
+wandb: 🚀 View run clean-breeze-2 at: https://wandb.ai/prism-team/SIH/runs/642a996c
+wandb: ⭐️ View project at: https://wandb.ai/prism-team/SIH
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260909_190054-642a996c/logs
+[train_model_a] Stage: 1 | Device: cpu | AMP: False | Data Dir: /Users/mohdahsan/Downloads/SIH/sih-smart-farming | Deterministic: False
+[train_model_a] Resolved 29 taxonomy classes from manifest.
+[train_model_a] Loaded class weights on cpu: mean=1.0000, min=0.5022, max=1.9483, dynamic_range=3.8793
+[train_model_a] Starting training (epochs 1 to 1, 3 steps/epoch)...
+Epoch 01/01 | Train Loss: 4.3712 | Val Top-1: 15.10% | Val Macro-F1: 0.0393
+  Step Losses: initial=4.6857 -> final=4.0192
+  Lowest Recall: not_crop=0.0000 | rice__bacterial_leaf_streak=0.0000 | rice__bacterial_panicle_blight=0.0000 | rice__brown_spot=0.0000 | rice__downy_mildew=0.0000
+[train_model_a] Finished. Best Val Macro-F1: 0.0393
+[train_model_a] Checkpoint saved: /Users/mohdahsan/Downloads/SIH/sih-smart-farming/artifacts/checkpoints/stage1.pt (exists: True)
+[train_model_a] Last checkpoint saved: /Users/mohdahsan/Downloads/SIH/sih-smart-farming/artifacts/checkpoints/last.pt (exists: True)
+[train_model_a] Metrics saved: /Users/mohdahsan/Downloads/SIH/sih-smart-farming/artifacts/reports/stage1_metrics.json (exists: True)
+
+[train_model_a] Evaluating test splits on best checkpoint: /Users/mohdahsan/Downloads/SIH/sih-smart-farming/artifacts/checkpoints/stage1.pt
+[val] [PARTIAL] Evaluated: 192/2055 | Top-1: 15.10% | Macro-F1: 0.1277 | Micro-F1: 0.1510
+[test_indist] [PARTIAL] Evaluated: 192/2069 | Top-1: 8.85% | Macro-F1: 0.0691 | Micro-F1: 0.0885
+[test_crossdomain] [PARTIAL] Evaluated: 192/9389 | Top-1: 0.00% | Macro-F1: 0.0000 | Micro-F1: 0.0000
+[test_external_riceblast] Evaluated: 83/83 | Top-1: 3.61% | Macro-F1: 0.0698 | Micro-F1: 0.0361
+[evaluate_test_splits] Saved test metrics to /Users/mohdahsan/Downloads/SIH/sih-smart-farming/artifacts/reports/stage1_test_metrics.json

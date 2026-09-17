@@ -1,0 +1,17 @@
+total 8
+drwxr-xr-x@ 16 mohdahsan  staff  512 Sep  9 20:41 .
+drwxr-xr-x@  8 mohdahsan  staff  256 Sep  9 19:59 ..
+-rw-r--r--@  1 mohdahsan  staff  168 Sep  9 20:06 dataset-metadata.json
+drwxr-xr-x@ 10 mohdahsan  staff  320 Sep  9 19:59 not_crop
+drwxr-xr-x@  6 mohdahsan  staff  192 Sep  9 19:59 openset
+drwxr-xr-x@  9 mohdahsan  staff  288 Sep  9 20:04 openset_holdout
+drwxr-xr-x@  3 mohdahsan  staff   96 Sep  9 19:59 paddy_doctor
+drwxr-xr-x@  7 mohdahsan  staff  224 Sep  9 19:59 plantwild
+drwxr-xr-x@  4 mohdahsan  staff  128 Sep  9 19:59 rice_hasan
+drwxr-xr-x@  3 mohdahsan  staff   96 Sep  9 19:59 rice_pest_rifat
+drwxr-xr-x@  6 mohdahsan  staff  192 Sep  9 19:59 rice_sethy
+drwxr-xr-x@ 11 mohdahsan  staff  352 Sep  9 20:06 splits_packaged
+drwxr-xr-x@  7 mohdahsan  staff  224 Sep  9 19:59 sugarcane_daphal
+drwxr-xr-x@ 13 mohdahsan  staff  416 Sep  9 19:59 sugarcane_thite
+drwxr-xr-x@  3 mohdahsan  staff   96 Sep  9 19:59 wheat_mendeley
+drwxr-xr-x@  3 mohdahsan  staff   96 Sep  9 19:59 wheat_small

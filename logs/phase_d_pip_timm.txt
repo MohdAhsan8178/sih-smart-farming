@@ -1,0 +1,10 @@
+Name: timm
+Version: 1.0.29
+Summary: PyTorch Image Models
+Home-page: https://github.com/huggingface/pytorch-image-models
+Author: 
+Author-email: Ross Wightman <ross@huggingface.co>
+License: Apache-2.0
+Location: /Users/mohdahsan/Downloads/SIH/sih-smart-farming/.venv/lib/python3.13/site-packages
+Requires: huggingface_hub, pyyaml, safetensors, torch, torchvision
+Required-by: 

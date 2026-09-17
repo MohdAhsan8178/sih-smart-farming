@@ -1,0 +1,70 @@
+=== STARTING PHASE 2 INGESTION & SANITIZATION ===
+Loaded 49264 existing image hashes for dedup enforcement.
+
+--- 1. Processing BanglaRiceLeaf ---
+BanglaRiceLeaf Bacterial Leaf Streak (BLS)  -> data/raw/banglariceleaf/bacterial_leaf_streak: kept 600 (from 1055)
+BanglaRiceLeaf Bacterial Leaf Blight (BLB)  -> data/raw/banglariceleaf/bacterial_leaf_blight: kept 600 (from 1093)
+BanglaRiceLeaf Leaf Blast                   -> data/raw/banglariceleaf/leaf_blast           : kept 600 (from 1086)
+BanglaRiceLeaf Healthy Leaf                 -> data/raw/banglariceleaf/normal               : kept 500 (from 500)
+BanglaRiceLeaf Sheath Blight                -> data/raw/openset/banglariceleaf_sheath_blight: kept 416 (from 418)
+
+--- 2. Processing Dhan-Shomadhan ---
+Dhan-Shomadhan brown_spot               : kept 133
+Dhan-Shomadhan leaf_scald               : kept 210
+Dhan-Shomadhan blast                    : kept 255
+Dhan-Shomadhan tungro                   : kept 188
+Dhan-Shomadhan sheath_blight            : kept 261
+
+--- 3. Processing Rice Mendeley (hx6f852hw4) ---
+Rice Mendeley Bacterial Leaf Blight     -> bacterial_leaf_blight    : kept 180 (from 180)
+Rice Mendeley Brown Spot                -> brown_spot               : kept 266 (from 267)
+Rice Mendeley Leaf Blast                -> leaf_blast               : kept 300 (from 305)
+
+--- 4. Processing Kushagra Wheat Mildew ---
+Kushagra Mildew: total 1131, non-duplicate clean 677
+Kushagra Wheat Mildew: kept exactly 600 (capped at 600, seed 42)
+
+--- 5. Processing SugarcaneLD-BD ---
+SugarcaneLD-BD RedRot          -> red_rot        : kept 222 (from 224)
+SugarcaneLD-BD Healthy         -> healthy        : kept 194 (from 213)
+SugarcaneLD-BD RingSpot        -> ring_spot      : kept 83 (from 83)
+SugarcaneLD-BD EyeSpot         -> eye_spot       : kept 71 (from 75)
+SugarcaneLD-BD RedLeafSpot     -> red_leaf_spot  : kept 43 (from 43)
+
+--- 6. Processing Philippines Clean Openset Classes ---
+Philippines bakanae              -> openset: kept 100
+Philippines rice_false_smut      -> openset: kept 99
+Philippines ragged_stunt_virus   -> openset: kept 100
+
+Total entries in rename_map: 6021
+
+=== SUMMARY OF COPIED IMAGES BY SOURCE/CLASS ===
+  banglariceleaf/bacterial_leaf_blight    :   600 (taxonomy)
+  banglariceleaf/bacterial_leaf_streak    :   600 (taxonomy)
+  banglariceleaf/leaf_blast               :   600 (taxonomy)
+  banglariceleaf/normal                   :   500 (taxonomy)
+  banglariceleaf/sheath_blight            :   416 (openset)
+  dhan_shomadhan/blast                    :   255 (taxonomy)
+  dhan_shomadhan/brown_spot               :   133 (taxonomy)
+  dhan_shomadhan/leaf_scald               :   210 (openset)
+  dhan_shomadhan/sheath_blight            :   261 (openset)
+  dhan_shomadhan/tungro                   :   188 (taxonomy)
+  kushagra_wheat/powdery_mildew           :   600 (taxonomy)
+  philippines_openset/bakanae             :   100 (openset)
+  philippines_openset/ragged_stunt_virus  :   100 (openset)
+  philippines_openset/rice_false_smut     :    99 (openset)
+  rice_mendeley/bacterial_leaf_blight     :   180 (taxonomy)
+  rice_mendeley/brown_spot                :   266 (taxonomy)
+  rice_mendeley/leaf_blast                :   300 (taxonomy)
+  sugarcane_ld_bd/eye_spot                :    71 (openset)
+  sugarcane_ld_bd/healthy                 :   194 (taxonomy)
+  sugarcane_ld_bd/red_leaf_spot           :    43 (openset)
+  sugarcane_ld_bd/red_rot                 :   222 (taxonomy)
+  sugarcane_ld_bd/ring_spot               :    83 (openset)
+
+Total newly ingested taxonomy images: 4638
+Total newly ingested openset images : 1383
+Total newly ingested images overall  : 6021
+
+=== SANITIZATION AUDIT ON INGESTED FILES ===
+Sanitization assertion PASSED: All 6021 ingested files strictly conform to ^[a-zA-Z0-9._-]+$ with zero spaces, parentheses, or non-ASCII characters.

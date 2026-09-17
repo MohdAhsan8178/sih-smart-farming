@@ -135,6 +135,48 @@ An IMX219's auto-white-balance and auto-exposure continuously re-gain the image 
 
 **Validation:** the Mendeley *Nitrogen Deficiency of Rice Crop* dataset (four LCC-matched classes) is the right set to check your script against.
 
+### 1.1.2 Field Vegetation Indices, Canopy Masking, and Dual-Bandpass NDVI ⚠ **IMPLEMENTED IN v4**
+
+To support aerial crop vigour mapping, canopy growth staging, and candidate stress flagging without an expensive commercial multispectral camera, six RGB-only vegetation indices and a dormant dual-bandpass NDVI pipeline are implemented in `core/indices.py` and `core/ndvi.py`.
+
+#### Implemented RGB Vegetation Indices
+
+| Index | Formula | Spectral Bands | Target Biophysical Property | Known Failure Mode |
+|---|---|---|---|---|
+| **VARI** (Visible Atmospherically Resistant Index) | $\frac{G - R}{G + R - B}$ | Green (520–560 nm), Red (620–660 nm), Blue (450–490 nm) [Gitelson et al. 2002] | Green vegetation fraction, crop vigour; designed to reduce atmospheric scattering effects in low-altitude aerial surveys. | **Atmospheric haze & blue noise**: Highly sensitive to blue-channel sensor noise in low light, and the denominator $(G + R - B)$ approaches zero on dark moist soil or shadows, producing extreme noise and division-by-zero instability. |
+| **TGI** (Triangular Greenness Index) | $G - 0.39 R - 0.61 B$ | Green, Red, Blue [Hunt et al. 2011] | Leaf chlorophyll concentration at canopy scale; measures the area of the triangular spectral curve between blue, green, and red reflectance peaks. | **High-nitrogen saturation**: Green reflectance reaches an asymptotic saturation plateau at moderate-to-high chlorophyll concentrations, so TGI cannot resolve luxury nitrogen uptake; also highly sensitive to bright soil background reflectance in sparse canopies. |
+| **NGRDI** (Normalized Green-Red Difference Index) | $\frac{G - R}{G + R}$ | Green, Red [Tucker 1979] | Relative green biomass, phenology tracking (greening vs senescence). | **Low dynamic range & soil confusion**: Narrow dynamic range compared to NIR indices; cannot distinguish yellowing senescent leaves from dry sandy/loam soil, and saturates at canopy closure (LAI > 2–3). |
+| **GMR** (Green-Minus-Red Difference) | $G - R$ | Green, Red | Raw green contrast over red reflectance. | **Unnormalized illumination sensitivity**: Completely unnormalized by total intensity; readings shift dramatically with cloud passage, diurnal solar angle, and camera auto-exposure. Requires rigidly locked AWB/AE. |
+| **DGCI** (Dark Green Colour Index) | $\frac{\frac{H - 60}{60} + (1 - S) + (1 - V)}{3}$ | Full RGB converted to float32 HSV [Karcher & Richardson 2003] | Nitrogen status and dark green leaf colour; correlates linearly with SPAD chlorophyll meter readings. | **Leaf glint & specular reflection**: Sun glint on waxy leaves (common in rice and sugarcane) washes out saturation $S$ and inflates value $V$, corrupting DGCI; sensitive to diurnal sun angle changes. |
+| **ExG** (Excess Green) | $2G - R - B$ (clipped to $[0, 255]$ uint8) | Green, Red, Blue [Woebbecke et al. 1995] | Binary segmentation of green plant tissue from bare soil, shadows, and residue. | **Non-green crop failure**: Fails completely on senescent/ripening crops, non-green cultivars (e.g. purple rice), or under heavy shadow where $2G \le R + B$. |
+
+#### Canopy Masking Strategy Prior to Index Computation
+
+Every vegetation index in `core/indices.py` is calculated **strictly over segmented canopy pixels**, never across raw scene averages containing soil.
+1. **Absolute ExG Thresholding (`PROVISIONAL_EXG_VEG_THRESHOLD = 20`):**
+   - We explicitly reject Otsu thresholding for vegetation masking. On a mature, closed canopy, the ExG distribution is unimodal; Otsu's algorithm maximises inter-class variance by forcing a split near the distribution mean. On a 100% green canopy, Otsu falsely discards ~50% of the greenest leaves as "background".
+   - Instead, an absolute threshold `ExG > PROVISIONAL_EXG_VEG_THRESHOLD (20)` is used to isolate plant tissue.
+   - *Provisional status:* The default value of 20 is an uncalibrated heuristic tuned against synthetic and field tiles; it is marked `PROVISIONAL` and requires empirical calibration against local bare soil and shadow spectra in the deployment region.
+2. **Vegetation Fraction Gate (`PROVISIONAL_MIN_CANOPY_FRACTION = 0.15`):**
+   - An index is only computed if the canopy fraction across the ROI or cell is at least 15% ($\ge 0.15$). If $f_{\text{canopy}} < 0.15$ or if zero canopy pixels are detected, the function returns `(None, 'insufficient_canopy')`. This prevents background soil noise from generating pseudo-vigour alerts.
+
+#### Dormant Dual-Bandpass NDVI Path
+
+In addition to RGB proxies, the project implements a committed hardware path for true near-infrared NDVI using a single sensor:
+- **Sensor & Optics:** Waveshare IMX219-77IR (NoIR, 79.3° FOV) fitted with a MidOpt DB660/850 dual-bandpass interference filter (passbands at 660 nm visible red and 850 nm near-infrared).
+- **Counterintuitive Channel Assignment:** Silicon Bayer micro-filters leak NIR across all channels. Under the DB660/850 filter:
+  - The Blue Bayer filter blocks 660 nm red but transmits 850 nm NIR.
+  - The Red Bayer filter transmits 660 nm red and leaks 850 nm NIR.
+  - Consequently, **Blue channel = NIR (850 nm)**, and **Red channel = Visible Red (660 nm)**. NDVI is computed as $(B - R) / (B + R)$.
+- **Silicon Cross-Talk Gate (`apply_channel_response_correction`):**
+  - Because organic Bayer dyes leak NIR into the Red channel, raw digital numbers represent mixed radiances: $DN_{\text{Red}} = k_{RR} L_{660} + k_{RNIR} L_{850}$.
+  - True NDVI requires unmixing via an empirical $2 \times 2$ inverse response matrix $K^{-1}$ measured on an optical bench using reference 660 nm and 850 nm narrow-band sources (`scripts/calibrate_dual_bandpass.py`).
+  - **The code is fully implemented and tested, but `apply_channel_response_correction()` raises `NotImplementedError` by default if `calib_matrix is None`.**
+  - *Critical framing:* This is a **hardware bench-calibration gate**, not a software limitation. Computing NDVI from raw Bayer channels without measuring the physical sensor's cross-talk produces scientifically invalid, ungrounded numbers. The software refuses to guess.
+- **Empirical Line Method (ELM) Across Flights:**
+  - To normalise changing solar irradiance across flight passes, reference reflectance panels (nominal 5%, 50%, 84%) must be imaged pre- and post-flight (`apply_empirical_line_calibration`).
+  - In `core/ndvi.py`, `PROVISIONAL_PANEL_REFLECTANCES = (0.05, 0.50, 0.84)` are placeholder values and `PANEL_REFLECTANCES_CONFIRMED = False`. Calling ELM without confirmed panels raises a `RuntimeError` unless `--allow-provisional` is explicitly passed.
+
 ### 1.2 Irrigation and water stress ⚠ **REWRITTEN IN v2**
 
 > **What changed and why.** Version 1 specified an MLX90640 on the drone feeding a CWSI calculation. The physics does not support that at survey altitude, and the resulting index would have been systematically wrong in a way that looks plausible — the worst kind of error.
@@ -666,11 +708,44 @@ You will meet advice to use `cudaHostAllocMapped` zero-copy memory on the Jetson
 | Lidar/ultrasonic rangefinder | 800–2,000 | Altitude hold for the inspection pass | Medium |
 | Active cooling fan for Nano | 400–700 | Required for MAXN | High |
 
-**v2 note on MLX90614 vs MLX90640.** v1 listed the single-point sensor as a cheap fallback. Given the soil-heat-bleed analysis in §1.2, it deserves a second look on its merits: its narrow field of view means a single reading covers a much smaller ground spot, so it is *inherently* less prone to mixing soil into the canopy measurement. You lose the thermal image (and the ability to do vegetation-masked extraction), but you gain a cleaner point measurement for a tenth of the price. **If budget is tight, MLX90614 aimed at canopy during the inspection pass is a defensible and arguably better choice.**
+**Note on Ground-Mast Thermal Rescope (v4):** Thermal sensing (MLX90640 array and MLX90614 single-point IR) is rescoped from the drone payload to a fixed ground mast facing the canopy. Flying at 1.5–2.5 m subjects the crop to rotor downwash (forced convection pulling sunlit leaf temp toward ambient air temp, destroying the CWSI signal). The fixed mast provides stable geometry and continuous solar-noon monitoring without downwash distortion. MLX90640 spatial resolution enables Otsu soil rejection; MLX90614 provides continuous drift trace / cross-check.
 
-Total for the high-priority set: roughly **₹6,000–10,000**.
+Total for the high-priority baseline set: roughly **₹6,000–10,000** (excluding dual-bandpass filter).
 
-**Do not buy** a multispectral camera (₹40,000+) or a radiometric thermal camera (₹80,000+). Use RGB vegetation indices instead — VARI and MGRVI have delivered vegetation classification and stress detection comparable to NDVI/SAVI in UAV studies. State the caveat honestly: other work found RGB indices saturate at high biomass, and at least one comparative study concluded neither TGI nor VARI could be recommended as a reliable *general-purpose* crop health indicator. Use them for **relative within-field comparison and change detection**, not absolute health scoring — which is exactly what your survey pass needs.
+### 7.1 Sensing Scope Decisions and Trade-offs (Amended per R3)
+
+#### Hardware & Optical Specification Provenance Register
+
+| Item / Parameter | Value / Range | Unit | Provenance Classification | Basis / Source |
+|---|---|---|---|---|
+| **Waveshare IMX219-77IR Camera** | ~2,500 | INR (₹) | **RECALLED — UNVERIFIED** | Indian hobbyist retail websites (Robu / Silverline catalog memory). Requires live distributor invoice. |
+| **MidOpt DB660/850 Filter (Mounted)** | 12,000–18,000 (~$140–$210) | INR (₹) | **RECALLED — UNVERIFIED** | Midwest Optical Systems distributor pricing memory. Subject to import duty and freight. |
+| **Total 2-Band Dual-Bandpass Build** | ~14,500–20,500 | INR (₹) | **DERIVED — UNVERIFIED** | Sum of recalled sensor and filter costs. |
+| **Entry-level 5-Band Multispectral Camera** | 40,000–80,000+ | INR (₹) | **RECALLED — UNVERIFIED** | Drone agronomy retail recall (e.g. MAPIR Survey3, Parrot Sequoia discontinued baseline). |
+| **Research-grade Multispectral Payload** | 2,00,000–5,00,000+ ($2.5k–$6k+) | INR (₹) | **RECALLED — UNVERIFIED** | Enterprise UAV distributor quote recall (e.g. MicaSense RedEdge-P / Altum-PT). |
+| **UAV Hyperspectral Payload System** | 8,00,000–25,00,000+ ($10k–$30k+) | INR (₹) | **RECALLED — UNVERIFIED** | Academic tender memory (e.g. Corning MicroHSI 410, Headwall Nano-Hyperspec). |
+| **Hyperspectral Payload Mass** | 500–1,500 | grams (g) | **RECALLED — UNVERIFIED** | Manufacturer product brief memory (sensor head + IMU/GPS + data logger). |
+| **Dual-Bandpass Camera Mass** | <15 | grams (g) | **RECALLED — UNVERIFIED** | Waveshare IMX219 camera board datasheet memory (<15 g including lens). Unverified against physical scale. |
+| **RedEdge Band Range** | 705–740 | nm | **PRIMARY-LITERATURE** | Standard red edge transition region (Horler et al. 1983, Gitelson & Merzlyak 1994). |
+| **Visible Red Passband** | 660 (FWHM ~25) | nm | **RECALLED — UNVERIFIED** | Midwest Optical Systems DB660/850 transmission curve memory. Unverified against manufacturer optical test sheet. |
+| **Near-Infrared (NIR) Passband** | 850 (FWHM ~35) | nm | **RECALLED — UNVERIFIED** | Midwest Optical Systems DB660/850 transmission curve memory. Unverified against manufacturer optical test sheet. |
+
+#### 1. Two-Band Dual-Bandpass on IMX219 vs Commercial Multispectral Camera
+- **The Decision:** Rather than procuring a dedicated commercial multispectral camera, the system implements a dual-bandpass optical path on a secondary CSI port (SENSOR_ID = 1) using a Waveshare IMX219-77IR (NoIR) sensor paired with a MidOpt DB660/850 dual-bandpass interference filter (transmitting at 660 nm Red and 850 nm NIR).
+- **Cost Delta [RECALLED — UNVERIFIED]:**
+  - Custom 2-band path: Waveshare IMX219-77IR (~₹2,500) + MidOpt DB660/850 mounted filter (~₹12,000–18,000) = **₹14,500–20,500 total**.
+  - Commercial 5-band multispectral camera: **₹40,000–80,000+** for entry-level hobbyist/agronomy sensors (e.g. MAPIR Survey3, Parrot Sequoia), and **₹2,00,000–5,00,000+** for research-grade agronomy payloads (e.g. MicaSense RedEdge-P, MicaSense Altum-PT).
+  - *Budget Rationale:* For a Tier 1 smart farming system with a total edge BOM target of ₹10,000–25,000, a commercial multispectral camera exceeds the entire system hardware budget by 2× to 10×. The dual-bandpass filter path delivers genuine 660/850 nm physical band separation within the edge BOM constraints.
+
+#### 2. Why Not Hyperspectral?
+- **Cost [RECALLED — UNVERIFIED]:** Commercial UAV hyperspectral imaging systems (e.g. Corning MicroHSI 410, Headwall Nano-Hyperspec) cost **₹8,00,000 to ₹25,00,000+** ($10,000–$30,000+ USD), completely inaccessible for smallholder deployment.
+- **Payload Weight [RECALLED — UNVERIFIED]:** Hyperspectral imagers weigh 500 g to 1.5 kg, requiring heavy-lift enterprise UAV platforms (e.g. DJI Matrice 300/350 at ₹10,00,000+ airframe cost), whereas the IMX219 weighs under 15 g [RECALLED — UNVERIFIED] and flies on sub-2 kg lightweight drones.
+- **Compute and Bandwidth [EMPIRICAL-SYSTEM]:** Hyperspectral sensors capture 100–300 contiguous narrow bands (400–1000 nm), producing 10–50 GB of raw datacubes per 15-minute flight. Processing these cubes requires high-performance desktop GPU workstations running complex spectral unmixing and radiative transfer models, directly contradicting our real-time on-device edge architecture (Jetson Nano).
+
+#### 3. What the Two-Band Approach CANNOT Do (Compared to 5-Band Commercial Payloads)
+- **No RedEdge Band (705–740 nm) [PRIMARY-LITERATURE]:** The two-band sensor cannot compute the Normalized Difference Red Edge index ($\text{NDRE} = \frac{\text{NIR} - \text{RE}}{\text{NIR} + \text{RE}}$). In high-biomass, dense-canopy crops (e.g. sugarcane and mature rice at $\text{LAI} > 3$), standard NDVI saturates asymptotically, whereas NDRE penetrates deeper into the canopy to detect late-season nitrogen stress and chlorophyll dynamics.
+- **Spectral Leakage and Silicon Cross-Talk [MANUFACTURER-SPEC]:** Unlike commercial sensors with discrete, isolated photodiode arrays and narrow bandpass interference filters for each band, an RGB Bayer array without an IR-cut filter suffers from broad organic dye transmission in the NIR region. 850 nm photons leak heavily into the Red Bayer channel. This cross-talk degrades NDVI dynamic range unless corrected via a measured bench unmixing matrix ($K^{-1}$).
+- **Illumination Normalisation (Empirical Line Method vs DLS) [PRIMARY-LITERATURE]:** Commercial 5-band payloads incorporate an upward-facing Downwelling Light Sensor (DLS / sunshine sensor) that measures instantaneous ambient solar irradiance in real time on every exposure. The two-band IMX219 lacks a DLS; to achieve radiometric comparability across different times of day or cloud cover, it requires manual **Empirical Line Method (ELM)** calibration using ground reference reflectance panels (5%, 50%, 84%) imaged pre- and post-flight.
 
 ---
 

@@ -1,0 +1,63 @@
+=== Step B2: Packaging and Resizing Images ===
+Total non-hidden files in data/raw: 53278
+Resized field/holdout images: 1154 (expected 1154: 980 not_crop + 174 holdout)
+Copied unchanged files: 52124
+Total packaged files: 53278
+
+=== Verifying Resized Images Properties (Dimensions <= 1024, No Orientation Tag) ===
+Verified all 1154 resized images: max dimension <= 1024 px and orientation tag absent.
+
+=== Verifying Per-Folder File Counts Between raw and packaged ===
+Folder                    | data/raw   | data/packaged | Status
+--------------------------------------------------------------
+not_crop                  |       1442 |          1442 | IDENTICAL
+not_crop_archive          |       1263 |          1263 | IDENTICAL
+openset                   |       5255 |          5255 | IDENTICAL
+openset_holdout           |        174 |           174 | IDENTICAL
+paddy_doctor              |      13878 |         13878 | IDENTICAL
+plantdoc                  |       2575 |          2575 | IDENTICAL
+plantwild                 |      11488 |         11488 | IDENTICAL
+rice_hasan                |        349 |           349 | IDENTICAL
+rice_pest_rifat           |        247 |           247 | IDENTICAL
+rice_sethy                |       5932 |          5932 | IDENTICAL
+sugarcane_daphal          |       2521 |          2521 | IDENTICAL
+sugarcane_thite           |       6748 |          6748 | IDENTICAL
+wheat_mendeley            |        407 |           407 | IDENTICAL
+wheat_small               |        999 |           999 | IDENTICAL
+All folder counts are 100% IDENTICAL!
+
+=== Step B3: Rewriting Split Paths into splits_packaged/ ===
+Wrote all_images.csv: 30039 paths rewritten
+Wrote class_mapping.csv: 0 paths rewritten
+Copied class_weights.json unchanged to splits_packaged/class_weights.json
+Wrote openset_categories.csv: 0 paths rewritten
+Wrote test_crossdomain.csv: 9389 paths rewritten
+Wrote test_external_riceblast.csv: 83 paths rewritten
+Wrote test_indist.csv: 2069 paths rewritten
+Wrote train.csv: 16526 paths rewritten
+Wrote val.csv: 2055 paths rewritten
+
+=== Verifying All Paths in splits_packaged/*.csv Exist on Disk ===
+all_images.csv                     : 30039 paths checked, 0 missing
+test_crossdomain.csv               : 9389 paths checked, 0 missing
+test_external_riceblast.csv        : 83 paths checked, 0 missing
+test_indist.csv                    : 2069 paths checked, 0 missing
+train.csv                          : 16526 paths checked, 0 missing
+val.csv                            : 2055 paths checked, 0 missing
+
+Total paths checked across all splits_packaged CSVs: 60161
+Total missing files: 0
+
+=== Step B4: Leak Check ===
+grep output:
+splits_packaged/all_images.csv:0
+splits_packaged/class_mapping.csv:0
+splits_packaged/openset_categories.csv:0
+splits_packaged/test_crossdomain.csv:0
+splits_packaged/test_external_riceblast.csv:0
+splits_packaged/test_indist.csv:0
+splits_packaged/train.csv:0
+splits_packaged/val.csv:0
+Leak check PASSED: 0 occurrences of openset_holdout or not_crop_archive in any split CSV!
+
+=== Phase B Execution Completed Successfully ===

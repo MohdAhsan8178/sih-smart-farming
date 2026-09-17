@@ -1,0 +1,15 @@
+ 16G	data/raw/
+4.6G	data/raw/not_crop/
+ 82M	data/raw/not_crop_archive/
+1.6G	data/raw/openset/
+854M	data/raw/openset_holdout/
+1.0G	data/raw/paddy_doctor/
+1.8G	data/raw/plantdoc/
+1.6G	data/raw/plantwild/
+435M	data/raw/rice_hasan/
+ 42M	data/raw/rice_pest_rifat/
+208M	data/raw/rice_sethy/
+165M	data/raw/sugarcane_daphal/
+767M	data/raw/sugarcane_thite/
+1.4G	data/raw/wheat_mendeley/
+986M	data/raw/wheat_small/

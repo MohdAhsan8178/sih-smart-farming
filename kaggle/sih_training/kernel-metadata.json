@@ -1,0 +1,15 @@
+{
+  "id": "mohdahsan8178/sih-training",
+  "title": "SIH Training",
+  "code_file": "SIH.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": [
+    "mohdahsan8178/sih-smart-farming-dataset",
+    "mohdahsan8178/sih-code"
+  ]
+}

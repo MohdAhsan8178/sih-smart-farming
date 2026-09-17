@@ -1,0 +1,10 @@
+Pre-calculated mappings: 133 dirs, 35562 files
+Disk renaming completed!
+Wrote rename_map.csv with 35562 rows to both locations.
+Split CSVs rewritten in both locations.
+Addition 5 Assertions:
+  Actual Image Count: 35551 (Expected: 35551)
+  Actual Total Files Count: 35563 (Expected: 35563)
+Addition 5 count assertion PASSED perfectly!
+Verified 60161 split paths on disk: 0 missing (Expected: 0)
+All 60,161 paths resolve with 0 missing!

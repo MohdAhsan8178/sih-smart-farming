@@ -1,0 +1,13 @@
+scripts/package_dataset.py:6:1. Resizes 980 field photos in not_crop/ and 174 photos in openset_holdout/
+scripts/package_dataset.py:14:7. Performs leak check on splits_packaged/*.csv for openset_holdout and not_crop_archive.
+scripts/package_dataset.py:84:            elif top_folder == "openset_holdout" and sub_folder in TARGET_HOLDOUT_SUBFOLDERS:
+scripts/package_dataset.py:103:    for top_folder, subfolders in [("not_crop", TARGET_NOT_CROP_SUBFOLDERS), ("openset_holdout", TARGET_HOLDOUT_SUBFOLDERS)]:
+scripts/package_dataset.py:201:    cmd = ["grep", "-c", "openset_holdout\\|not_crop_archive"] + sorted(str(p) for p in SPLITS_PACKAGED_DIR.glob("*.csv"))
+scripts/package_dataset.py:210:    print("Leak check PASSED: 0 occurrences of openset_holdout or not_crop_archive in any split CSV!")
+Binary file scripts/__pycache__/extract_logits.cpython-313.pyc matches
+scripts/extract_logits.py:4:Used for Step 15 energy calibration on unlabelled holdout sets (e.g. data/raw/openset_holdout/).
+train/fetch_hasan_rice.py:8:OPENSET_DIR = Path('/Users/mohdahsan/Downloads/SIH/sih-smart-farming/data/raw/openset/hasan_openset')
+core/rejection.py:112:def fit_energy_threshold(id_logits, openset_logits, crop_cols, tpr=0.95):
+core/rejection.py:116:    openset_logits MUST come from categories the model has NEVER seen -
+core/rejection.py:121:    ood_e = open_set_energy(openset_logits, crop_cols)
+Binary file core/__pycache__/rejection.cpython-313.pyc matches

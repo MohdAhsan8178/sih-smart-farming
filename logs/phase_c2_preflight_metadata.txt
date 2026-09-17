@@ -1,0 +1,9 @@
+{
+  "title": "SIH Smart Farming Crop Disease Dataset",
+  "id": "mohdahsan8178/sih-smart-farming-dataset",
+  "licenses": [
+    {
+      "name": "CC-BY-SA-4.0"
+    }
+  ]
+}

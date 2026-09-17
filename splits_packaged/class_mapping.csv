@@ -1,0 +1,54 @@
+source_dataset,orig_folder,canonical_label,rationale
+paddy_doctor,bacterial_leaf_blight,rice__bacterial_leaf_blight,Xanthomonas oryzae pv. oryzae
+paddy_doctor,bacterial_leaf_streak,rice__bacterial_leaf_streak,Xanthomonas oryzae pv. oryzicola
+paddy_doctor,bacterial_panicle_blight,rice__bacterial_panicle_blight,Burkholderia glumae
+paddy_doctor,blast,rice__blast,Magnaporthe oryzae
+paddy_doctor,brown_spot,rice__brown_spot,Bipolaris oryzae
+paddy_doctor,dead_heart,rice__yellow_stem_borer,Yellow stem borer (Scirpophaga incertulas) larval damage symptom
+paddy_doctor,downy_mildew,rice__downy_mildew,Sclerophthora macrospora
+paddy_doctor,hispa,rice__hispa,Dicladispa armigera leaf scraping damage
+paddy_doctor,normal,rice__normal,Healthy paddy control from field survey
+paddy_doctor,tungro,rice__tungro,Rice tungro bacilliform and spherical viruses (RTBV/RTSV)
+sugarcane_thite,Banded Chlorosis,sugarcane__banded_chlorosis,Cold/environmental chlorotic banding
+sugarcane_thite,Brown Spot,sugarcane__brown_spot,Cercospora longipes
+sugarcane_thite,BrownRust,sugarcane__rust,Puccinia melanocephala; merged with rust per spec
+sugarcane_thite,Dried Leaves,sugarcane__dried_leaf,Physiological/senescent dried leaf tissue
+sugarcane_thite,Grassy shoot,sugarcane__grassy_shoot,Candidatus Phytoplasma sacchari
+sugarcane_thite,Healthy Leaves,sugarcane__healthy,Healthy sugarcane leaf tissue
+sugarcane_thite,Pokkah Boeng,sugarcane__pokkah_boeng,Fusarium moniliforme complex
+sugarcane_thite,Sett Rot,sugarcane__sett_rot,Ceratocystis paradoxa
+sugarcane_thite,Viral Disease,sugarcane__mosaic,Sugarcane Mosaic Virus (SCMV)
+sugarcane_thite,Yellow Leaf,sugarcane__yellow_leaf,Sugarcane Yellow Leaf Virus (SCYLV)
+sugarcane_thite,smut,sugarcane__smut,Sporisorium scitamineum
+sugarcane_daphal,Healthy,sugarcane__healthy,Healthy sugarcane leaf control across diverse smartphones
+sugarcane_daphal,Mosaic,sugarcane__mosaic,Sugarcane Mosaic Virus across diverse smartphones
+sugarcane_daphal,RedRot,sugarcane__red_rot,Colletotrichum falcatum; taken exclusively from Daphal per spec
+sugarcane_daphal,Rust,sugarcane__rust,Puccinia melanocephala; merged with brown rust per spec
+sugarcane_daphal,Yellow,sugarcane__yellow_leaf,Sugarcane yellow leaf disease; merged per spec
+not_crop,feet_shoes,not_crop,Field background negative category: feet_shoes
+not_crop,green_noncrop,not_crop,Field background negative category: green_noncrop
+not_crop,hands,not_crop,Field background negative category: hands
+not_crop,pavement,not_crop,Field background negative category: pavement
+not_crop,sky,not_crop,Field background negative category: sky
+not_crop,soil,not_crop,Field background negative category: soil
+not_crop,soil_field,not_crop,Field background negative category: soil_field
+not_crop,walls,not_crop,Field background negative category: walls
+plantwild,wheat stripe rust,wheat__yellow_rust,Puccinia striiformis f. sp. tritici (stripe/yellow rust)
+plantwild,wheat powdery mildew,wheat__powdery_mildew,Blumeria graminis f. sp. tritici
+plantwild,wheat septoria blotch,wheat__septoria,Zymoseptoria tritici (septoria blotch)
+plantwild,wheat leaf rust,wheat__brown_rust,Puccinia triticina (leaf/brown rust)
+wheat_small,BrownRust,wheat__brown_rust,"Wheat brown/leaf rust field imagery (Long et al., 2022)"
+wheat_small,Healthy,wheat__healthy,"Healthy wheat foliage (Long et al., 2022)"
+wheat_small,Mildew,wheat__powdery_mildew,"Wheat powdery mildew field imagery (Long et al., 2022)"
+wheat_small,Septoria,wheat__septoria,"Wheat septoria field imagery (Long et al., 2022)"
+wheat_small,YellowRust,wheat__yellow_rust,"Wheat stripe/yellow rust field imagery (Long et al., 2022)"
+wheat_mendeley,Healthy,wheat__healthy,Wheat Leaf Dataset healthy control (Mendeley wgd66f8n6h)
+wheat_mendeley,septoria,wheat__septoria,Wheat Leaf Dataset septoria tritici blotch
+wheat_mendeley,stripe_rust,wheat__yellow_rust,Wheat Leaf Dataset yellow/stripe rust
+rice_rifat,original_leaffolder,rice__leaf_roller,"Original field-collected leaf-folder (Cnaphalocrocis medinalis) injury (Rifat et al., 2024)"
+rice_sethy,Bacterialblight,rice__bacterial_leaf_blight,"Xanthomonas oryzae pv. oryzae field photos (Sethy et al., 2020)"
+rice_sethy,Blast,rice__blast,"Magnaporthe oryzae field photos (Sethy et al., 2020)"
+rice_sethy,Brownspot,rice__brown_spot,"Bipolaris oryzae field photos (Sethy et al., 2020)"
+rice_sethy,Tungro,rice__tungro,"Rice tungro virus field photos (Sethy et al., 2020)"
+rice_hasan,healthy,rice__normal,"Healthy rice leaf control field photos (Hasan et al., 2023)"
+rice_hasan,hispa,rice__hispa,"Dicladispa armigera scraping damage field photos (Hasan et al., 2023)"

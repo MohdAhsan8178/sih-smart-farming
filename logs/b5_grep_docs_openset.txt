@@ -1,0 +1,10 @@
+docs/AI_Handbook_4.md:1062:ood_e = open_set_energy(openset_logits,  CROP_COLS)   # UNSEEN categories only
+docs/BUILD_CHECKLIST_1.md:303:**Must fit, in this order:** (1) `T_CAL` by temperature scaling on validation NLL; (2) `TAU_ENERGY` via `core.rejection.fit_energy_threshold` using **`data/raw/openset/`**; (3) `TAU_PRIOR` by sweeping `[0,0.25,0.5,0.75,1.0]`; (4) `TAU_DISEASE` and `TAU_MARGIN` by grid sweep with a precision/recall plot. `--write-config` writes values back into `configs/train_config.py`.
+docs/BUILD_CHECKLIST_1.md:426:| ☐ | `openset_categories.csv` | 7 |
+docs/ULTIMATE_IMPLEMENTATION_PLAN_1.md:227:NOTCROP, OPENSET = RAW/'not_crop', RAW/'openset'
+docs/ULTIMATE_IMPLEMENTATION_PLAN_1.md:424:| `raw/openset/` | ~500 images | **categories never in `not_crop`**: broadleaf weeds, plastic mulch, irrigation pipe, farm machinery, brick, straw/mulch, DTD textures | **Calibrating** `TAU_ENERGY` (STEP 15) |
+docs/ULTIMATE_IMPLEMENTATION_PLAN_1.md:428:**Actions:** phone photos around campus plus image search. Twenty minutes of shooting covers most of `not_crop`. Record the category of every folder in `splits/openset_categories.csv` so you can show a judge the two sets do not overlap.
+docs/ULTIMATE_IMPLEMENTATION_PLAN_1.md:438:print('not_crop cats:', sorted(a)); print('openset cats:', sorted(b))
+docs/ULTIMATE_IMPLEMENTATION_PLAN_1.md:442:**DO NOT:** create `openset/` by holding out 20% of `not_crop/`. That is the exact mistake this step exists to prevent.
+docs/ULTIMATE_IMPLEMENTATION_PLAN_1.md:671:2. **Energy threshold** → `TAU_ENERGY`. Use `core.rejection.fit_energy_threshold(id_logits, openset_logits, CROP_COLS, tpr=0.95)`. **`openset_logits` comes from `raw/openset/` — the disjoint categories from STEP 7 — never from `not_crop`.** Report FPR@95TPR and AUROC.
+docs/ULTIMATE_IMPLEMENTATION_PLAN_1.md:678:    --openset data/raw/openset --write-config

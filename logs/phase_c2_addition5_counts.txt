@@ -1,0 +1,3 @@
+Actual Image Count: 35551 (Expected: 35551)
+Actual Total File Count: 35563 (Expected: 35563)
+Addition 5 count assertion: PASSED

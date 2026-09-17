@@ -1,0 +1,8 @@
+splits/all_images.csv:0
+splits/class_mapping.csv:0
+splits/openset_categories.csv:0
+splits/test_crossdomain.csv:0
+splits/test_external_riceblast.csv:0
+splits/test_indist.csv:0
+splits/train.csv:0
+splits/val.csv:0

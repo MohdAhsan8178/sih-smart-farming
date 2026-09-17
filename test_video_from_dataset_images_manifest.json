@@ -1,0 +1,282 @@
+[
+  {
+    "frame_idx": 0,
+    "source_image": "train_rice_bacterial_leaf_blight.jpg",
+    "folder": "train",
+    "true_label": "rice__bacterial_leaf_blight",
+    "expected_gate": "pass",
+    "description": "Real dataset image: rice__bacterial_leaf_blight"
+  },
+  {
+    "frame_idx": 1,
+    "source_image": "duplicate_train_rice_bacterial_leaf_blight.jpg",
+    "folder": "train",
+    "true_label": "rice__bacterial_leaf_blight",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 2,
+    "source_image": "train_sugarcane_red_rot.jpeg",
+    "folder": "train",
+    "true_label": "sugarcane__red_rot",
+    "expected_gate": "pass",
+    "description": "Real dataset image: sugarcane__red_rot"
+  },
+  {
+    "frame_idx": 3,
+    "source_image": "duplicate_train_sugarcane_red_rot.jpeg",
+    "folder": "train",
+    "true_label": "sugarcane__red_rot",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 4,
+    "source_image": "train_rice_normal.jpg",
+    "folder": "train",
+    "true_label": "rice__normal",
+    "expected_gate": "pass",
+    "description": "Real dataset image: rice__normal"
+  },
+  {
+    "frame_idx": 5,
+    "source_image": "duplicate_train_rice_normal.jpg",
+    "folder": "train",
+    "true_label": "rice__normal",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 6,
+    "source_image": "train_not_crop.jpg",
+    "folder": "train",
+    "true_label": "not_crop",
+    "expected_gate": "pass",
+    "description": "Real dataset image: not_crop"
+  },
+  {
+    "frame_idx": 7,
+    "source_image": "duplicate_train_not_crop.jpg",
+    "folder": "train",
+    "true_label": "not_crop",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 8,
+    "source_image": "indist_rice_brown_spot.jpg",
+    "folder": "test_indist",
+    "true_label": "rice__brown_spot",
+    "expected_gate": "pass",
+    "description": "Real dataset image: rice__brown_spot"
+  },
+  {
+    "frame_idx": 9,
+    "source_image": "duplicate_indist_rice_brown_spot.jpg",
+    "folder": "test_indist",
+    "true_label": "rice__brown_spot",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 10,
+    "source_image": "indist_sugarcane_mosaic.jpg",
+    "folder": "test_indist",
+    "true_label": "sugarcane__mosaic",
+    "expected_gate": "pass",
+    "description": "Real dataset image: sugarcane__mosaic"
+  },
+  {
+    "frame_idx": 11,
+    "source_image": "duplicate_indist_sugarcane_mosaic.jpg",
+    "folder": "test_indist",
+    "true_label": "sugarcane__mosaic",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 12,
+    "source_image": "indist_wheat_healthy.png",
+    "folder": "test_indist",
+    "true_label": "wheat__healthy",
+    "expected_gate": "pass",
+    "description": "Real dataset image: wheat__healthy"
+  },
+  {
+    "frame_idx": 13,
+    "source_image": "duplicate_indist_wheat_healthy.png",
+    "folder": "test_indist",
+    "true_label": "wheat__healthy",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 14,
+    "source_image": "indist_not_crop.jpg",
+    "folder": "test_indist",
+    "true_label": "not_crop",
+    "expected_gate": "pass",
+    "description": "Real dataset image: not_crop"
+  },
+  {
+    "frame_idx": 15,
+    "source_image": "duplicate_indist_not_crop.jpg",
+    "folder": "test_indist",
+    "true_label": "not_crop",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 16,
+    "source_image": "cross_sugarcane_rust.jpg",
+    "folder": "test_crossdomain",
+    "true_label": "sugarcane__rust",
+    "expected_gate": "pass",
+    "description": "Real dataset image: sugarcane__rust"
+  },
+  {
+    "frame_idx": 17,
+    "source_image": "duplicate_cross_sugarcane_rust.jpg",
+    "folder": "test_crossdomain",
+    "true_label": "sugarcane__rust",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 18,
+    "source_image": "cross_wheat_yellow_rust.jpg",
+    "folder": "test_crossdomain",
+    "true_label": "wheat__yellow_rust",
+    "expected_gate": "pass",
+    "description": "Real dataset image: wheat__yellow_rust"
+  },
+  {
+    "frame_idx": 19,
+    "source_image": "duplicate_cross_wheat_yellow_rust.jpg",
+    "folder": "test_crossdomain",
+    "true_label": "wheat__yellow_rust",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 20,
+    "source_image": "cross_sugarcane_healthy.jpg",
+    "folder": "test_crossdomain",
+    "true_label": "sugarcane__healthy",
+    "expected_gate": "pass",
+    "description": "Real dataset image: sugarcane__healthy"
+  },
+  {
+    "frame_idx": 21,
+    "source_image": "duplicate_cross_sugarcane_healthy.jpg",
+    "folder": "test_crossdomain",
+    "true_label": "sugarcane__healthy",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 22,
+    "source_image": "cross_rice_blast.jpg",
+    "folder": "test_crossdomain",
+    "true_label": "rice__blast",
+    "expected_gate": "pass",
+    "description": "Real dataset image: rice__blast"
+  },
+  {
+    "frame_idx": 23,
+    "source_image": "duplicate_cross_rice_blast.jpg",
+    "folder": "test_crossdomain",
+    "true_label": "rice__blast",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 24,
+    "source_image": "unseen_apple_rust.jpg",
+    "folder": "external_unseen",
+    "true_label": "apple__rust (unseen OOD)",
+    "expected_gate": "pass",
+    "description": "Real dataset image: apple__rust (unseen OOD)"
+  },
+  {
+    "frame_idx": 25,
+    "source_image": "duplicate_unseen_apple_rust.jpg",
+    "folder": "external_unseen",
+    "true_label": "apple__rust (unseen OOD)",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 26,
+    "source_image": "unseen_broadleaf_weed.jpeg",
+    "folder": "external_unseen",
+    "true_label": "broadleaf_weed (unseen OOD)",
+    "expected_gate": "pass",
+    "description": "Real dataset image: broadleaf_weed (unseen OOD)"
+  },
+  {
+    "frame_idx": 27,
+    "source_image": "duplicate_unseen_broadleaf_weed.jpeg",
+    "folder": "external_unseen",
+    "true_label": "broadleaf_weed (unseen OOD)",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 28,
+    "source_image": "unseen_philippines_bakanae.jpeg",
+    "folder": "external_unseen",
+    "true_label": "rice__bakanae (unseen OOD)",
+    "expected_gate": "pass",
+    "description": "Real dataset image: rice__bakanae (unseen OOD)"
+  },
+  {
+    "frame_idx": 29,
+    "source_image": "duplicate_unseen_philippines_bakanae.jpeg",
+    "folder": "external_unseen",
+    "true_label": "rice__bakanae (unseen OOD)",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 30,
+    "source_image": "unseen_sugarcane_ring_spot.jpg",
+    "folder": "external_unseen",
+    "true_label": "sugarcane__ring_spot (unseen OOD)",
+    "expected_gate": "pass",
+    "description": "Real dataset image: sugarcane__ring_spot (unseen OOD)"
+  },
+  {
+    "frame_idx": 31,
+    "source_image": "duplicate_unseen_sugarcane_ring_spot.jpg",
+    "folder": "external_unseen",
+    "true_label": "sugarcane__ring_spot (unseen OOD)",
+    "expected_gate": "fail_novelty",
+    "description": "Duplicate frame (tests novelty rejection)"
+  },
+  {
+    "frame_idx": 32,
+    "source_image": "synthetic_blurred_frame.jpg",
+    "folder": "test_failure_cases",
+    "true_label": "none",
+    "expected_gate": "fail_blur",
+    "description": "Artificially blurred frame (tests blur rejection)"
+  },
+  {
+    "frame_idx": 33,
+    "source_image": "synthetic_overexposed_frame.jpg",
+    "folder": "test_failure_cases",
+    "true_label": "none",
+    "expected_gate": "fail_exposure_overexposed",
+    "description": "Artificially clipped overexposed frame (tests exposure rejection)"
+  },
+  {
+    "frame_idx": 34,
+    "source_image": "synthetic_underexposed_frame.jpg",
+    "folder": "test_failure_cases",
+    "true_label": "none",
+    "expected_gate": "fail_exposure_underexposed",
+    "description": "Artificially clipped underexposed frame (tests exposure rejection)"
+  }
+]

@@ -1,0 +1,63 @@
+[split] Reading /Users/mohdahsan/Downloads/SIH/sih-smart-farming/splits/all_images.csv...
+[split] Total manifest images: 30039 (unique groups: 22303)
+[split] Cross-domain held-out pool: 9389 images (unique groups: 4796)
+[split] Training pool: 20650 images (unique groups: 17507)
+[split] Confirmed: All 29 classes populated in training pool.
+
+[split] Saved splits to /Users/mohdahsan/Downloads/SIH/sih-smart-farming/splits:
+  train.csv:            16526 images (14006 unique groups, 29 classes)
+  val.csv:               2055 images ( 1749 unique groups, 29 classes)
+  test_indist.csv:       2069 images ( 1752 unique groups, 29 classes)
+  test_crossdomain.csv:  9389 images ( 4796 unique groups, 12 classes)
+
+=== LEAKAGE VERIFICATION (group_id) ===
+  train vs val group_id overlap:              0
+  train vs test_indist group_id overlap:      0
+  train vs test_crossdomain group_id overlap: 0
+  val vs test_indist group_id overlap:        0
+  val vs test_crossdomain group_id overlap:   0
+  test_indist vs test_crossdomain overlap:    0
+
+=== LEAKAGE VERIFICATION (path) ===
+  train vs val path overlap:              0
+  train vs test_indist path overlap:      0
+  train vs test_crossdomain path overlap: 0
+  val vs test_indist path overlap:        0
+  val vs test_crossdomain path overlap:   0
+  test_indist vs test_crossdomain path:   0
+
+[split] Verification SUCCESS: Zero group_id leakage and zero path leakage across all boundaries.
+
+=== PER-CLASS INVERSE-FREQUENCY WEIGHT TABLE (train.csv) ===
+[split] Persisted raw class weights measurement to: /Users/mohdahsan/Downloads/SIH/sih-smart-farming/splits/class_weights.json
+Class Name                          | Train Count | Raw Weight  | Norm Weight
+---------------------------------------------------------------------------
+wheat__brown_rust                   |         102 |      5.5869 |      3.3796
+wheat__powdery_mildew               |         131 |      4.3501 |      2.6314
+wheat__healthy                      |         180 |      3.1659 |      1.9151
+rice__leaf_roller                   |         201 |      2.8351 |      1.7150
+sugarcane__pokkah_boeng             |         235 |      2.4249 |      1.4669
+sugarcane__smut                     |         252 |      2.2614 |      1.3679
+rice__bacterial_panicle_blight      |         272 |      2.0951 |      1.2673
+sugarcane__dried_leaf               |         273 |      2.0874 |      1.2627
+sugarcane__grassy_shoot             |         276 |      2.0647 |      1.2490
+rice__bacterial_leaf_streak         |         294 |      1.9383 |      1.1725
+wheat__septoria                     |         354 |      1.6098 |      0.9738
+wheat__yellow_rust                  |         359 |      1.5874 |      0.9602
+sugarcane__banded_chlorosis         |         381 |      1.4957 |      0.9048
+rice__bacterial_leaf_blight         |         386 |      1.4763 |      0.8930
+sugarcane__mosaic                   |         407 |      1.4002 |      0.8470
+sugarcane__red_rot                  |         415 |      1.3732 |      0.8306
+sugarcane__yellow_leaf              |         417 |      1.3666 |      0.8267
+sugarcane__healthy                  |         419 |      1.3601 |      0.8227
+sugarcane__rust                     |         457 |      1.2470 |      0.7543
+rice__downy_mildew                  |         496 |      1.1489 |      0.6950
+sugarcane__sett_rot                 |         524 |      1.0875 |      0.6579
+rice__brown_spot                    |         765 |      0.7449 |      0.4506
+rice__tungro                        |         862 |      0.6611 |      0.3999
+not_crop                            |        1149 |      0.4960 |      0.3000
+rice__yellow_stem_borer             |        1161 |      0.4908 |      0.2969
+rice__blast                         |        1392 |      0.4094 |      0.2476
+sugarcane__brown_spot               |        1402 |      0.4065 |      0.2459
+rice__hispa                         |        1429 |      0.3988 |      0.2412
+rice__normal                        |        1535 |      0.3712 |      0.2246

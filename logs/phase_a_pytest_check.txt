@@ -1,0 +1,46 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.5, pytest-8.3.4, pluggy-1.5.0 -- /Users/mohdahsan/Downloads/SIH/sih-smart-farming/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/mohdahsan/Downloads/SIH/sih-smart-farming
+plugins: anyio-4.7.0
+collecting ... collected 37 items
+
+tests/test_train_pipeline.py::test_step_11_build_loaders_shape_and_tensor_type PASSED [  2%]
+tests/test_train_pipeline.py::test_step_11_transforms_hue_limit_and_dimensions PASSED [  5%]
+tests/test_train_pipeline.py::test_synthetic_3_class_manifest_dynamic_head_and_ordering PASSED [  8%]
+tests/test_train_pipeline.py::test_step_12_discriminative_parameter_groups PASSED [ 10%]
+tests/test_train_pipeline.py::test_step_12_smoke_training_step PASSED    [ 13%]
+tests/test_train_pipeline.py::test_manifest_and_configs_classes_must_agree_raising_if_not PASSED [ 16%]
+tests/test_train_pipeline.py::test_step13_data_dir_override_resolves_paths_against_supplied_root PASSED [ 18%]
+tests/test_train_pipeline.py::test_step13_checkpoint_contains_scheduler_scaler_and_ema_state PASSED [ 21%]
+tests/test_train_pipeline.py::test_step13_resume_restores_epoch_and_scheduler_step_position PASSED [ 24%]
+tests/test_train_pipeline.py::test_step13_last_checkpoint_written_every_epoch_even_when_metric_does_not_improve PASSED [ 27%]
+tests/test_train_pipeline.py::test_step13_resume_with_mismatched_total_steps_raises_not_silently_continues PASSED [ 29%]
+tests/test_train_pipeline.py::test_step13_interrupted_checkpoint_write_does_not_corrupt_existing_file PASSED [ 32%]
+tests/test_train_pipeline.py::test_step13_class_weights_json_keys_match_class_names_exactly PASSED [ 35%]
+tests/test_train_pipeline.py::test_step13_class_weights_reordered_to_class_names_not_file_order PASSED [ 37%]
+tests/test_train_pipeline.py::test_step13_sqrt_weights_normalised_to_mean_one PASSED [ 40%]
+tests/test_train_pipeline.py::test_step13_missing_class_weights_file_raises_not_silently_uniform PASSED [ 43%]
+tests/test_train_pipeline.py::test_step13_extra_or_missing_class_key_raises_with_class_name_in_message PASSED [ 45%]
+tests/test_train_pipeline.py::test_step13_zero_count_class_raises_instead_of_infinite_weight PASSED [ 48%]
+tests/test_train_pipeline.py::test_step13_label_smoothing_value_is_actually_passed_to_criterion PASSED [ 51%]
+tests/test_train_pipeline.py::test_step13_weight_tensor_is_on_same_device_as_model PASSED [ 54%]
+tests/test_train_pipeline.py::test_step13_indist_and_crossdomain_evaluated_separately_never_averaged PASSED [ 56%]
+tests/test_train_pipeline.py::test_step13_per_class_metrics_written_for_all_29_classes PASSED [ 59%]
+tests/test_train_pipeline.py::test_step13_zero_support_class_reports_null_not_zero_recall PASSED [ 62%]
+tests/test_train_pipeline.py::test_step13_test_eval_uses_eval_transform_identical_to_validation PASSED [ 64%]
+tests/test_train_pipeline.py::test_step13_metrics_json_records_which_checkpoint_and_weights_were_used PASSED [ 67%]
+tests/test_train_pipeline.py::test_step13_worst_five_recall_classes_printed_each_epoch PASSED [ 70%]
+tests/test_train_pipeline.py::test_step13_saved_logits_are_pre_softmax_and_row_aligned_with_paths PASSED [ 72%]
+tests/test_train_pipeline.py::test_step13_logits_second_dimension_equals_num_classes PASSED [ 75%]
+tests/test_train_pipeline.py::test_step15_extract_logits_uses_identical_eval_transform_as_validation PASSED [ 78%]
+tests/test_train_pipeline.py::test_step15_extract_logits_handles_unlabelled_nested_folder PASSED [ 81%]
+tests/test_train_pipeline.py::test_step15_extract_logits_on_openset_holdout_yields_174_rows_across_six_categories PASSED [ 83%]
+tests/test_train_pipeline.py::test_step15_extract_logits_raises_on_unreadable_image_rather_than_skipping PASSED [ 86%]
+tests/test_train_pipeline.py::test_step13_training_proceeds_when_wandb_unavailable_or_key_missing PASSED [ 89%]
+tests/test_train_pipeline.py::test_step13_wandb_log_failure_mid_epoch_does_not_abort_training PASSED [ 91%]
+tests/test_train_pipeline.py::test_step13_wandb_run_id_persisted_in_checkpoint_and_reused_on_resume PASSED [ 94%]
+tests/test_train_pipeline.py::test_step13_worker_init_fn_seeds_each_dataloader_worker_distinctly PASSED [ 97%]
+tests/test_train_pipeline.py::test_step13_deterministic_flag_sets_cudnn_flags_and_defaults_off PASSED [100%]
+
+============================= 37 passed in 28.17s ==============================

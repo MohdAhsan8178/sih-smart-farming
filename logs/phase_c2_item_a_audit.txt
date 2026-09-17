@@ -1,0 +1,13 @@
+Canonical Image Count: 35551
+Non-Image Count: 11
+  data/packaged_min/dataset-metadata.json (168 bytes)
+  data/packaged_min/openset_holdout/README.txt (781 bytes)
+  data/packaged_min/splits_packaged/all_images.csv (3416608 bytes)
+  data/packaged_min/splits_packaged/class_mapping.csv (4662 bytes)
+  data/packaged_min/splits_packaged/class_weights.json (2435 bytes)
+  data/packaged_min/splits_packaged/openset_categories.csv (1051 bytes)
+  data/packaged_min/splits_packaged/test_crossdomain.csv (1082450 bytes)
+  data/packaged_min/splits_packaged/test_external_riceblast.csv (7992 bytes)
+  data/packaged_min/splits_packaged/test_indist.csv (233731 bytes)
+  data/packaged_min/splits_packaged/train.csv (1868509 bytes)
+  data/packaged_min/splits_packaged/val.csv (232062 bytes)

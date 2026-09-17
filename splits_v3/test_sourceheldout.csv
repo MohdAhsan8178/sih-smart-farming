@@ -1,0 +1,1572 @@
+path,label,source_dataset,orig_folder,group_id
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1818.png,wheat__powdery_mildew,wheat_small,Mildew,18207
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1401.png,wheat__powdery_mildew,wheat_small,Mildew,18208
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2054.png,wheat__powdery_mildew,wheat_small,Mildew,18209
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1561.png,wheat__powdery_mildew,wheat_small,Mildew,18210
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1763.png,wheat__powdery_mildew,wheat_small,Mildew,18211
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1986.png,wheat__powdery_mildew,wheat_small,Mildew,18212
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew34.png,wheat__powdery_mildew,wheat_small,Mildew,18213
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1366.png,wheat__powdery_mildew,wheat_small,Mildew,18214
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1158.png,wheat__powdery_mildew,wheat_small,Mildew,18215
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2721.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18216
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew260.png,wheat__powdery_mildew,wheat_small,Mildew,18217
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1210.png,wheat__powdery_mildew,wheat_small,Mildew,18218
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew36.png,wheat__powdery_mildew,wheat_small,Mildew,18219
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew102.png,wheat__powdery_mildew,wheat_small,Mildew,18220
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2297.png,wheat__powdery_mildew,wheat_small,Mildew,18221
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew498.png,wheat__powdery_mildew,wheat_small,Mildew,18222
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2334.png,wheat__powdery_mildew,wheat_small,Mildew,18223
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2920.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18224
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew265.png,wheat__powdery_mildew,wheat_small,Mildew,18225
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew477.png,wheat__powdery_mildew,wheat_small,Mildew,18226
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1201.png,wheat__powdery_mildew,wheat_small,Mildew,18227
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1759.png,wheat__powdery_mildew,wheat_small,Mildew,18228
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1981.png,wheat__powdery_mildew,wheat_small,Mildew,18229
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew112.png,wheat__powdery_mildew,wheat_small,Mildew,18230
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1148.png,wheat__powdery_mildew,wheat_small,Mildew,18231
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2653.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18232
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew448.png,wheat__powdery_mildew,wheat_small,Mildew,18233
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew676.png,wheat__powdery_mildew,wheat_small,Mildew,18234
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1997.png,wheat__powdery_mildew,wheat_small,Mildew,18235
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1798.png,wheat__powdery_mildew,wheat_small,Mildew,18236
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2628.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18237
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew298.png,wheat__powdery_mildew,wheat_small,Mildew,18238
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1377.png,wheat__powdery_mildew,wheat_small,Mildew,18239
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1405.png,wheat__powdery_mildew,wheat_small,Mildew,18240
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew529.png,wheat__powdery_mildew,wheat_small,Mildew,18241
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew703.png,wheat__powdery_mildew,wheat_small,Mildew,18242
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2662.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18243
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew943.png,wheat__powdery_mildew,wheat_small,Mildew,18244
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1112.png,wheat__powdery_mildew,wheat_small,Mildew,18245
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew406.png,wheat__powdery_mildew,wheat_small,Mildew,18246
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1099.png,wheat__powdery_mildew,wheat_small,Mildew,18247
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew81.png,wheat__powdery_mildew,wheat_small,Mildew,18248
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2235.png,wheat__powdery_mildew,wheat_small,Mildew,18249
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1066.png,wheat__powdery_mildew,wheat_small,Mildew,18250
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew407.png,wheat__powdery_mildew,wheat_small,Mildew,18251
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2181.png,wheat__powdery_mildew,wheat_small,Mildew,18252
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1846.png,wheat__powdery_mildew,wheat_small,Mildew,18253
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2381.png,wheat__powdery_mildew,wheat_small,Mildew,18254
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1139.png,wheat__powdery_mildew,wheat_small,Mildew,18255
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1111.png,wheat__powdery_mildew,wheat_small,Mildew,18256
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1267.png,wheat__powdery_mildew,wheat_small,Mildew,18257
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew69.png,wheat__powdery_mildew,wheat_small,Mildew,18258
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2222.png,wheat__powdery_mildew,wheat_small,Mildew,18259
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1703.png,wheat__powdery_mildew,wheat_small,Mildew,18260
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1717.png,wheat__powdery_mildew,wheat_small,Mildew,18261
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2480.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18262
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew68.png,wheat__powdery_mildew,wheat_small,Mildew,18263
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2838.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18264
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2707.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18265
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2750.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18266
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2881.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18267
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2347.png,wheat__powdery_mildew,wheat_small,Mildew,18268
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew548.png,wheat__powdery_mildew,wheat_small,Mildew,18269
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1289.png,wheat__powdery_mildew,wheat_small,Mildew,18270
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew428.png,wheat__powdery_mildew,wheat_small,Mildew,18271
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1504.png,wheat__powdery_mildew,wheat_small,Mildew,18272
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1262.png,wheat__powdery_mildew,wheat_small,Mildew,18273
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2233.png,wheat__powdery_mildew,wheat_small,Mildew,18274
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1465.png,wheat__powdery_mildew,wheat_small,Mildew,18275
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew213.png,wheat__powdery_mildew,wheat_small,Mildew,18276
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2815.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18277
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1854.png,wheat__powdery_mildew,wheat_small,Mildew,18278
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2387.png,wheat__powdery_mildew,wheat_small,Mildew,18279
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2378.png,wheat__powdery_mildew,wheat_small,Mildew,18280
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2152.png,wheat__powdery_mildew,wheat_small,Mildew,18281
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1249.png,wheat__powdery_mildew,wheat_small,Mildew,18282
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew90.png,wheat__powdery_mildew,wheat_small,Mildew,18283
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew600.png,wheat__powdery_mildew,wheat_small,Mildew,18284
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2858.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18285
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1274.png,wheat__powdery_mildew,wheat_small,Mildew,18286
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew364.png,wheat__powdery_mildew,wheat_small,Mildew,18287
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1116.png,wheat__powdery_mildew,wheat_small,Mildew,18288
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2726.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18289
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1843.png,wheat__powdery_mildew,wheat_small,Mildew,18290
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew984.png,wheat__powdery_mildew,wheat_small,Mildew,18291
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1133.png,wheat__powdery_mildew,wheat_small,Mildew,18292
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew631.png,wheat__powdery_mildew,wheat_small,Mildew,18293
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew181.png,wheat__powdery_mildew,wheat_small,Mildew,18294
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew591.png,wheat__powdery_mildew,wheat_small,Mildew,18295
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1324.png,wheat__powdery_mildew,wheat_small,Mildew,18296
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1495.png,wheat__powdery_mildew,wheat_small,Mildew,18297
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1654.png,wheat__powdery_mildew,wheat_small,Mildew,18298
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew988.png,wheat__powdery_mildew,wheat_small,Mildew,18299
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew778.png,wheat__powdery_mildew,wheat_small,Mildew,18300
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1871.png,wheat__powdery_mildew,wheat_small,Mildew,18301
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1534.png,wheat__powdery_mildew,wheat_small,Mildew,18302
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew183.png,wheat__powdery_mildew,wheat_small,Mildew,18303
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1051.png,wheat__powdery_mildew,wheat_small,Mildew,18304
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew828.png,wheat__powdery_mildew,wheat_small,Mildew,18305
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew592.png,wheat__powdery_mildew,wheat_small,Mildew,18306
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew237.png,wheat__powdery_mildew,wheat_small,Mildew,18307
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2729.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18308
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1864.png,wheat__powdery_mildew,wheat_small,Mildew,18309
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1135.png,wheat__powdery_mildew,wheat_small,Mildew,18310
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2790.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18311
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew353.png,wheat__powdery_mildew,wheat_small,Mildew,18312
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2505.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18313
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1531.png,wheat__powdery_mildew,wheat_small,Mildew,18314
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2038.png,wheat__powdery_mildew,wheat_small,Mildew,18315
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1082.png,wheat__powdery_mildew,wheat_small,Mildew,18316
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1041.png,wheat__powdery_mildew,wheat_small,Mildew,18317
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1726.png,wheat__powdery_mildew,wheat_small,Mildew,18318
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew70.png,wheat__powdery_mildew,wheat_small,Mildew,18319
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1493.png,wheat__powdery_mildew,wheat_small,Mildew,18320
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1652.png,wheat__powdery_mildew,wheat_small,Mildew,18321
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1875.png,wheat__powdery_mildew,wheat_small,Mildew,18322
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1122.png,wheat__powdery_mildew,wheat_small,Mildew,18323
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew224.png,wheat__powdery_mildew,wheat_small,Mildew,18324
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew152.png,wheat__powdery_mildew,wheat_small,Mildew,18325
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew608.png,wheat__powdery_mildew,wheat_small,Mildew,18326
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew190.png,wheat__powdery_mildew,wheat_small,Mildew,18327
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew98.png,wheat__powdery_mildew,wheat_small,Mildew,18328
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1490.png,wheat__powdery_mildew,wheat_small,Mildew,18329
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1144.png,wheat__powdery_mildew,wheat_small,Mildew,18330
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1352.png,wheat__powdery_mildew,wheat_small,Mildew,18331
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1434.png,wheat__powdery_mildew,wheat_small,Mildew,18332
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew646.png,wheat__powdery_mildew,wheat_small,Mildew,18333
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1742.png,wheat__powdery_mildew,wheat_small,Mildew,18334
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2276.png,wheat__powdery_mildew,wheat_small,Mildew,18335
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1582.png,wheat__powdery_mildew,wheat_small,Mildew,18336
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2902.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18337
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew257.png,wheat__powdery_mildew,wheat_small,Mildew,18338
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew243.png,wheat__powdery_mildew,wheat_small,Mildew,18339
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew733.png,wheat__powdery_mildew,wheat_small,Mildew,18340
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew731.png,wheat__powdery_mildew,wheat_small,Mildew,18341
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1621.png,wheat__powdery_mildew,wheat_small,Mildew,18342
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2563.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18343
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1966.png,wheat__powdery_mildew,wheat_small,Mildew,18344
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2522.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18345
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1768.png,wheat__powdery_mildew,wheat_small,Mildew,18346
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew452.png,wheat__powdery_mildew,wheat_small,Mildew,18347
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2088.png,wheat__powdery_mildew,wheat_small,Mildew,18348
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2919.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18349
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1022.png,wheat__powdery_mildew,wheat_small,Mildew,18350
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1962.png,wheat__powdery_mildew,wheat_small,Mildew,18351
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1786.png,wheat__powdery_mildew,wheat_small,Mildew,18352
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew325.png,wheat__powdery_mildew,wheat_small,Mildew,18353
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew286.png,wheat__powdery_mildew,wheat_small,Mildew,18354
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2759.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18355
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2304.png,wheat__powdery_mildew,wheat_small,Mildew,18356
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1143.png,wheat__powdery_mildew,wheat_small,Mildew,18357
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1828.png,wheat__powdery_mildew,wheat_small,Mildew,18358
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2811.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18359
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2450.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18360
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2779.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18361
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1948.png,wheat__powdery_mildew,wheat_small,Mildew,18362
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew39.png,wheat__powdery_mildew,wheat_small,Mildew,18363
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1356.png,wheat__powdery_mildew,wheat_small,Mildew,18364
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2307.png,wheat__powdery_mildew,wheat_small,Mildew,18365
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew2539.jpeg,wheat__powdery_mildew,wheat_small,Mildew,18366
+data/raw/wheat_small/Wheat Disease Dataset/Mildew/Mildew1626.png,wheat__powdery_mildew,wheat_small,Mildew,18367
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(84).JPG,wheat__septoria,wheat_mendeley,septoria,19057
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(9).JPG,wheat__septoria,wheat_mendeley,septoria,19058
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(92).JPG,wheat__septoria,wheat_mendeley,septoria,19059
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(51).JPG,wheat__septoria,wheat_mendeley,septoria,19060
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(10).JPG,wheat__septoria,wheat_mendeley,septoria,19061
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(47).JPG,wheat__septoria,wheat_mendeley,septoria,19062
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(30).JPG,wheat__septoria,wheat_mendeley,septoria,19063
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(5).JPG,wheat__septoria,wheat_mendeley,septoria,19064
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(88).JPG,wheat__septoria,wheat_mendeley,septoria,19065
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(67).JPG,wheat__septoria,wheat_mendeley,septoria,19066
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(71).JPG,wheat__septoria,wheat_mendeley,septoria,19067
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(26).JPG,wheat__septoria,wheat_mendeley,septoria,19068
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(27).JPG,wheat__septoria,wheat_mendeley,septoria,19069
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(70).JPG,wheat__septoria,wheat_mendeley,septoria,19070
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(89).JPG,wheat__septoria,wheat_mendeley,septoria,19071
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(66).JPG,wheat__septoria,wheat_mendeley,septoria,19072
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(4).JPG,wheat__septoria,wheat_mendeley,septoria,19073
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(31).JPG,wheat__septoria,wheat_mendeley,septoria,19074
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(46).JPG,wheat__septoria,wheat_mendeley,septoria,19075
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(11).JPG,wheat__septoria,wheat_mendeley,septoria,19076
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(50).JPG,wheat__septoria,wheat_mendeley,septoria,19077
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(93).JPG,wheat__septoria,wheat_mendeley,septoria,19078
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(8).JPG,wheat__septoria,wheat_mendeley,septoria,19079
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(85).JPG,wheat__septoria,wheat_mendeley,septoria,19080
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(36).JPG,wheat__septoria,wheat_mendeley,septoria,19081
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(3).JPG,wheat__septoria,wheat_mendeley,septoria,19082
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(61).JPG,wheat__septoria,wheat_mendeley,septoria,19083
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(77).JPG,wheat__septoria,wheat_mendeley,septoria,19084
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(20).JPG,wheat__septoria,wheat_mendeley,septoria,19085
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(82).JPG,wheat__septoria,wheat_mendeley,septoria,19086
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(94).JPG,wheat__septoria,wheat_mendeley,septoria,19087
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(57).JPG,wheat__septoria,wheat_mendeley,septoria,19088
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(16).JPG,wheat__septoria,wheat_mendeley,septoria,19089
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(41).JPG,wheat__septoria,wheat_mendeley,septoria,19090
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(40).JPG,wheat__septoria,wheat_mendeley,septoria,19091
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(17).JPG,wheat__septoria,wheat_mendeley,septoria,19092
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(56).JPG,wheat__septoria,wheat_mendeley,septoria,19093
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(95).JPG,wheat__septoria,wheat_mendeley,septoria,19094
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(83).JPG,wheat__septoria,wheat_mendeley,septoria,19095
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(21).JPG,wheat__septoria,wheat_mendeley,septoria,19096
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(76).JPG,wheat__septoria,wheat_mendeley,septoria,19097
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(60).JPG,wheat__septoria,wheat_mendeley,septoria,19098
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(2).JPG,wheat__septoria,wheat_mendeley,septoria,19099
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(37).JPG,wheat__septoria,wheat_mendeley,septoria,19100
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(18).JPG,wheat__septoria,wheat_mendeley,septoria,19101
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(59).JPG,wheat__septoria,wheat_mendeley,septoria,19102
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(22).JPG,wheat__septoria,wheat_mendeley,septoria,19103
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(75).JPG,wheat__septoria,wheat_mendeley,septoria,19104
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(63).JPG,wheat__septoria,wheat_mendeley,septoria,19105
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(1).JPG,wheat__septoria,wheat_mendeley,septoria,19106
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(34).JPG,wheat__septoria,wheat_mendeley,septoria,19107
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(43).JPG,wheat__septoria,wheat_mendeley,septoria,19108
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(14).JPG,wheat__septoria,wheat_mendeley,septoria,19109
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(55).JPG,wheat__septoria,wheat_mendeley,septoria,19110
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(79).JPG,wheat__septoria,wheat_mendeley,septoria,19111
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(96).JPG,wheat__septoria,wheat_mendeley,septoria,19112
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(80).JPG,wheat__septoria,wheat_mendeley,septoria,19113
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(38).JPG,wheat__septoria,wheat_mendeley,septoria,19114
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(39).JPG,wheat__septoria,wheat_mendeley,septoria,19115
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(81).JPG,wheat__septoria,wheat_mendeley,septoria,19116
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(78).JPG,wheat__septoria,wheat_mendeley,septoria,19117
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(97).JPG,wheat__septoria,wheat_mendeley,septoria,19118
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(54).JPG,wheat__septoria,wheat_mendeley,septoria,19119
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(15).JPG,wheat__septoria,wheat_mendeley,septoria,19120
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(42).JPG,wheat__septoria,wheat_mendeley,septoria,19121
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(35).JPG,wheat__septoria,wheat_mendeley,septoria,19122
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(62).JPG,wheat__septoria,wheat_mendeley,septoria,19123
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(74).JPG,wheat__septoria,wheat_mendeley,septoria,19124
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(23).JPG,wheat__septoria,wheat_mendeley,septoria,19125
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(58).JPG,wheat__septoria,wheat_mendeley,septoria,19126
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(19).JPG,wheat__septoria,wheat_mendeley,septoria,19127
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(45).JPG,wheat__septoria,wheat_mendeley,septoria,19128
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(12).JPG,wheat__septoria,wheat_mendeley,septoria,19129
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(53).JPG,wheat__septoria,wheat_mendeley,septoria,19130
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(28).JPG,wheat__septoria,wheat_mendeley,septoria,19131
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(90).JPG,wheat__septoria,wheat_mendeley,septoria,19132
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(69).JPG,wheat__septoria,wheat_mendeley,septoria,19133
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(86).JPG,wheat__septoria,wheat_mendeley,septoria,19134
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(49).JPG,wheat__septoria,wheat_mendeley,septoria,19135
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(24).JPG,wheat__septoria,wheat_mendeley,septoria,19136
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(73).JPG,wheat__septoria,wheat_mendeley,septoria,19137
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(65).JPG,wheat__septoria,wheat_mendeley,septoria,19138
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(7).JPG,wheat__septoria,wheat_mendeley,septoria,19139
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(32).JPG,wheat__septoria,wheat_mendeley,septoria,19140
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(33).JPG,wheat__septoria,wheat_mendeley,septoria,19141
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(6).JPG,wheat__septoria,wheat_mendeley,septoria,19142
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(64).JPG,wheat__septoria,wheat_mendeley,septoria,19143
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(72).JPG,wheat__septoria,wheat_mendeley,septoria,19144
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(25).JPG,wheat__septoria,wheat_mendeley,septoria,19145
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(48).JPG,wheat__septoria,wheat_mendeley,septoria,19146
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(68).JPG,wheat__septoria,wheat_mendeley,septoria,19147
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(87).JPG,wheat__septoria,wheat_mendeley,septoria,19148
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(91).JPG,wheat__septoria,wheat_mendeley,septoria,19149
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(29).JPG,wheat__septoria,wheat_mendeley,septoria,19150
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(52).JPG,wheat__septoria,wheat_mendeley,septoria,19151
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(13).JPG,wheat__septoria,wheat_mendeley,septoria,19152
+data/raw/wheat_mendeley/wheat_leaf/septoria/los(44).JPG,wheat__septoria,wheat_mendeley,septoria,19153
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(127).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19154
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(170).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19155
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(50).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19156
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(166).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19157
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(46).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19158
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(189).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19159
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(131).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19160
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(11).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19161
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(85).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19162
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(93).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19163
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(202).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19164
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(193).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19165
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(185).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19166
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(66).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19167
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(146).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19168
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(89).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19169
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(31).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19170
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(111).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19171
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(1).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19172
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(27).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19173
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(107).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19174
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(70).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19175
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(150).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19176
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(71).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19177
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(151).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19178
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(26).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19179
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(106).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19180
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(30).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19181
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(110).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19182
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(67).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19183
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(147).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19184
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(88).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19185
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(184).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19186
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(192).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19187
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(203).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19188
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(92).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19189
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(84).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19190
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(130).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19191
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(10).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19192
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(167).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19193
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(47).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19194
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(188).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19195
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(171).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19196
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(51).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19197
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(126).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19198
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(204).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19199
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(195).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19200
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(183).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19201
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(60).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19202
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(140).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19203
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(37).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19204
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(117).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19205
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(7).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19206
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(21).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19207
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(101).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19208
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(76).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19209
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(99).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19210
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(156).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19211
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(208).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19212
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(121).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19213
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(176).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19214
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(199).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19215
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(56).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19216
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(160).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19217
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(40).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19218
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(137).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19219
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(17).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19220
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(83).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19221
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(95).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19222
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(94).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19223
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(82).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19224
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(136).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19225
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(16).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19226
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(161).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19227
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(41).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19228
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(177).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19229
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(198).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19230
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(57).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19231
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(120).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19232
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(77).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19233
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(98).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19234
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(157).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19235
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(20).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19236
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(100).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19237
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(6).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19238
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(36).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19239
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(116).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19240
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(61).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19241
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(141).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19242
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(182).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19243
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(194).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19244
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(205).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19245
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(154).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19246
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(74).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19247
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(103).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19248
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(23).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19249
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(5).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19250
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(115).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19251
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(35).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19252
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(142).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19253
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(62).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19254
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(19).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19255
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(139).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19256
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(181).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19257
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(58).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19258
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(197).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19201
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(178).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19259
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(206).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19260
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(158).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19261
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(97).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19262
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(78).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19263
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(119).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19264
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(39).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19265
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(9).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19266
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(81).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19267
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(15).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19268
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(135).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19269
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(42).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19270
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(162).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19271
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(54).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19272
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(174).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19273
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(123).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19274
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(122).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19275
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(55).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19276
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(175).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19277
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(43).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19278
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(163).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19279
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(14).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19280
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(134).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19281
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(80).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19282
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(8).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19283
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(118).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19284
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(38).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19285
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(159).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19286
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(96).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19287
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(79).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19288
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(207).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19289
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(59).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19290
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(196).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19291
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(179).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19292
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(180).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19293
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(18).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19294
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(138).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19295
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(143).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19296
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(63).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19297
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(114).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19298
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(34).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19299
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(4).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19300
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(102).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19301
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(22).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19302
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(155).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19303
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(75).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19304
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(91).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19305
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(109).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19306
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(29).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19307
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(87).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19308
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(148).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19309
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(68).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19310
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(13).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19311
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(133).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19312
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(44).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19313
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(164).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19314
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(52).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19315
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(172).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19316
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(125).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19317
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(152).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19318
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(72).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19319
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(105).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19320
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(25).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19321
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(3).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19322
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(113).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19323
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(33).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19324
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(144).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19325
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(64).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19326
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(187).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19327
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(48).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19328
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(168).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19329
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(191).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19330
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(200).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19331
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(129).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19332
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(128).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19333
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(201).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19334
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(190).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19335
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(186).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19336
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(49).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19337
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(169).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19338
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(145).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19339
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(65).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19340
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(112).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19341
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(32).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19342
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(2).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19343
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(104).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19344
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(24).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19345
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(153).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19346
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(73).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19347
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(124).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19348
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(53).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19349
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(173).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19350
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(45).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19351
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(165).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19352
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(12).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19353
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(132).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19354
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(86).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19355
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(149).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19356
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(69).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19357
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(108).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19358
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(28).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19359
+data/raw/wheat_mendeley/wheat_leaf/stripe_rust/lolr(90).JPG,wheat__yellow_rust,wheat_mendeley,stripe_rust,19360
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (250).jpg,rice__normal,rice_hasan,healthy,21971
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (196).jpg,rice__normal,rice_hasan,healthy,21972
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (207).jpg,rice__normal,rice_hasan,healthy,21973
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (211).jpg,rice__normal,rice_hasan,healthy,21974
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (138).jpg,rice__normal,rice_hasan,healthy,21975
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (246).jpg,rice__normal,rice_hasan,healthy,21976
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (19).jpg,rice__normal,rice_hasan,healthy,21977
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (180).jpg,rice__normal,rice_hasan,healthy,21978
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (114).jpg,rice__normal,rice_hasan,healthy,21979
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (35).jpg,rice__normal,rice_hasan,healthy,21980
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (23).jpg,rice__normal,rice_hasan,healthy,21981
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (15).jpg,rice__normal,rice_hasan,healthy,21982
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (81).jpg,rice__normal,rice_hasan,healthy,21983
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (231).jpg,rice__normal,rice_hasan,healthy,21984
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (39).jpg,rice__normal,rice_hasan,healthy,21985
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (159).jpg,rice__normal,rice_hasan,healthy,21986
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (1).jpg,rice__normal,rice_hasan,healthy,21987
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (227).jpg,rice__normal,rice_hasan,healthy,21988
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (226).jpg,rice__normal,rice_hasan,healthy,21989
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (158).jpg,rice__normal,rice_hasan,healthy,21990
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (38).jpg,rice__normal,rice_hasan,healthy,21991
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (230).jpg,rice__normal,rice_hasan,healthy,21992
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (14).jpg,rice__normal,rice_hasan,healthy,21993
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (103).jpg,rice__normal,rice_hasan,healthy,21994
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (22).jpg,rice__normal,rice_hasan,healthy,21995
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (34).jpg,rice__normal,rice_hasan,healthy,21996
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (115).jpg,rice__normal,rice_hasan,healthy,21997
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (181).jpg,rice__normal,rice_hasan,healthy,21998
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (247).jpg,rice__normal,rice_hasan,healthy,21999
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (18).jpg,rice__normal,rice_hasan,healthy,22000
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (210).jpg,rice__normal,rice_hasan,healthy,22001
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (206).jpg,rice__normal,rice_hasan,healthy,22002
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (59).jpg,rice__normal,rice_hasan,healthy,22003
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (197).jpg,rice__normal,rice_hasan,healthy,22004
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (251).jpg,rice__normal,rice_hasan,healthy,22005
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (13).jpg,rice__normal,rice_hasan,healthy,22006
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (237).jpg,rice__normal,rice_hasan,healthy,22007
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (149).jpg,rice__normal,rice_hasan,healthy,22008
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (29).jpg,rice__normal,rice_hasan,healthy,22009
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (7).jpg,rice__normal,rice_hasan,healthy,22010
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (221).jpg,rice__normal,rice_hasan,healthy,22011
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (256).jpg,rice__normal,rice_hasan,healthy,22012
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (190).jpg,rice__normal,rice_hasan,healthy,22013
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (201).jpg,rice__normal,rice_hasan,healthy,22014
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (217).jpg,rice__normal,rice_hasan,healthy,22015
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (48).jpg,rice__normal,rice_hasan,healthy,22016
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (240).jpg,rice__normal,rice_hasan,healthy,22017
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (186).jpg,rice__normal,rice_hasan,healthy,22018
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (169).jpg,rice__normal,rice_hasan,healthy,22019
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (33).jpg,rice__normal,rice_hasan,healthy,22020
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (25).jpg,rice__normal,rice_hasan,healthy,22021
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (72).jpg,rice__normal,rice_hasan,healthy,22022
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (104).jpg,rice__normal,rice_hasan,healthy,21994
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (105).jpg,rice__normal,rice_hasan,healthy,22023
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (24).jpg,rice__normal,rice_hasan,healthy,22024
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (32).jpg,rice__normal,rice_hasan,healthy,22025
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (187).jpg,rice__normal,rice_hasan,healthy,22026
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (241).jpg,rice__normal,rice_hasan,healthy,22027
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (216).jpg,rice__normal,rice_hasan,healthy,22028
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (49).jpg,rice__normal,rice_hasan,healthy,22029
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (200).jpg,rice__normal,rice_hasan,healthy,22030
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (191).jpg,rice__normal,rice_hasan,healthy,22031
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (257).jpg,rice__normal,rice_hasan,healthy,22032
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (220).jpg,rice__normal,rice_hasan,healthy,22033
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (28).jpg,rice__normal,rice_hasan,healthy,22034
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (6).jpg,rice__normal,rice_hasan,healthy,22023
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (148).jpg,rice__normal,rice_hasan,healthy,22035
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (236).jpg,rice__normal,rice_hasan,healthy,22036
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (12).jpg,rice__normal,rice_hasan,healthy,22037
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (125).jpg,rice__normal,rice_hasan,healthy,21997
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (223).jpg,rice__normal,rice_hasan,healthy,22038
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (93).jpg,rice__normal,rice_hasan,healthy,22039
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (5).jpg,rice__normal,rice_hasan,healthy,22040
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (235).jpg,rice__normal,rice_hasan,healthy,22041
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (11).jpg,rice__normal,rice_hasan,healthy,22042
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (188).jpg,rice__normal,rice_hasan,healthy,22043
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (219).jpg,rice__normal,rice_hasan,healthy,22044
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (50).jpg,rice__normal,rice_hasan,healthy,22045
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (126).jpg,rice__normal,rice_hasan,healthy,22046
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (171).jpg,rice__normal,rice_hasan,healthy,22047
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (70).jpg,rice__normal,rice_hasan,healthy,22048
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (9).jpg,rice__normal,rice_hasan,healthy,22049
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (27).jpg,rice__normal,rice_hasan,healthy,22050
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (147).jpg,rice__normal,rice_hasan,healthy,22051
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (31).jpg,rice__normal,rice_hasan,healthy,22052
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (239).jpg,rice__normal,rice_hasan,healthy,22053
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (184).jpg,rice__normal,rice_hasan,healthy,22054
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (242).jpg,rice__normal,rice_hasan,healthy,22055
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (215).jpg,rice__normal,rice_hasan,healthy,22056
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (203).jpg,rice__normal,rice_hasan,healthy,22057
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (192).jpg,rice__normal,rice_hasan,healthy,22058
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (254).jpg,rice__normal,rice_hasan,healthy,22059
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (255).jpg,rice__normal,rice_hasan,healthy,22060
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (193).jpg,rice__normal,rice_hasan,healthy,22061
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (202).jpg,rice__normal,rice_hasan,healthy,22062
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (214).jpg,rice__normal,rice_hasan,healthy,22063
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (243).jpg,rice__normal,rice_hasan,healthy,22064
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (185).jpg,rice__normal,rice_hasan,healthy,22065
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (238).jpg,rice__normal,rice_hasan,healthy,22066
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (30).jpg,rice__normal,rice_hasan,healthy,22067
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (8).jpg,rice__normal,rice_hasan,healthy,22068
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (26).jpg,rice__normal,rice_hasan,healthy,22069
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (71).jpg,rice__normal,rice_hasan,healthy,22070
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (170).jpg,rice__normal,rice_hasan,healthy,22071
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (127).jpg,rice__normal,rice_hasan,healthy,22072
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (218).jpg,rice__normal,rice_hasan,healthy,22073
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (189).jpg,rice__normal,rice_hasan,healthy,22074
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (10).jpg,rice__normal,rice_hasan,healthy,22075
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (234).jpg,rice__normal,rice_hasan,healthy,22076
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (4).jpg,rice__normal,rice_hasan,healthy,22077
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (222).jpg,rice__normal,rice_hasan,healthy,22078
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (92).jpg,rice__normal,rice_hasan,healthy,22039
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (229).jpg,rice__normal,rice_hasan,healthy,22079
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (21).jpg,rice__normal,rice_hasan,healthy,22080
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (37).jpg,rice__normal,rice_hasan,healthy,22081
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (116).jpg,rice__normal,rice_hasan,healthy,21997
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (60).jpg,rice__normal,rice_hasan,healthy,22082
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (182).jpg,rice__normal,rice_hasan,healthy,22083
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (244).jpg,rice__normal,rice_hasan,healthy,22084
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (213).jpg,rice__normal,rice_hasan,healthy,22085
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (205).jpg,rice__normal,rice_hasan,healthy,22086
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (194).jpg,rice__normal,rice_hasan,healthy,22087
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (252).jpg,rice__normal,rice_hasan,healthy,22088
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (225).jpg,rice__normal,rice_hasan,healthy,22089
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (3).jpg,rice__normal,rice_hasan,healthy,22090
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (233).jpg,rice__normal,rice_hasan,healthy,22091
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (83).jpg,rice__normal,rice_hasan,healthy,22092
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (17).jpg,rice__normal,rice_hasan,healthy,22093
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (248).jpg,rice__normal,rice_hasan,healthy,22094
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (40).jpg,rice__normal,rice_hasan,healthy,22095
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (136).jpg,rice__normal,rice_hasan,healthy,22096
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (209).jpg,rice__normal,rice_hasan,healthy,22097
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (198).jpg,rice__normal,rice_hasan,healthy,22098
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (199).jpg,rice__normal,rice_hasan,healthy,22099
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (208).jpg,rice__normal,rice_hasan,healthy,22100
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (137).jpg,rice__normal,rice_hasan,healthy,22101
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (41).jpg,rice__normal,rice_hasan,healthy,22102
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (160).jpg,rice__normal,rice_hasan,healthy,22103
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (16).jpg,rice__normal,rice_hasan,healthy,22104
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (249).jpg,rice__normal,rice_hasan,healthy,22105
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (232).jpg,rice__normal,rice_hasan,healthy,22106
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (82).jpg,rice__normal,rice_hasan,healthy,22107
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (2).jpg,rice__normal,rice_hasan,healthy,22108
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (224).jpg,rice__normal,rice_hasan,healthy,22109
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (94).jpg,rice__normal,rice_hasan,healthy,22110
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (253).jpg,rice__normal,rice_hasan,healthy,22111
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (195).jpg,rice__normal,rice_hasan,healthy,22112
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (204).jpg,rice__normal,rice_hasan,healthy,22113
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (212).jpg,rice__normal,rice_hasan,healthy,22114
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (245).jpg,rice__normal,rice_hasan,healthy,22115
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (183).jpg,rice__normal,rice_hasan,healthy,22116
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (61).jpg,rice__normal,rice_hasan,healthy,22117
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (36).jpg,rice__normal,rice_hasan,healthy,22118
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (20).jpg,rice__normal,rice_hasan,healthy,22119
+data/raw/rice_hasan/healthy/Healthy_rice_leaf (228).jpg,rice__normal,rice_hasan,healthy,22120
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_0.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24603
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_1.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24604
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_10.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24605
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_11.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24606
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_12.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24607
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_13.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24608
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_14.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24609
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_15.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24610
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_16.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24611
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_17.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24612
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_18.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24613
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_19.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24614
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_2.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24615
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_20.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24616
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_21.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24617
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_22.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24618
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_23.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24619
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_24.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24620
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_25.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24621
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_26.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24622
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_27.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24623
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_28.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24624
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_29.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24625
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_3.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24626
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_30.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24627
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_31.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24628
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_32.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24629
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_33.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24630
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_34.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24631
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_35.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24632
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_36.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24633
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_37.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24634
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_38.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24635
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_39.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24636
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_4.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24637
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_40.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24638
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_41.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24639
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_42.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24640
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_43.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24641
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_44.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24642
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_45.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24643
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_46.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24644
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_47.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24645
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_48.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24646
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_5.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24647
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_6.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24648
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_7.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24649
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_8.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24650
+data/raw/dhan_shomadhan/brown_spot/ds_bsf_9.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24651
+data/raw/dhan_shomadhan/blast/ds_rbf_0.jpg,rice__blast,dhan_shomadhan,blast,24652
+data/raw/dhan_shomadhan/blast/ds_rbf_1.jpg,rice__blast,dhan_shomadhan,blast,24653
+data/raw/dhan_shomadhan/blast/ds_rbf_10.jpg,rice__blast,dhan_shomadhan,blast,24654
+data/raw/dhan_shomadhan/blast/ds_rbf_11.jpg,rice__blast,dhan_shomadhan,blast,24655
+data/raw/dhan_shomadhan/blast/ds_rbf_12.jpg,rice__blast,dhan_shomadhan,blast,24656
+data/raw/dhan_shomadhan/blast/ds_rbf_13.jpg,rice__blast,dhan_shomadhan,blast,24657
+data/raw/dhan_shomadhan/blast/ds_rbf_14.jpg,rice__blast,dhan_shomadhan,blast,24658
+data/raw/dhan_shomadhan/blast/ds_rbf_15.jpg,rice__blast,dhan_shomadhan,blast,24659
+data/raw/dhan_shomadhan/blast/ds_rbf_16.jpg,rice__blast,dhan_shomadhan,blast,24660
+data/raw/dhan_shomadhan/blast/ds_rbf_17.jpg,rice__blast,dhan_shomadhan,blast,24661
+data/raw/dhan_shomadhan/blast/ds_rbf_18.jpg,rice__blast,dhan_shomadhan,blast,24662
+data/raw/dhan_shomadhan/blast/ds_rbf_19.jpg,rice__blast,dhan_shomadhan,blast,24663
+data/raw/dhan_shomadhan/blast/ds_rbf_2.jpg,rice__blast,dhan_shomadhan,blast,24664
+data/raw/dhan_shomadhan/blast/ds_rbf_20.jpg,rice__blast,dhan_shomadhan,blast,24665
+data/raw/dhan_shomadhan/blast/ds_rbf_21.jpg,rice__blast,dhan_shomadhan,blast,24666
+data/raw/dhan_shomadhan/blast/ds_rbf_22.jpg,rice__blast,dhan_shomadhan,blast,24667
+data/raw/dhan_shomadhan/blast/ds_rbf_23.jpg,rice__blast,dhan_shomadhan,blast,24668
+data/raw/dhan_shomadhan/blast/ds_rbf_24.jpg,rice__blast,dhan_shomadhan,blast,24669
+data/raw/dhan_shomadhan/blast/ds_rbf_25.jpg,rice__blast,dhan_shomadhan,blast,24670
+data/raw/dhan_shomadhan/blast/ds_rbf_26.jpg,rice__blast,dhan_shomadhan,blast,24671
+data/raw/dhan_shomadhan/blast/ds_rbf_27.jpg,rice__blast,dhan_shomadhan,blast,24672
+data/raw/dhan_shomadhan/blast/ds_rbf_28.jpg,rice__blast,dhan_shomadhan,blast,24673
+data/raw/dhan_shomadhan/blast/ds_rbf_29.jpg,rice__blast,dhan_shomadhan,blast,24674
+data/raw/dhan_shomadhan/blast/ds_rbf_3.jpg,rice__blast,dhan_shomadhan,blast,24675
+data/raw/dhan_shomadhan/blast/ds_rbf_30.jpg,rice__blast,dhan_shomadhan,blast,24676
+data/raw/dhan_shomadhan/blast/ds_rbf_31.jpg,rice__blast,dhan_shomadhan,blast,24677
+data/raw/dhan_shomadhan/blast/ds_rbf_32.jpg,rice__blast,dhan_shomadhan,blast,24678
+data/raw/dhan_shomadhan/blast/ds_rbf_33.jpg,rice__blast,dhan_shomadhan,blast,24679
+data/raw/dhan_shomadhan/blast/ds_rbf_34.jpg,rice__blast,dhan_shomadhan,blast,24680
+data/raw/dhan_shomadhan/blast/ds_rbf_35.jpg,rice__blast,dhan_shomadhan,blast,24681
+data/raw/dhan_shomadhan/blast/ds_rbf_36.jpg,rice__blast,dhan_shomadhan,blast,24682
+data/raw/dhan_shomadhan/blast/ds_rbf_37.jpg,rice__blast,dhan_shomadhan,blast,24683
+data/raw/dhan_shomadhan/blast/ds_rbf_38.jpg,rice__blast,dhan_shomadhan,blast,24684
+data/raw/dhan_shomadhan/blast/ds_rbf_39.jpg,rice__blast,dhan_shomadhan,blast,24685
+data/raw/dhan_shomadhan/blast/ds_rbf_4.jpg,rice__blast,dhan_shomadhan,blast,24686
+data/raw/dhan_shomadhan/blast/ds_rbf_40.jpg,rice__blast,dhan_shomadhan,blast,24687
+data/raw/dhan_shomadhan/blast/ds_rbf_41.jpg,rice__blast,dhan_shomadhan,blast,24688
+data/raw/dhan_shomadhan/blast/ds_rbf_42.jpg,rice__blast,dhan_shomadhan,blast,24689
+data/raw/dhan_shomadhan/blast/ds_rbf_43.jpg,rice__blast,dhan_shomadhan,blast,24690
+data/raw/dhan_shomadhan/blast/ds_rbf_44.jpg,rice__blast,dhan_shomadhan,blast,24691
+data/raw/dhan_shomadhan/blast/ds_rbf_45.jpg,rice__blast,dhan_shomadhan,blast,24692
+data/raw/dhan_shomadhan/blast/ds_rbf_46.jpg,rice__blast,dhan_shomadhan,blast,24693
+data/raw/dhan_shomadhan/blast/ds_rbf_47.jpg,rice__blast,dhan_shomadhan,blast,24694
+data/raw/dhan_shomadhan/blast/ds_rbf_48.jpg,rice__blast,dhan_shomadhan,blast,24695
+data/raw/dhan_shomadhan/blast/ds_rbf_49.jpg,rice__blast,dhan_shomadhan,blast,24696
+data/raw/dhan_shomadhan/blast/ds_rbf_5.jpg,rice__blast,dhan_shomadhan,blast,24697
+data/raw/dhan_shomadhan/blast/ds_rbf_50.jpg,rice__blast,dhan_shomadhan,blast,24698
+data/raw/dhan_shomadhan/blast/ds_rbf_51.jpg,rice__blast,dhan_shomadhan,blast,24699
+data/raw/dhan_shomadhan/blast/ds_rbf_52.jpg,rice__blast,dhan_shomadhan,blast,24700
+data/raw/dhan_shomadhan/blast/ds_rbf_53.jpg,rice__blast,dhan_shomadhan,blast,24701
+data/raw/dhan_shomadhan/blast/ds_rbf_54.jpg,rice__blast,dhan_shomadhan,blast,24702
+data/raw/dhan_shomadhan/blast/ds_rbf_55.jpg,rice__blast,dhan_shomadhan,blast,24703
+data/raw/dhan_shomadhan/blast/ds_rbf_56.jpg,rice__blast,dhan_shomadhan,blast,24704
+data/raw/dhan_shomadhan/blast/ds_rbf_57.jpg,rice__blast,dhan_shomadhan,blast,24705
+data/raw/dhan_shomadhan/blast/ds_rbf_58.jpg,rice__blast,dhan_shomadhan,blast,24706
+data/raw/dhan_shomadhan/blast/ds_rbf_59.jpg,rice__blast,dhan_shomadhan,blast,24707
+data/raw/dhan_shomadhan/blast/ds_rbf_6.jpg,rice__blast,dhan_shomadhan,blast,24708
+data/raw/dhan_shomadhan/blast/ds_rbf_60.jpg,rice__blast,dhan_shomadhan,blast,24709
+data/raw/dhan_shomadhan/blast/ds_rbf_61.jpg,rice__blast,dhan_shomadhan,blast,24710
+data/raw/dhan_shomadhan/blast/ds_rbf_62.jpg,rice__blast,dhan_shomadhan,blast,24711
+data/raw/dhan_shomadhan/blast/ds_rbf_63.jpg,rice__blast,dhan_shomadhan,blast,24712
+data/raw/dhan_shomadhan/blast/ds_rbf_64.jpg,rice__blast,dhan_shomadhan,blast,24713
+data/raw/dhan_shomadhan/blast/ds_rbf_65.jpg,rice__blast,dhan_shomadhan,blast,24714
+data/raw/dhan_shomadhan/blast/ds_rbf_66.jpg,rice__blast,dhan_shomadhan,blast,24715
+data/raw/dhan_shomadhan/blast/ds_rbf_67.jpg,rice__blast,dhan_shomadhan,blast,24716
+data/raw/dhan_shomadhan/blast/ds_rbf_68.jpg,rice__blast,dhan_shomadhan,blast,24717
+data/raw/dhan_shomadhan/blast/ds_rbf_69.jpg,rice__blast,dhan_shomadhan,blast,24718
+data/raw/dhan_shomadhan/blast/ds_rbf_7.jpg,rice__blast,dhan_shomadhan,blast,24719
+data/raw/dhan_shomadhan/blast/ds_rbf_70.jpg,rice__blast,dhan_shomadhan,blast,24720
+data/raw/dhan_shomadhan/blast/ds_rbf_71.jpg,rice__blast,dhan_shomadhan,blast,24721
+data/raw/dhan_shomadhan/blast/ds_rbf_72.jpg,rice__blast,dhan_shomadhan,blast,24722
+data/raw/dhan_shomadhan/blast/ds_rbf_73.jpg,rice__blast,dhan_shomadhan,blast,24723
+data/raw/dhan_shomadhan/blast/ds_rbf_8.jpg,rice__blast,dhan_shomadhan,blast,24724
+data/raw/dhan_shomadhan/blast/ds_rbf_9.jpg,rice__blast,dhan_shomadhan,blast,24725
+data/raw/dhan_shomadhan/tungro/ds_rtf_0.jpg,rice__tungro,dhan_shomadhan,tungro,24726
+data/raw/dhan_shomadhan/tungro/ds_rtf_1.jpg,rice__tungro,dhan_shomadhan,tungro,24727
+data/raw/dhan_shomadhan/tungro/ds_rtf_10.jpg,rice__tungro,dhan_shomadhan,tungro,24728
+data/raw/dhan_shomadhan/tungro/ds_rtf_11.jpg,rice__tungro,dhan_shomadhan,tungro,24729
+data/raw/dhan_shomadhan/tungro/ds_rtf_12.jpg,rice__tungro,dhan_shomadhan,tungro,24730
+data/raw/dhan_shomadhan/tungro/ds_rtf_13.jpg,rice__tungro,dhan_shomadhan,tungro,24731
+data/raw/dhan_shomadhan/tungro/ds_rtf_14.jpg,rice__tungro,dhan_shomadhan,tungro,24732
+data/raw/dhan_shomadhan/tungro/ds_rtf_15.jpg,rice__tungro,dhan_shomadhan,tungro,24733
+data/raw/dhan_shomadhan/tungro/ds_rtf_16.jpg,rice__tungro,dhan_shomadhan,tungro,24734
+data/raw/dhan_shomadhan/tungro/ds_rtf_17.jpg,rice__tungro,dhan_shomadhan,tungro,24735
+data/raw/dhan_shomadhan/tungro/ds_rtf_18.jpg,rice__tungro,dhan_shomadhan,tungro,24736
+data/raw/dhan_shomadhan/tungro/ds_rtf_19.jpg,rice__tungro,dhan_shomadhan,tungro,24737
+data/raw/dhan_shomadhan/tungro/ds_rtf_2.jpg,rice__tungro,dhan_shomadhan,tungro,24738
+data/raw/dhan_shomadhan/tungro/ds_rtf_20.jpg,rice__tungro,dhan_shomadhan,tungro,24739
+data/raw/dhan_shomadhan/tungro/ds_rtf_21.jpg,rice__tungro,dhan_shomadhan,tungro,24740
+data/raw/dhan_shomadhan/tungro/ds_rtf_22.jpg,rice__tungro,dhan_shomadhan,tungro,24741
+data/raw/dhan_shomadhan/tungro/ds_rtf_23.jpg,rice__tungro,dhan_shomadhan,tungro,24742
+data/raw/dhan_shomadhan/tungro/ds_rtf_24.jpg,rice__tungro,dhan_shomadhan,tungro,24743
+data/raw/dhan_shomadhan/tungro/ds_rtf_25.jpg,rice__tungro,dhan_shomadhan,tungro,24744
+data/raw/dhan_shomadhan/tungro/ds_rtf_26.jpg,rice__tungro,dhan_shomadhan,tungro,24745
+data/raw/dhan_shomadhan/tungro/ds_rtf_27.jpg,rice__tungro,dhan_shomadhan,tungro,24746
+data/raw/dhan_shomadhan/tungro/ds_rtf_28.jpg,rice__tungro,dhan_shomadhan,tungro,24747
+data/raw/dhan_shomadhan/tungro/ds_rtf_29.jpg,rice__tungro,dhan_shomadhan,tungro,24748
+data/raw/dhan_shomadhan/tungro/ds_rtf_3.jpg,rice__tungro,dhan_shomadhan,tungro,24749
+data/raw/dhan_shomadhan/tungro/ds_rtf_30.jpg,rice__tungro,dhan_shomadhan,tungro,24750
+data/raw/dhan_shomadhan/tungro/ds_rtf_31.jpg,rice__tungro,dhan_shomadhan,tungro,24751
+data/raw/dhan_shomadhan/tungro/ds_rtf_32.jpg,rice__tungro,dhan_shomadhan,tungro,24752
+data/raw/dhan_shomadhan/tungro/ds_rtf_33.jpg,rice__tungro,dhan_shomadhan,tungro,24753
+data/raw/dhan_shomadhan/tungro/ds_rtf_34.jpg,rice__tungro,dhan_shomadhan,tungro,24754
+data/raw/dhan_shomadhan/tungro/ds_rtf_35.jpg,rice__tungro,dhan_shomadhan,tungro,24755
+data/raw/dhan_shomadhan/tungro/ds_rtf_36.jpg,rice__tungro,dhan_shomadhan,tungro,24756
+data/raw/dhan_shomadhan/tungro/ds_rtf_37.jpg,rice__tungro,dhan_shomadhan,tungro,24757
+data/raw/dhan_shomadhan/tungro/ds_rtf_38.jpg,rice__tungro,dhan_shomadhan,tungro,24758
+data/raw/dhan_shomadhan/tungro/ds_rtf_39.jpg,rice__tungro,dhan_shomadhan,tungro,24759
+data/raw/dhan_shomadhan/tungro/ds_rtf_4.jpg,rice__tungro,dhan_shomadhan,tungro,24760
+data/raw/dhan_shomadhan/tungro/ds_rtf_40.jpg,rice__tungro,dhan_shomadhan,tungro,24761
+data/raw/dhan_shomadhan/tungro/ds_rtf_41.jpg,rice__tungro,dhan_shomadhan,tungro,24762
+data/raw/dhan_shomadhan/tungro/ds_rtf_42.jpg,rice__tungro,dhan_shomadhan,tungro,24763
+data/raw/dhan_shomadhan/tungro/ds_rtf_43.jpg,rice__tungro,dhan_shomadhan,tungro,24764
+data/raw/dhan_shomadhan/tungro/ds_rtf_44.jpg,rice__tungro,dhan_shomadhan,tungro,24765
+data/raw/dhan_shomadhan/tungro/ds_rtf_45.jpg,rice__tungro,dhan_shomadhan,tungro,24766
+data/raw/dhan_shomadhan/tungro/ds_rtf_46.jpg,rice__tungro,dhan_shomadhan,tungro,24767
+data/raw/dhan_shomadhan/tungro/ds_rtf_47.jpg,rice__tungro,dhan_shomadhan,tungro,24768
+data/raw/dhan_shomadhan/tungro/ds_rtf_48.jpg,rice__tungro,dhan_shomadhan,tungro,24769
+data/raw/dhan_shomadhan/tungro/ds_rtf_49.jpg,rice__tungro,dhan_shomadhan,tungro,24770
+data/raw/dhan_shomadhan/tungro/ds_rtf_5.jpg,rice__tungro,dhan_shomadhan,tungro,24771
+data/raw/dhan_shomadhan/tungro/ds_rtf_50.jpg,rice__tungro,dhan_shomadhan,tungro,24772
+data/raw/dhan_shomadhan/tungro/ds_rtf_51.jpg,rice__tungro,dhan_shomadhan,tungro,24773
+data/raw/dhan_shomadhan/tungro/ds_rtf_52.jpg,rice__tungro,dhan_shomadhan,tungro,24774
+data/raw/dhan_shomadhan/tungro/ds_rtf_53.jpg,rice__tungro,dhan_shomadhan,tungro,24775
+data/raw/dhan_shomadhan/tungro/ds_rtf_54.jpg,rice__tungro,dhan_shomadhan,tungro,24776
+data/raw/dhan_shomadhan/tungro/ds_rtf_55.jpg,rice__tungro,dhan_shomadhan,tungro,24777
+data/raw/dhan_shomadhan/tungro/ds_rtf_56.jpg,rice__tungro,dhan_shomadhan,tungro,24778
+data/raw/dhan_shomadhan/tungro/ds_rtf_57.jpg,rice__tungro,dhan_shomadhan,tungro,24779
+data/raw/dhan_shomadhan/tungro/ds_rtf_58.jpg,rice__tungro,dhan_shomadhan,tungro,24780
+data/raw/dhan_shomadhan/tungro/ds_rtf_59.jpg,rice__tungro,dhan_shomadhan,tungro,24781
+data/raw/dhan_shomadhan/tungro/ds_rtf_6.jpg,rice__tungro,dhan_shomadhan,tungro,24782
+data/raw/dhan_shomadhan/tungro/ds_rtf_60.jpg,rice__tungro,dhan_shomadhan,tungro,24783
+data/raw/dhan_shomadhan/tungro/ds_rtf_61.jpg,rice__tungro,dhan_shomadhan,tungro,24784
+data/raw/dhan_shomadhan/tungro/ds_rtf_62.jpg,rice__tungro,dhan_shomadhan,tungro,24785
+data/raw/dhan_shomadhan/tungro/ds_rtf_63.jpg,rice__tungro,dhan_shomadhan,tungro,24786
+data/raw/dhan_shomadhan/tungro/ds_rtf_64.jpg,rice__tungro,dhan_shomadhan,tungro,24787
+data/raw/dhan_shomadhan/tungro/ds_rtf_65.jpg,rice__tungro,dhan_shomadhan,tungro,24788
+data/raw/dhan_shomadhan/tungro/ds_rtf_66.jpg,rice__tungro,dhan_shomadhan,tungro,24789
+data/raw/dhan_shomadhan/tungro/ds_rtf_67.jpg,rice__tungro,dhan_shomadhan,tungro,24790
+data/raw/dhan_shomadhan/tungro/ds_rtf_68.jpg,rice__tungro,dhan_shomadhan,tungro,24791
+data/raw/dhan_shomadhan/tungro/ds_rtf_69.jpg,rice__tungro,dhan_shomadhan,tungro,24792
+data/raw/dhan_shomadhan/tungro/ds_rtf_7.jpg,rice__tungro,dhan_shomadhan,tungro,24793
+data/raw/dhan_shomadhan/tungro/ds_rtf_70.jpg,rice__tungro,dhan_shomadhan,tungro,24794
+data/raw/dhan_shomadhan/tungro/ds_rtf_71.jpg,rice__tungro,dhan_shomadhan,tungro,24795
+data/raw/dhan_shomadhan/tungro/ds_rtf_72.jpg,rice__tungro,dhan_shomadhan,tungro,24796
+data/raw/dhan_shomadhan/tungro/ds_rtf_73.jpg,rice__tungro,dhan_shomadhan,tungro,24797
+data/raw/dhan_shomadhan/tungro/ds_rtf_74.jpg,rice__tungro,dhan_shomadhan,tungro,24798
+data/raw/dhan_shomadhan/tungro/ds_rtf_75.jpg,rice__tungro,dhan_shomadhan,tungro,24799
+data/raw/dhan_shomadhan/tungro/ds_rtf_8.jpg,rice__tungro,dhan_shomadhan,tungro,24800
+data/raw/dhan_shomadhan/tungro/ds_rtf_9.jpg,rice__tungro,dhan_shomadhan,tungro,24801
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_0.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24802
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_1.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24803
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_10.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24804
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_11.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24805
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_12.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24806
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_13.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24807
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_15.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24808
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_17.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24809
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_18.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24810
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_19.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24811
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_2.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24812
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_20.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24813
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_21.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24814
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_22.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24815
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_23.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24816
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_24.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24817
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_25.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24818
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_26.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24819
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_28.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24820
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_29.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24821
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_3.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24822
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_30.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24823
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_31.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24824
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_32.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24825
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_33.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24826
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_34.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24827
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_35.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24828
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_36.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24829
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_37.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24830
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_38.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24831
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_39.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24832
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_4.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24833
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_40.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24834
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_41.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24835
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_42.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24836
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_43.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24837
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_44.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24838
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_45.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24839
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_46.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24840
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_47.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24841
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_48.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24842
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_49.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24843
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_5.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24844
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_50.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24845
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_51.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24846
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_52.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24847
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_53.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24848
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_54.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24849
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_55.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24850
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_56.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24851
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_57.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24852
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_58.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24853
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_59.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24854
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_6.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24855
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_60.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24856
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_61.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24857
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_62.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24858
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_63.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24859
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_64.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24860
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_65.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24861
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_67.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24862
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_68.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24863
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_69.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24864
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_7.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24865
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_70.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24866
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_71.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24867
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_72.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24868
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_73.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24869
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_74.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24870
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_75.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24871
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_76.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24872
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_77.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24873
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_78.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24874
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_79.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24875
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_8.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24876
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_80.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24877
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_81.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24878
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_82.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24879
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_83.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24880
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_85.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24881
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_86.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24882
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_87.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24883
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_88.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24884
+data/raw/dhan_shomadhan/brown_spot/ds_bs_wb_9.jpg,rice__brown_spot,dhan_shomadhan,brown_spot,24885
+data/raw/dhan_shomadhan/blast/ds_rb_wb_0.jpg,rice__blast,dhan_shomadhan,blast,24886
+data/raw/dhan_shomadhan/blast/ds_rb_wb_1.jpg,rice__blast,dhan_shomadhan,blast,24887
+data/raw/dhan_shomadhan/blast/ds_rb_wb_10.jpg,rice__blast,dhan_shomadhan,blast,24888
+data/raw/dhan_shomadhan/blast/ds_rb_wb_100.jpg,rice__blast,dhan_shomadhan,blast,24889
+data/raw/dhan_shomadhan/blast/ds_rb_wb_101.jpg,rice__blast,dhan_shomadhan,blast,24890
+data/raw/dhan_shomadhan/blast/ds_rb_wb_102.jpg,rice__blast,dhan_shomadhan,blast,24891
+data/raw/dhan_shomadhan/blast/ds_rb_wb_103.jpg,rice__blast,dhan_shomadhan,blast,24892
+data/raw/dhan_shomadhan/blast/ds_rb_wb_104.jpg,rice__blast,dhan_shomadhan,blast,24893
+data/raw/dhan_shomadhan/blast/ds_rb_wb_105.jpg,rice__blast,dhan_shomadhan,blast,24894
+data/raw/dhan_shomadhan/blast/ds_rb_wb_106.jpg,rice__blast,dhan_shomadhan,blast,24895
+data/raw/dhan_shomadhan/blast/ds_rb_wb_107.jpg,rice__blast,dhan_shomadhan,blast,24896
+data/raw/dhan_shomadhan/blast/ds_rb_wb_108.jpg,rice__blast,dhan_shomadhan,blast,24897
+data/raw/dhan_shomadhan/blast/ds_rb_wb_109.jpg,rice__blast,dhan_shomadhan,blast,24898
+data/raw/dhan_shomadhan/blast/ds_rb_wb_11.jpg,rice__blast,dhan_shomadhan,blast,24899
+data/raw/dhan_shomadhan/blast/ds_rb_wb_110.jpg,rice__blast,dhan_shomadhan,blast,24900
+data/raw/dhan_shomadhan/blast/ds_rb_wb_111.jpg,rice__blast,dhan_shomadhan,blast,24901
+data/raw/dhan_shomadhan/blast/ds_rb_wb_112.jpg,rice__blast,dhan_shomadhan,blast,24902
+data/raw/dhan_shomadhan/blast/ds_rb_wb_113.jpg,rice__blast,dhan_shomadhan,blast,24903
+data/raw/dhan_shomadhan/blast/ds_rb_wb_114.jpg,rice__blast,dhan_shomadhan,blast,24904
+data/raw/dhan_shomadhan/blast/ds_rb_wb_115.jpg,rice__blast,dhan_shomadhan,blast,24905
+data/raw/dhan_shomadhan/blast/ds_rb_wb_116.jpg,rice__blast,dhan_shomadhan,blast,24906
+data/raw/dhan_shomadhan/blast/ds_rb_wb_117.jpg,rice__blast,dhan_shomadhan,blast,24907
+data/raw/dhan_shomadhan/blast/ds_rb_wb_118.jpg,rice__blast,dhan_shomadhan,blast,24908
+data/raw/dhan_shomadhan/blast/ds_rb_wb_119.jpg,rice__blast,dhan_shomadhan,blast,24909
+data/raw/dhan_shomadhan/blast/ds_rb_wb_12.jpg,rice__blast,dhan_shomadhan,blast,24910
+data/raw/dhan_shomadhan/blast/ds_rb_wb_121.jpg,rice__blast,dhan_shomadhan,blast,24911
+data/raw/dhan_shomadhan/blast/ds_rb_wb_124.jpg,rice__blast,dhan_shomadhan,blast,24912
+data/raw/dhan_shomadhan/blast/ds_rb_wb_126.jpg,rice__blast,dhan_shomadhan,blast,24913
+data/raw/dhan_shomadhan/blast/ds_rb_wb_128.jpg,rice__blast,dhan_shomadhan,blast,24914
+data/raw/dhan_shomadhan/blast/ds_rb_wb_129.jpg,rice__blast,dhan_shomadhan,blast,24915
+data/raw/dhan_shomadhan/blast/ds_rb_wb_13.jpg,rice__blast,dhan_shomadhan,blast,24916
+data/raw/dhan_shomadhan/blast/ds_rb_wb_130.jpg,rice__blast,dhan_shomadhan,blast,24917
+data/raw/dhan_shomadhan/blast/ds_rb_wb_131.jpg,rice__blast,dhan_shomadhan,blast,24918
+data/raw/dhan_shomadhan/blast/ds_rb_wb_132.jpg,rice__blast,dhan_shomadhan,blast,24919
+data/raw/dhan_shomadhan/blast/ds_rb_wb_133.jpg,rice__blast,dhan_shomadhan,blast,24920
+data/raw/dhan_shomadhan/blast/ds_rb_wb_134.jpg,rice__blast,dhan_shomadhan,blast,24921
+data/raw/dhan_shomadhan/blast/ds_rb_wb_135.jpg,rice__blast,dhan_shomadhan,blast,24922
+data/raw/dhan_shomadhan/blast/ds_rb_wb_136.jpg,rice__blast,dhan_shomadhan,blast,24923
+data/raw/dhan_shomadhan/blast/ds_rb_wb_137.jpg,rice__blast,dhan_shomadhan,blast,24924
+data/raw/dhan_shomadhan/blast/ds_rb_wb_138.jpg,rice__blast,dhan_shomadhan,blast,24925
+data/raw/dhan_shomadhan/blast/ds_rb_wb_139.jpg,rice__blast,dhan_shomadhan,blast,24926
+data/raw/dhan_shomadhan/blast/ds_rb_wb_14.jpg,rice__blast,dhan_shomadhan,blast,24927
+data/raw/dhan_shomadhan/blast/ds_rb_wb_140.jpg,rice__blast,dhan_shomadhan,blast,24928
+data/raw/dhan_shomadhan/blast/ds_rb_wb_141.jpg,rice__blast,dhan_shomadhan,blast,24929
+data/raw/dhan_shomadhan/blast/ds_rb_wb_142.jpg,rice__blast,dhan_shomadhan,blast,24930
+data/raw/dhan_shomadhan/blast/ds_rb_wb_143.jpg,rice__blast,dhan_shomadhan,blast,24931
+data/raw/dhan_shomadhan/blast/ds_rb_wb_144.jpg,rice__blast,dhan_shomadhan,blast,24932
+data/raw/dhan_shomadhan/blast/ds_rb_wb_146.jpg,rice__blast,dhan_shomadhan,blast,24933
+data/raw/dhan_shomadhan/blast/ds_rb_wb_147.jpg,rice__blast,dhan_shomadhan,blast,24934
+data/raw/dhan_shomadhan/blast/ds_rb_wb_148.jpg,rice__blast,dhan_shomadhan,blast,24935
+data/raw/dhan_shomadhan/blast/ds_rb_wb_149.jpg,rice__blast,dhan_shomadhan,blast,24936
+data/raw/dhan_shomadhan/blast/ds_rb_wb_15.jpg,rice__blast,dhan_shomadhan,blast,24937
+data/raw/dhan_shomadhan/blast/ds_rb_wb_150.jpg,rice__blast,dhan_shomadhan,blast,24938
+data/raw/dhan_shomadhan/blast/ds_rb_wb_151.jpg,rice__blast,dhan_shomadhan,blast,24939
+data/raw/dhan_shomadhan/blast/ds_rb_wb_152.jpg,rice__blast,dhan_shomadhan,blast,24940
+data/raw/dhan_shomadhan/blast/ds_rb_wb_153.jpg,rice__blast,dhan_shomadhan,blast,24941
+data/raw/dhan_shomadhan/blast/ds_rb_wb_154.jpg,rice__blast,dhan_shomadhan,blast,24942
+data/raw/dhan_shomadhan/blast/ds_rb_wb_155.jpg,rice__blast,dhan_shomadhan,blast,24943
+data/raw/dhan_shomadhan/blast/ds_rb_wb_156.jpg,rice__blast,dhan_shomadhan,blast,24944
+data/raw/dhan_shomadhan/blast/ds_rb_wb_157.jpg,rice__blast,dhan_shomadhan,blast,24945
+data/raw/dhan_shomadhan/blast/ds_rb_wb_158.jpg,rice__blast,dhan_shomadhan,blast,24946
+data/raw/dhan_shomadhan/blast/ds_rb_wb_159.jpg,rice__blast,dhan_shomadhan,blast,24947
+data/raw/dhan_shomadhan/blast/ds_rb_wb_16.jpg,rice__blast,dhan_shomadhan,blast,24948
+data/raw/dhan_shomadhan/blast/ds_rb_wb_160.jpg,rice__blast,dhan_shomadhan,blast,24949
+data/raw/dhan_shomadhan/blast/ds_rb_wb_161.jpg,rice__blast,dhan_shomadhan,blast,24950
+data/raw/dhan_shomadhan/blast/ds_rb_wb_162.jpg,rice__blast,dhan_shomadhan,blast,24951
+data/raw/dhan_shomadhan/blast/ds_rb_wb_163.jpg,rice__blast,dhan_shomadhan,blast,24952
+data/raw/dhan_shomadhan/blast/ds_rb_wb_165.jpg,rice__blast,dhan_shomadhan,blast,24953
+data/raw/dhan_shomadhan/blast/ds_rb_wb_166.jpg,rice__blast,dhan_shomadhan,blast,24954
+data/raw/dhan_shomadhan/blast/ds_rb_wb_167.jpg,rice__blast,dhan_shomadhan,blast,24955
+data/raw/dhan_shomadhan/blast/ds_rb_wb_168.jpg,rice__blast,dhan_shomadhan,blast,24956
+data/raw/dhan_shomadhan/blast/ds_rb_wb_169.jpg,rice__blast,dhan_shomadhan,blast,24957
+data/raw/dhan_shomadhan/blast/ds_rb_wb_17.jpg,rice__blast,dhan_shomadhan,blast,24958
+data/raw/dhan_shomadhan/blast/ds_rb_wb_170.jpg,rice__blast,dhan_shomadhan,blast,24959
+data/raw/dhan_shomadhan/blast/ds_rb_wb_171.jpg,rice__blast,dhan_shomadhan,blast,24960
+data/raw/dhan_shomadhan/blast/ds_rb_wb_172.jpg,rice__blast,dhan_shomadhan,blast,24961
+data/raw/dhan_shomadhan/blast/ds_rb_wb_173.jpg,rice__blast,dhan_shomadhan,blast,24962
+data/raw/dhan_shomadhan/blast/ds_rb_wb_174.jpg,rice__blast,dhan_shomadhan,blast,24963
+data/raw/dhan_shomadhan/blast/ds_rb_wb_175.jpg,rice__blast,dhan_shomadhan,blast,24964
+data/raw/dhan_shomadhan/blast/ds_rb_wb_176.jpg,rice__blast,dhan_shomadhan,blast,24965
+data/raw/dhan_shomadhan/blast/ds_rb_wb_178.jpg,rice__blast,dhan_shomadhan,blast,24966
+data/raw/dhan_shomadhan/blast/ds_rb_wb_179.jpg,rice__blast,dhan_shomadhan,blast,24967
+data/raw/dhan_shomadhan/blast/ds_rb_wb_18.jpg,rice__blast,dhan_shomadhan,blast,24968
+data/raw/dhan_shomadhan/blast/ds_rb_wb_180.jpg,rice__blast,dhan_shomadhan,blast,24969
+data/raw/dhan_shomadhan/blast/ds_rb_wb_181.jpg,rice__blast,dhan_shomadhan,blast,24970
+data/raw/dhan_shomadhan/blast/ds_rb_wb_182.jpg,rice__blast,dhan_shomadhan,blast,24971
+data/raw/dhan_shomadhan/blast/ds_rb_wb_183.jpg,rice__blast,dhan_shomadhan,blast,24972
+data/raw/dhan_shomadhan/blast/ds_rb_wb_184.jpg,rice__blast,dhan_shomadhan,blast,24973
+data/raw/dhan_shomadhan/blast/ds_rb_wb_185.jpg,rice__blast,dhan_shomadhan,blast,24974
+data/raw/dhan_shomadhan/blast/ds_rb_wb_186.jpg,rice__blast,dhan_shomadhan,blast,24975
+data/raw/dhan_shomadhan/blast/ds_rb_wb_187.jpg,rice__blast,dhan_shomadhan,blast,24976
+data/raw/dhan_shomadhan/blast/ds_rb_wb_19.jpg,rice__blast,dhan_shomadhan,blast,24977
+data/raw/dhan_shomadhan/blast/ds_rb_wb_190.jpg,rice__blast,dhan_shomadhan,blast,24978
+data/raw/dhan_shomadhan/blast/ds_rb_wb_191.jpg,rice__blast,dhan_shomadhan,blast,24979
+data/raw/dhan_shomadhan/blast/ds_rb_wb_192.jpg,rice__blast,dhan_shomadhan,blast,24980
+data/raw/dhan_shomadhan/blast/ds_rb_wb_193.jpg,rice__blast,dhan_shomadhan,blast,24981
+data/raw/dhan_shomadhan/blast/ds_rb_wb_194.jpg,rice__blast,dhan_shomadhan,blast,24982
+data/raw/dhan_shomadhan/blast/ds_rb_wb_195.jpg,rice__blast,dhan_shomadhan,blast,24983
+data/raw/dhan_shomadhan/blast/ds_rb_wb_196.jpg,rice__blast,dhan_shomadhan,blast,24984
+data/raw/dhan_shomadhan/blast/ds_rb_wb_197.jpg,rice__blast,dhan_shomadhan,blast,24985
+data/raw/dhan_shomadhan/blast/ds_rb_wb_2.jpg,rice__blast,dhan_shomadhan,blast,24986
+data/raw/dhan_shomadhan/blast/ds_rb_wb_20.jpg,rice__blast,dhan_shomadhan,blast,24987
+data/raw/dhan_shomadhan/blast/ds_rb_wb_21.jpg,rice__blast,dhan_shomadhan,blast,24988
+data/raw/dhan_shomadhan/blast/ds_rb_wb_22.jpg,rice__blast,dhan_shomadhan,blast,24989
+data/raw/dhan_shomadhan/blast/ds_rb_wb_24.jpg,rice__blast,dhan_shomadhan,blast,24990
+data/raw/dhan_shomadhan/blast/ds_rb_wb_25.jpg,rice__blast,dhan_shomadhan,blast,24991
+data/raw/dhan_shomadhan/blast/ds_rb_wb_26.jpg,rice__blast,dhan_shomadhan,blast,24992
+data/raw/dhan_shomadhan/blast/ds_rb_wb_27.jpg,rice__blast,dhan_shomadhan,blast,24993
+data/raw/dhan_shomadhan/blast/ds_rb_wb_28.jpg,rice__blast,dhan_shomadhan,blast,24994
+data/raw/dhan_shomadhan/blast/ds_rb_wb_29.jpg,rice__blast,dhan_shomadhan,blast,24995
+data/raw/dhan_shomadhan/blast/ds_rb_wb_3.jpg,rice__blast,dhan_shomadhan,blast,24996
+data/raw/dhan_shomadhan/blast/ds_rb_wb_30.jpg,rice__blast,dhan_shomadhan,blast,24997
+data/raw/dhan_shomadhan/blast/ds_rb_wb_32.jpg,rice__blast,dhan_shomadhan,blast,24998
+data/raw/dhan_shomadhan/blast/ds_rb_wb_33.jpg,rice__blast,dhan_shomadhan,blast,24999
+data/raw/dhan_shomadhan/blast/ds_rb_wb_34.jpg,rice__blast,dhan_shomadhan,blast,25000
+data/raw/dhan_shomadhan/blast/ds_rb_wb_35.jpg,rice__blast,dhan_shomadhan,blast,25001
+data/raw/dhan_shomadhan/blast/ds_rb_wb_36.jpg,rice__blast,dhan_shomadhan,blast,25002
+data/raw/dhan_shomadhan/blast/ds_rb_wb_37.jpg,rice__blast,dhan_shomadhan,blast,25003
+data/raw/dhan_shomadhan/blast/ds_rb_wb_38.jpg,rice__blast,dhan_shomadhan,blast,25004
+data/raw/dhan_shomadhan/blast/ds_rb_wb_39.jpg,rice__blast,dhan_shomadhan,blast,25005
+data/raw/dhan_shomadhan/blast/ds_rb_wb_4.jpg,rice__blast,dhan_shomadhan,blast,25006
+data/raw/dhan_shomadhan/blast/ds_rb_wb_40.jpg,rice__blast,dhan_shomadhan,blast,25007
+data/raw/dhan_shomadhan/blast/ds_rb_wb_41.jpg,rice__blast,dhan_shomadhan,blast,25008
+data/raw/dhan_shomadhan/blast/ds_rb_wb_42.jpg,rice__blast,dhan_shomadhan,blast,25009
+data/raw/dhan_shomadhan/blast/ds_rb_wb_43.jpg,rice__blast,dhan_shomadhan,blast,25010
+data/raw/dhan_shomadhan/blast/ds_rb_wb_45.jpg,rice__blast,dhan_shomadhan,blast,25011
+data/raw/dhan_shomadhan/blast/ds_rb_wb_46.jpg,rice__blast,dhan_shomadhan,blast,25012
+data/raw/dhan_shomadhan/blast/ds_rb_wb_47.jpg,rice__blast,dhan_shomadhan,blast,25013
+data/raw/dhan_shomadhan/blast/ds_rb_wb_48.jpg,rice__blast,dhan_shomadhan,blast,25014
+data/raw/dhan_shomadhan/blast/ds_rb_wb_5.jpg,rice__blast,dhan_shomadhan,blast,25015
+data/raw/dhan_shomadhan/blast/ds_rb_wb_51.jpg,rice__blast,dhan_shomadhan,blast,25016
+data/raw/dhan_shomadhan/blast/ds_rb_wb_52.jpg,rice__blast,dhan_shomadhan,blast,25017
+data/raw/dhan_shomadhan/blast/ds_rb_wb_53.jpg,rice__blast,dhan_shomadhan,blast,25018
+data/raw/dhan_shomadhan/blast/ds_rb_wb_54.jpg,rice__blast,dhan_shomadhan,blast,25019
+data/raw/dhan_shomadhan/blast/ds_rb_wb_56.jpg,rice__blast,dhan_shomadhan,blast,25020
+data/raw/dhan_shomadhan/blast/ds_rb_wb_57.jpg,rice__blast,dhan_shomadhan,blast,25021
+data/raw/dhan_shomadhan/blast/ds_rb_wb_58.jpg,rice__blast,dhan_shomadhan,blast,25022
+data/raw/dhan_shomadhan/blast/ds_rb_wb_59.jpg,rice__blast,dhan_shomadhan,blast,25023
+data/raw/dhan_shomadhan/blast/ds_rb_wb_6.jpg,rice__blast,dhan_shomadhan,blast,25024
+data/raw/dhan_shomadhan/blast/ds_rb_wb_60.jpg,rice__blast,dhan_shomadhan,blast,25025
+data/raw/dhan_shomadhan/blast/ds_rb_wb_61.jpg,rice__blast,dhan_shomadhan,blast,25026
+data/raw/dhan_shomadhan/blast/ds_rb_wb_62.jpg,rice__blast,dhan_shomadhan,blast,25027
+data/raw/dhan_shomadhan/blast/ds_rb_wb_63.jpg,rice__blast,dhan_shomadhan,blast,25028
+data/raw/dhan_shomadhan/blast/ds_rb_wb_64.jpg,rice__blast,dhan_shomadhan,blast,25029
+data/raw/dhan_shomadhan/blast/ds_rb_wb_66.jpg,rice__blast,dhan_shomadhan,blast,25030
+data/raw/dhan_shomadhan/blast/ds_rb_wb_67.jpg,rice__blast,dhan_shomadhan,blast,25031
+data/raw/dhan_shomadhan/blast/ds_rb_wb_68.jpg,rice__blast,dhan_shomadhan,blast,25032
+data/raw/dhan_shomadhan/blast/ds_rb_wb_69.jpg,rice__blast,dhan_shomadhan,blast,25033
+data/raw/dhan_shomadhan/blast/ds_rb_wb_7.jpg,rice__blast,dhan_shomadhan,blast,25034
+data/raw/dhan_shomadhan/blast/ds_rb_wb_70.jpg,rice__blast,dhan_shomadhan,blast,25035
+data/raw/dhan_shomadhan/blast/ds_rb_wb_71.jpg,rice__blast,dhan_shomadhan,blast,25036
+data/raw/dhan_shomadhan/blast/ds_rb_wb_72.jpg,rice__blast,dhan_shomadhan,blast,25037
+data/raw/dhan_shomadhan/blast/ds_rb_wb_73.jpg,rice__blast,dhan_shomadhan,blast,25038
+data/raw/dhan_shomadhan/blast/ds_rb_wb_74.jpg,rice__blast,dhan_shomadhan,blast,25039
+data/raw/dhan_shomadhan/blast/ds_rb_wb_75.jpg,rice__blast,dhan_shomadhan,blast,25040
+data/raw/dhan_shomadhan/blast/ds_rb_wb_76.jpg,rice__blast,dhan_shomadhan,blast,25041
+data/raw/dhan_shomadhan/blast/ds_rb_wb_77.jpg,rice__blast,dhan_shomadhan,blast,25042
+data/raw/dhan_shomadhan/blast/ds_rb_wb_78.jpg,rice__blast,dhan_shomadhan,blast,25043
+data/raw/dhan_shomadhan/blast/ds_rb_wb_79.jpg,rice__blast,dhan_shomadhan,blast,25044
+data/raw/dhan_shomadhan/blast/ds_rb_wb_8.jpg,rice__blast,dhan_shomadhan,blast,25045
+data/raw/dhan_shomadhan/blast/ds_rb_wb_80.jpg,rice__blast,dhan_shomadhan,blast,25046
+data/raw/dhan_shomadhan/blast/ds_rb_wb_81.jpg,rice__blast,dhan_shomadhan,blast,25047
+data/raw/dhan_shomadhan/blast/ds_rb_wb_82.jpg,rice__blast,dhan_shomadhan,blast,25048
+data/raw/dhan_shomadhan/blast/ds_rb_wb_83.jpg,rice__blast,dhan_shomadhan,blast,25049
+data/raw/dhan_shomadhan/blast/ds_rb_wb_84.jpg,rice__blast,dhan_shomadhan,blast,25050
+data/raw/dhan_shomadhan/blast/ds_rb_wb_85.jpg,rice__blast,dhan_shomadhan,blast,25051
+data/raw/dhan_shomadhan/blast/ds_rb_wb_86.jpg,rice__blast,dhan_shomadhan,blast,25052
+data/raw/dhan_shomadhan/blast/ds_rb_wb_87.jpg,rice__blast,dhan_shomadhan,blast,25053
+data/raw/dhan_shomadhan/blast/ds_rb_wb_88.jpg,rice__blast,dhan_shomadhan,blast,25054
+data/raw/dhan_shomadhan/blast/ds_rb_wb_89.jpg,rice__blast,dhan_shomadhan,blast,25055
+data/raw/dhan_shomadhan/blast/ds_rb_wb_9.jpg,rice__blast,dhan_shomadhan,blast,25056
+data/raw/dhan_shomadhan/blast/ds_rb_wb_90.jpg,rice__blast,dhan_shomadhan,blast,25057
+data/raw/dhan_shomadhan/blast/ds_rb_wb_91.jpg,rice__blast,dhan_shomadhan,blast,25058
+data/raw/dhan_shomadhan/blast/ds_rb_wb_92.jpg,rice__blast,dhan_shomadhan,blast,25059
+data/raw/dhan_shomadhan/blast/ds_rb_wb_93.jpg,rice__blast,dhan_shomadhan,blast,25060
+data/raw/dhan_shomadhan/blast/ds_rb_wb_94.jpg,rice__blast,dhan_shomadhan,blast,25061
+data/raw/dhan_shomadhan/blast/ds_rb_wb_95.jpg,rice__blast,dhan_shomadhan,blast,25062
+data/raw/dhan_shomadhan/blast/ds_rb_wb_96.jpg,rice__blast,dhan_shomadhan,blast,25063
+data/raw/dhan_shomadhan/blast/ds_rb_wb_97.jpg,rice__blast,dhan_shomadhan,blast,25064
+data/raw/dhan_shomadhan/blast/ds_rb_wb_98.jpg,rice__blast,dhan_shomadhan,blast,25065
+data/raw/dhan_shomadhan/blast/ds_rb_wb_99.jpg,rice__blast,dhan_shomadhan,blast,25066
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_0.jpg,rice__tungro,dhan_shomadhan,tungro,25067
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_1.jpg,rice__tungro,dhan_shomadhan,tungro,25068
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_10.jpg,rice__tungro,dhan_shomadhan,tungro,25069
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_100.jpg,rice__tungro,dhan_shomadhan,tungro,25070
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_101.jpg,rice__tungro,dhan_shomadhan,tungro,25071
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_102.jpg,rice__tungro,dhan_shomadhan,tungro,25072
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_103.jpg,rice__tungro,dhan_shomadhan,tungro,25073
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_104.jpg,rice__tungro,dhan_shomadhan,tungro,25074
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_105.jpg,rice__tungro,dhan_shomadhan,tungro,25075
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_106.jpg,rice__tungro,dhan_shomadhan,tungro,25076
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_107.jpg,rice__tungro,dhan_shomadhan,tungro,25077
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_108.jpg,rice__tungro,dhan_shomadhan,tungro,25078
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_109.jpg,rice__tungro,dhan_shomadhan,tungro,25079
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_11.jpg,rice__tungro,dhan_shomadhan,tungro,25080
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_110.jpg,rice__tungro,dhan_shomadhan,tungro,25081
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_111.jpg,rice__tungro,dhan_shomadhan,tungro,25082
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_112.jpg,rice__tungro,dhan_shomadhan,tungro,25083
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_113.jpg,rice__tungro,dhan_shomadhan,tungro,25084
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_114.jpg,rice__tungro,dhan_shomadhan,tungro,25085
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_115.jpg,rice__tungro,dhan_shomadhan,tungro,25086
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_116.jpg,rice__tungro,dhan_shomadhan,tungro,25087
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_117.jpg,rice__tungro,dhan_shomadhan,tungro,25088
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_118.jpg,rice__tungro,dhan_shomadhan,tungro,25089
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_13.jpg,rice__tungro,dhan_shomadhan,tungro,25090
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_14.jpg,rice__tungro,dhan_shomadhan,tungro,25091
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_15.jpg,rice__tungro,dhan_shomadhan,tungro,25092
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_16.jpg,rice__tungro,dhan_shomadhan,tungro,25093
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_17.jpg,rice__tungro,dhan_shomadhan,tungro,25094
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_18.jpg,rice__tungro,dhan_shomadhan,tungro,25095
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_19.jpg,rice__tungro,dhan_shomadhan,tungro,25096
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_2.jpg,rice__tungro,dhan_shomadhan,tungro,25097
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_20.jpg,rice__tungro,dhan_shomadhan,tungro,25098
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_21.jpg,rice__tungro,dhan_shomadhan,tungro,25099
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_22.jpg,rice__tungro,dhan_shomadhan,tungro,25100
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_23.jpg,rice__tungro,dhan_shomadhan,tungro,25101
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_24.jpg,rice__tungro,dhan_shomadhan,tungro,25102
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_25.jpg,rice__tungro,dhan_shomadhan,tungro,25103
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_26.jpg,rice__tungro,dhan_shomadhan,tungro,25104
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_27.jpg,rice__tungro,dhan_shomadhan,tungro,25105
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_28.jpg,rice__tungro,dhan_shomadhan,tungro,25106
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_29.jpg,rice__tungro,dhan_shomadhan,tungro,25107
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_3.jpg,rice__tungro,dhan_shomadhan,tungro,25108
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_30.jpg,rice__tungro,dhan_shomadhan,tungro,25109
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_31.jpg,rice__tungro,dhan_shomadhan,tungro,25110
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_32.jpg,rice__tungro,dhan_shomadhan,tungro,25111
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_33.jpg,rice__tungro,dhan_shomadhan,tungro,25112
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_34.jpg,rice__tungro,dhan_shomadhan,tungro,25113
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_35.jpg,rice__tungro,dhan_shomadhan,tungro,25114
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_36.jpg,rice__tungro,dhan_shomadhan,tungro,25115
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_37.jpg,rice__tungro,dhan_shomadhan,tungro,25116
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_38.jpg,rice__tungro,dhan_shomadhan,tungro,25117
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_4.jpg,rice__tungro,dhan_shomadhan,tungro,25118
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_40.jpg,rice__tungro,dhan_shomadhan,tungro,25119
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_41.jpg,rice__tungro,dhan_shomadhan,tungro,25120
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_42.jpg,rice__tungro,dhan_shomadhan,tungro,25121
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_43.jpg,rice__tungro,dhan_shomadhan,tungro,25122
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_44.jpg,rice__tungro,dhan_shomadhan,tungro,25123
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_45.jpg,rice__tungro,dhan_shomadhan,tungro,25124
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_46.jpg,rice__tungro,dhan_shomadhan,tungro,25125
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_47.jpg,rice__tungro,dhan_shomadhan,tungro,25126
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_48.jpg,rice__tungro,dhan_shomadhan,tungro,25127
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_49.jpg,rice__tungro,dhan_shomadhan,tungro,25128
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_5.jpg,rice__tungro,dhan_shomadhan,tungro,25129
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_50.jpg,rice__tungro,dhan_shomadhan,tungro,25130
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_51.jpg,rice__tungro,dhan_shomadhan,tungro,25131
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_52.jpg,rice__tungro,dhan_shomadhan,tungro,25132
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_53.jpg,rice__tungro,dhan_shomadhan,tungro,25133
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_54.jpg,rice__tungro,dhan_shomadhan,tungro,25134
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_55.jpg,rice__tungro,dhan_shomadhan,tungro,25135
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_57.jpg,rice__tungro,dhan_shomadhan,tungro,25136
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_60.jpg,rice__tungro,dhan_shomadhan,tungro,25137
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_61.jpg,rice__tungro,dhan_shomadhan,tungro,25138
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_62.jpg,rice__tungro,dhan_shomadhan,tungro,25139
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_63.jpg,rice__tungro,dhan_shomadhan,tungro,25140
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_64.jpg,rice__tungro,dhan_shomadhan,tungro,25141
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_65.jpg,rice__tungro,dhan_shomadhan,tungro,25142
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_66.jpg,rice__tungro,dhan_shomadhan,tungro,25143
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_67.jpg,rice__tungro,dhan_shomadhan,tungro,25144
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_68.jpg,rice__tungro,dhan_shomadhan,tungro,25145
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_69.jpg,rice__tungro,dhan_shomadhan,tungro,25146
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_7.jpg,rice__tungro,dhan_shomadhan,tungro,25147
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_70.jpg,rice__tungro,dhan_shomadhan,tungro,25148
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_71.jpg,rice__tungro,dhan_shomadhan,tungro,25149
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_72.jpg,rice__tungro,dhan_shomadhan,tungro,25150
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_73.jpg,rice__tungro,dhan_shomadhan,tungro,25151
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_74.jpg,rice__tungro,dhan_shomadhan,tungro,25152
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_75.jpg,rice__tungro,dhan_shomadhan,tungro,25153
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_76.jpg,rice__tungro,dhan_shomadhan,tungro,25154
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_77.jpg,rice__tungro,dhan_shomadhan,tungro,25155
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_78.jpg,rice__tungro,dhan_shomadhan,tungro,25156
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_79.jpg,rice__tungro,dhan_shomadhan,tungro,25157
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_8.jpg,rice__tungro,dhan_shomadhan,tungro,25158
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_80.jpg,rice__tungro,dhan_shomadhan,tungro,25159
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_81.jpg,rice__tungro,dhan_shomadhan,tungro,25160
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_82.jpg,rice__tungro,dhan_shomadhan,tungro,25161
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_83.jpg,rice__tungro,dhan_shomadhan,tungro,25162
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_84.jpg,rice__tungro,dhan_shomadhan,tungro,25163
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_85.jpg,rice__tungro,dhan_shomadhan,tungro,25164
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_86.jpg,rice__tungro,dhan_shomadhan,tungro,25165
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_87.jpg,rice__tungro,dhan_shomadhan,tungro,25166
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_88.jpg,rice__tungro,dhan_shomadhan,tungro,25167
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_89.jpg,rice__tungro,dhan_shomadhan,tungro,25168
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_9.jpg,rice__tungro,dhan_shomadhan,tungro,25169
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_90.jpg,rice__tungro,dhan_shomadhan,tungro,25170
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_91.jpg,rice__tungro,dhan_shomadhan,tungro,25171
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_92.jpg,rice__tungro,dhan_shomadhan,tungro,25172
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_93.jpg,rice__tungro,dhan_shomadhan,tungro,25173
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_95.jpg,rice__tungro,dhan_shomadhan,tungro,25174
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_96.jpg,rice__tungro,dhan_shomadhan,tungro,25175
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_97.jpg,rice__tungro,dhan_shomadhan,tungro,25176
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_98.jpg,rice__tungro,dhan_shomadhan,tungro,25177
+data/raw/dhan_shomadhan/tungro/ds_rt_wb_99.jpg,rice__tungro,dhan_shomadhan,tungro,25178
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_1_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25179
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_10_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25180
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_100_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25181
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_101_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25182
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_102_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25183
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_103_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25184
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_104_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25185
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_105_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25186
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_106_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25187
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_107_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25188
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_108_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25189
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_109_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25190
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_11_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25191
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_110_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25192
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_111_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25193
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_112_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25194
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_113_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25195
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_114_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25196
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_115_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25197
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_116_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25198
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_117_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25199
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_118_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25200
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_119_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25201
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_12_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25202
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_120_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25203
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_121_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25204
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_122_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25205
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_123_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25206
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_124_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25207
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_125_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25208
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_126_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25209
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_127_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25210
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_128_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25211
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_129_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25212
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_13_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25213
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_130_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25214
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_131_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25215
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_132_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25216
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_133_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25217
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_134_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25218
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_135_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25219
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_136_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25220
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_137_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25221
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_138_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25222
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_139_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25223
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_14_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25224
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_140_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25225
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_141_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25226
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_142_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25227
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_143_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25228
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_144_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25229
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_145_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25230
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_146_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25231
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_147_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25232
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_148_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25233
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_149_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25234
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_15_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25235
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_150_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25236
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_151_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25237
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_152_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25238
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_153_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25239
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_154_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25240
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_155_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25241
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_156_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25242
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_157_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25243
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_158_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25244
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_159_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25245
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_16_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25246
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_160_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25247
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_161_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25248
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_162_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25249
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_163_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25250
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_164_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25251
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_165_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25252
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_166_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25253
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_167_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25254
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_168_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25255
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_169_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25256
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_17_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25257
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_170_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25258
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_171_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25259
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_172_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25260
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_173_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25261
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_174_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25262
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_175_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25263
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_176_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25264
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_177_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25265
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_178_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25266
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_179_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25267
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_18_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25268
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_180_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25269
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_19_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25270
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_2_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25271
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_20_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25272
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_21_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25273
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_22_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25274
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_23_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25275
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_24_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25276
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_25_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25277
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_26_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25278
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_27_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25279
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_28_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25280
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_29_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25281
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_3_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25282
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_30_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25283
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_31_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25284
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_32_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25285
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_33_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25286
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_34_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25287
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_35_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25288
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_36_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25289
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_37_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25290
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_38_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25291
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_39_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25292
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_4_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25293
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_40_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25294
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_41_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25295
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_42_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25296
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_43_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25297
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_44_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25298
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_45_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25299
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_46_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25300
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_47_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25301
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_48_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25302
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_49_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25303
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_5_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25304
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_50_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25305
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_51_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25306
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_52_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25307
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_53_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25308
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_54_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25309
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_55_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25310
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_56_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25311
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_57_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25312
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_58_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25313
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_59_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25314
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_6_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25315
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_60_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25316
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_61_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25317
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_62_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25318
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_63_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25319
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_64_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25320
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_65_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25321
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_66_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25322
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_67_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25323
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_68_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25324
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_69_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25325
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_7_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25326
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_70_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25327
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_71_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25328
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_72_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25329
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_73_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25330
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_74_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25331
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_75_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25332
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_76_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25333
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_77_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25334
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_78_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25335
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_79_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25336
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_8_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25337
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_80_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25338
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_81_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25339
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_82_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25340
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_83_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25341
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_84_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25342
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_85_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25343
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_86_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25344
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_87_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25345
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_88_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25346
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_89_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25347
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_9_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25348
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_90_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25349
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_91_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25350
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_92_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25351
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_93_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25352
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_94_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25353
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_95_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25354
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_96_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25355
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_97_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25356
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_98_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25357
+data/raw/rice_mendeley/bacterial_leaf_blight/rm_Bacterial_leaf_Blight_99_.jpg,rice__bacterial_leaf_blight,rice_mendeley,bacterial_leaf_blight,25358
+data/raw/sugarcane_ld_bd/healthy/scld_1695022174650.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26747
+data/raw/sugarcane_ld_bd/healthy/scld_1695022174660.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26748
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451453.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26749
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451471.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26750
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451488.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26751
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451505.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26752
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451522.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26753
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451540.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26754
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451557.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26755
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451575.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26756
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451593.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26757
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451612.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26758
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451630.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26759
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451647.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26760
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451664.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26761
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451681.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26762
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451698.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26763
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451716.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26764
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451731.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26765
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451746.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26766
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451758.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26767
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451767.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26768
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451777.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26769
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451787.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26770
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451796.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26771
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451805.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26772
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451824.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26773
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451833.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26774
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451841.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26775
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451852.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26776
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451862.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26777
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451873.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26778
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451881.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26779
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451890.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26780
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451900.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26781
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451909.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26782
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451919.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26783
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451928.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26784
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451937.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26785
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451946.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26786
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451955.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26787
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451964.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26788
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451973.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26789
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451981.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26790
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451990.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26791
+data/raw/sugarcane_ld_bd/healthy/scld_1695029451999.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26792
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452008.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26793
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452025.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26794
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452034.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26795
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452043.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26796
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452052.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26797
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452061.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26798
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452070.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26799
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452079.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26800
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452087.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26801
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452096.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26802
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452111.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26803
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452121.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26804
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452137.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26805
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452159.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26806
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452169.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26807
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452181.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26808
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452191.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26809
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452202.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26810
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452213.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26811
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452224.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26812
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452235.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26813
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452246.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26814
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452256.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26815
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452267.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26816
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452278.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26817
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452290.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26818
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452309.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26819
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452320.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26820
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452371.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26821
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452395.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26822
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452420.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26823
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452443.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26824
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452494.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26825
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452519.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26826
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452546.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26827
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452573.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26828
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452600.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26829
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452626.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26830
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452653.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26831
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452672.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26832
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452699.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26833
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452727.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26834
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452754.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26835
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452780.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26836
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452808.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26837
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452835.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26838
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452862.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26839
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452892.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26840
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452919.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26841
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452939.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26842
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452958.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26843
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452977.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26844
+data/raw/sugarcane_ld_bd/healthy/scld_1695029452996.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26845
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453016.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26846
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453035.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26847
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453051.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26848
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453063.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26849
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453076.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26850
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453090.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26851
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453103.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26852
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453113.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26853
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453131.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26854
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453141.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26855
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453151.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26856
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453159.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26857
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453177.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26858
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453186.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26859
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453196.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26860
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453205.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26861
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453214.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26862
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453223.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26863
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453232.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26864
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453241.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26865
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453259.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26866
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453269.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26867
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453278.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26868
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453288.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26869
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453297.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26870
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453316.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26871
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453325.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26872
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453334.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26873
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453361.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26874
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453380.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26875
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453389.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26876
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453408.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26877
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453418.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26878
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453427.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26879
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453436.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26880
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453445.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26881
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453462.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26882
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453485.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26883
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453510.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26884
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453536.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26885
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453563.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26886
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453581.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26887
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453600.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26888
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453628.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26889
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453656.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26890
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453685.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26891
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453713.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26892
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453741.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26893
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453768.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26894
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453797.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26895
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453821.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26896
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453847.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26897
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453874.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26898
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453904.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26899
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453931.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26900
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453959.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26901
+data/raw/sugarcane_ld_bd/healthy/scld_1695029453986.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26902
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454013.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26903
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454042.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26904
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454069.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26905
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454122.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26906
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454148.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26907
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454176.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26908
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454208.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26909
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454290.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26910
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454318.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26911
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454363.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26912
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454389.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26913
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454417.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26914
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454449.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26915
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454476.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26916
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454503.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26917
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454533.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26918
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454591.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26919
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454621.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26920
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454647.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26921
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454671.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26922
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454753.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26923
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454780.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26924
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454807.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26925
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454833.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26926
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454859.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26927
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454912.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26928
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454940.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26929
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454968.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26930
+data/raw/sugarcane_ld_bd/healthy/scld_1695029454994.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26931
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455021.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26932
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455048.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26933
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455074.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26934
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455101.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26935
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455119.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26936
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455138.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26937
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455157.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26938
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455175.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26939
+data/raw/sugarcane_ld_bd/healthy/scld_1695029455193.jpg,sugarcane__healthy,sugarcane_ld_bd,healthy,26940

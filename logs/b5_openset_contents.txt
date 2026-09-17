@@ -1,0 +1,12 @@
+=== broadleaf_weeds ===
+Subdirectories (0): []
+Sample direct files: ['agri_0_6605.jpeg', 'agri_0_5880.jpeg', 'agri_0_3057.jpeg']
+=== hasan_openset ===
+Subdirectories (3): ['sheath_blight', 'leaf_scald', 'narrow_brown_spot']
+Sample direct files: []
+=== other_crop_diseases ===
+Subdirectories (28): ['apple_rust_leaf', 'tomato_leaf_mosaic_virus', 'bell_pepper_leaf', 'blueberry_leaf', 'tomato_leaf']
+Sample direct files: []
+=== plantwild_unmatched_wheat ===
+Subdirectories (4): ['wheat head scab', 'wheat loose smut', 'wheat stem rust', 'wheat bacterial leaf streak (black chaff)']
+Sample direct files: []

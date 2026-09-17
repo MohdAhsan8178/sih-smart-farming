@@ -1,0 +1,17 @@
+Total paths in splits_packaged/all_images.csv: 30039
+Folder                    | Total in pkg | In all_images.csv  | Unused  
+----------------------------------------------------------------------
+not_crop                  |         1442 |               1436 |        6
+not_crop_archive          |         1263 |                  0 |     1263
+openset                   |         5255 |                  0 |     5255
+openset_holdout           |          174 |                  0 |      174
+paddy_doctor              |        13878 |              10407 |     3471
+plantdoc                  |         2575 |                  0 |     2575
+plantwild                 |        11488 |                993 |    10495
+rice_hasan                |          349 |                349 |        0
+rice_pest_rifat           |          247 |                247 |        0
+rice_sethy                |         5932 |               5932 |        0
+sugarcane_daphal          |         2521 |               2521 |        0
+sugarcane_thite           |         6748 |               6748 |        0
+wheat_mendeley            |          407 |                407 |        0
+wheat_small               |          999 |                999 |        0

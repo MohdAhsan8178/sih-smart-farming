@@ -1,0 +1,6 @@
+Total directories mapped: 133
+Total files mapped: 35562
+Case-insensitive collisions with Item C overrides: 0
+ZERO case-insensitive collisions across all directories!
+All 5 truncations verified in mapping!
+All 3 suffixed collision overrides verified in mapping!

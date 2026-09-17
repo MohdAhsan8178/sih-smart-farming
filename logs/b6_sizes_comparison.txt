@@ -1,0 +1,8 @@
+Total data/packaged size:               9.376 GB (10067429281 bytes)
+Files in all_images.csv (30,039):        5.016 GB (5385917246 bytes)
+openset_holdout/ (174):                 0.033 GB (35421108 bytes)
+openset/ (5,255):                       1.638 GB (1758691375 bytes)
+packaged_min with openset (35,468):     6.687 GB (7180029729 bytes)
+packaged_min without openset (30,213):  5.049 GB (5421338354 bytes)
+Saving (with openset):                  2.689 GB (2887399552 bytes)
+Saving (without openset):               4.327 GB (4646090927 bytes)

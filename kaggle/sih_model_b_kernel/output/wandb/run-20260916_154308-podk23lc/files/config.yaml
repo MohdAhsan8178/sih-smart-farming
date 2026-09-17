@@ -1,0 +1,86 @@
+_wandb:
+    value:
+        cli_version: 0.26.1
+        e:
+            9yt8p65lhnuqwje9qa31t1tvx7lpbzj0:
+                args:
+                    - -f
+                    - /tmp/tmp605nybik.json
+                    - '--HistoryManager.hist_file=:memory:'
+                cpu_count: 2
+                cpu_count_logical: 4
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "8656922775552"
+                        used: "7554422059008"
+                email: ahsanmohdcr7@gmail.com
+                executable: /usr/bin/python3
+                gpu: Tesla T4
+                gpu_count: 2
+                gpu_nvidia:
+                    - architecture: Turing
+                      cudaCores: 2560
+                      memoryTotal: "16106127360"
+                      name: Tesla T4
+                      uuid: GPU-f3a66e7a-c3d3-072b-b11d-68ceb580c110
+                    - architecture: Turing
+                      cudaCores: 2560
+                      memoryTotal: "16106127360"
+                      name: Tesla T4
+                      uuid: GPU-3502c91a-f3ef-ec13-e8ec-8084a4089f31
+                host: 253700a86a9a
+                memory:
+                    total: "33659379712"
+                os: Linux-6.12.90+-x86_64-with-glibc2.35
+                program: <python with no main file>
+                python: CPython 3.12.13
+                root: /kaggle/working
+                startedAt: "2026-09-16T15:43:08.532050Z"
+                writerId: 9yt8p65lhnuqwje9qa31t1tvx7lpbzj0
+        m: []
+        python_version: 3.12.13
+        t:
+            "1":
+                - 1
+                - 5
+                - 41
+                - 49
+                - 53
+                - 63
+                - 80
+            "2":
+                - 1
+                - 5
+                - 41
+                - 49
+                - 53
+                - 63
+                - 80
+            "3":
+                - 13
+                - 16
+            "4": 3.12.13
+            "5": 0.26.1
+            "8":
+                - 2
+                - 13
+            "12": 0.26.1
+            "13": linux-x86_64
+architecture:
+    value: mobilenetv3_small_100
+batch_size:
+    value: 128
+dataset:
+    value: mohdahsan8178/sih-model-b-dataset
+epochs:
+    value: 25
+loss:
+    value: ClassWeightedCrossEntropy
+lr:
+    value: 0.001
+weights:
+    value:
+        - 0.534
+        - 1.29
+        - 1.176

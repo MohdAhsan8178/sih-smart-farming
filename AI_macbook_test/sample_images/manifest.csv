@@ -1,0 +1,17 @@
+filename,folder,original_path,source_split,true_label,size_bytes
+train_rice_bacterial_leaf_blight.jpg,train,data/raw/paddy_doctor/train_images/bacterial_leaf_blight/106292.jpg,splits/train.csv,rice__bacterial_leaf_blight,94524
+train_sugarcane_red_rot.jpeg,train,data/raw/sugarcane_daphal/RedRot/redrot (157).jpeg,splits/train.csv,sugarcane__red_rot,85358
+train_rice_normal.jpg,train,data/raw/paddy_doctor/train_images/normal/107615.jpg,splits/train.csv,rice__normal,90268
+train_not_crop.jpg,train,data/raw/not_crop/feet_shoes/20260909_153801.jpg,splits/train.csv,not_crop,3952379
+indist_rice_brown_spot.jpg,test_indist,data/raw/paddy_doctor/train_images/brown_spot/101700.jpg,splits/test_indist.csv,rice__brown_spot,69296
+indist_sugarcane_mosaic.jpg,test_indist,data/raw/sugarcane_thite/Viral Disease/Viral Disease/Viral Disease230.jpg,splits/test_indist.csv,sugarcane__mosaic,59870
+indist_wheat_healthy.png,test_indist,data/raw/wheat_small/Wheat Disease Dataset/Healthy/Healthy2251.png,splits/test_indist.csv,wheat__healthy,897957
+indist_not_crop.jpg,test_indist,data/raw/not_crop/feet_shoes/20260909_153948.jpg,splits/test_indist.csv,not_crop,6867130
+cross_sugarcane_rust.jpg,test_crossdomain,data/raw/sugarcane_thite/BrownRust/BrownRust/image108.jpg,splits/test_crossdomain.csv,sugarcane__rust,45689
+cross_wheat_yellow_rust.jpg,test_crossdomain,data/raw/plantwild/wheat stripe rust/wheat_stripe_rust_Google_0154.jpg,splits/test_crossdomain.csv,wheat__yellow_rust,310452
+cross_sugarcane_healthy.jpg,test_crossdomain,data/raw/sugarcane_thite/Healthy Leaves/Healthy Leaves/image336.jpg,splits/test_crossdomain.csv,sugarcane__healthy,199355
+cross_rice_blast.jpg,test_crossdomain,data/raw/rice_sethy/Blast/BLAST4_114.jpg,splits/test_crossdomain.csv,rice__blast,234415
+unseen_apple_rust.jpg,external_unseen,data/raw/openset/other_crop_diseases/apple_rust_leaf/train_apple-rust.jpg,openset_unseen,apple__rust (unseen OOD),1978139
+unseen_broadleaf_weed.jpeg,external_unseen,data/raw/openset/broadleaf_weeds/agri_0_6605.jpeg,openset_unseen,broadleaf_weed (unseen OOD),56687
+unseen_philippines_bakanae.jpeg,external_unseen,data/raw/openset/philippines_bakanae/phil_Bakanae_25_.jpeg,openset_unseen,rice__bakanae (unseen OOD),6652
+unseen_sugarcane_ring_spot.jpg,external_unseen,data/raw/openset/sugarcane_ring_spot/scld_1695535679354.jpg,openset_unseen,sugarcane__ring_spot (unseen OOD),8290

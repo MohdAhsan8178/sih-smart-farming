@@ -1,0 +1,15 @@
+TOTAL UNIQUE OFFENDING ITEMS: 0
+  spaces: 0
+  commas: 0
+  parentheses: 0
+  brackets: 0
+  quotes: 0
+  ampersands: 0
+  colons: 0
+  hashes: 0
+  percent_signs: 0
+  non_ascii_unicode: 0
+  leading_dots: 0
+  leading_trailing_spaces: 0
+  names_over_200_chars: 0
+  other_outside_alphanumeric_dot_dash_underscore: 0

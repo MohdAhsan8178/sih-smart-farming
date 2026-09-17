@@ -1,0 +1,6 @@
+splits_packaged/all_images.csv path column non-compliant: 0
+splits_packaged/train.csv path column non-compliant: 0
+splits_packaged/val.csv path column non-compliant: 0
+splits_packaged/test_indist.csv path column non-compliant: 0
+splits_packaged/test_crossdomain.csv path column non-compliant: 0
+splits_packaged/test_external_riceblast.csv path column non-compliant: 0

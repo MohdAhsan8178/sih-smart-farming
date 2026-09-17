@@ -1,0 +1,41 @@
+=== B6: Creating pruned package in data/packaged_min/ ===
+Total unique split image paths: 30122 (30039 in all_images.csv + 83 in test_external_riceblast.csv)
+Copied 30122 split images to data/packaged_min
+Copied 174 files from data/packaged/openset_holdout to data/packaged_min/openset_holdout
+Copied 5255 files from data/packaged/openset to data/packaged_min/openset
+Total files in data/packaged_min/: 35551
+
+=== Rewriting splits_packaged/*.csv paths to data/packaged_min/ ===
+Wrote all_images.csv: 30039 paths rewritten to data/packaged_min/
+Wrote class_mapping.csv: 0 paths rewritten to data/packaged_min/
+Wrote openset_categories.csv: 0 paths rewritten to data/packaged_min/
+Wrote test_crossdomain.csv: 9389 paths rewritten to data/packaged_min/
+Wrote test_external_riceblast.csv: 83 paths rewritten to data/packaged_min/
+Wrote test_indist.csv: 2069 paths rewritten to data/packaged_min/
+Wrote train.csv: 16526 paths rewritten to data/packaged_min/
+Wrote val.csv: 2055 paths rewritten to data/packaged_min/
+
+=== Verifying All Paths in splits_packaged/*.csv Exist in data/packaged_min/ ===
+all_images.csv                     : 30039 paths checked, 0 missing
+test_crossdomain.csv               : 9389 paths checked, 0 missing
+test_external_riceblast.csv        : 83 paths checked, 0 missing
+test_indist.csv                    : 2069 paths checked, 0 missing
+train.csv                          : 16526 paths checked, 0 missing
+val.csv                            : 2055 paths checked, 0 missing
+
+Total paths checked across all splits_packaged CSVs: 60161
+Total missing files: 0
+
+=== Leak Check on splits_packaged/*.csv ===
+grep output:
+splits_packaged/all_images.csv:0
+splits_packaged/class_mapping.csv:0
+splits_packaged/openset_categories.csv:0
+splits_packaged/test_crossdomain.csv:0
+splits_packaged/test_external_riceblast.csv:0
+splits_packaged/test_indist.csv:0
+splits_packaged/train.csv:0
+splits_packaged/val.csv:0
+Leak check PASSED: 0 occurrences of openset_holdout or not_crop_archive in any split CSV!
+
+=== B6 Pruning Completed Successfully ===

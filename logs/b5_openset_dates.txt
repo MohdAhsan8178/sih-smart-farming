@@ -1,0 +1,10 @@
+brick                          |     0 files | sample date: N/A
+broadleaf_weeds                |  1300 files | sample date: 2026-09-04T15:34:15.105912
+dtd_textures                   |     0 files | sample date: N/A
+farm_machinery                 |     0 files | sample date: N/A
+hasan_openset                  |   584 files | sample date: 2026-09-06T19:46:19.755894
+irrigation_pipe                |     0 files | sample date: N/A
+other_crop_diseases            |  2572 files | sample date: 2026-09-04T15:13:46.746398
+plantwild_unmatched_wheat      |   799 files | sample date: 2026-09-06T19:46:38.267017
+plastic_mulch                  |     0 files | sample date: N/A
+straw_mulch                    |     0 files | sample date: N/A

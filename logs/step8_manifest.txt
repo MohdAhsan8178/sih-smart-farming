@@ -1,0 +1,40 @@
+[build_manifest] Walking raw dataset directories...
+[build_manifest] Wrote 53 mapping rows to /Users/mohdahsan/Downloads/SIH/sih-smart-farming/splits/class_mapping.csv
+[build_manifest] Wrote 30039 image records to /Users/mohdahsan/Downloads/SIH/sih-smart-farming/splits/all_images.csv
+[build_manifest] Wrote class distribution to /Users/mohdahsan/Downloads/SIH/sih-smart-farming/artifacts/reports/class_distribution.txt
+
+TOTAL IMAGES: 30039
+TOTAL CLASSES POPULATED: 29
+
+Canonical Class                     | Count    | % Total 
+---------------------------------------------------------
+rice__blast                         | 3178     |  10.58%
+rice__brown_spot                    | 2565     |   8.54%
+rice__tungro                        | 2396     |   7.98%
+rice__bacterial_leaf_blight         | 2063     |   6.87%
+rice__normal                        | 1919     |   6.39%
+rice__hispa                         | 1788     |   5.95%
+sugarcane__brown_spot               | 1722     |   5.73%
+sugarcane__yellow_leaf              | 1699     |   5.66%
+rice__yellow_stem_borer             | 1442     |   4.80%
+not_crop                            | 1436     |   4.78%
+sugarcane__mosaic                   | 1125     |   3.75%
+sugarcane__healthy                  | 952      |   3.17%
+sugarcane__rust                     | 828      |   2.76%
+wheat__yellow_rust                  | 805      |   2.68%
+wheat__septoria                     | 678      |   2.26%
+sugarcane__sett_rot                 | 652      |   2.17%
+rice__downy_mildew                  | 620      |   2.06%
+sugarcane__red_rot                  | 518      |   1.72%
+sugarcane__banded_chlorosis         | 471      |   1.57%
+wheat__powdery_mildew               | 432      |   1.44%
+rice__bacterial_leaf_streak         | 380      |   1.27%
+sugarcane__grassy_shoot             | 346      |   1.15%
+sugarcane__dried_leaf               | 343      |   1.14%
+rice__bacterial_panicle_blight      | 337      |   1.12%
+sugarcane__smut                     | 316      |   1.05%
+sugarcane__pokkah_boeng             | 297      |   0.99%
+wheat__brown_rust                   | 260      |   0.87%
+rice__leaf_roller                   | 247      |   0.82%
+wheat__healthy                      | 224      |   0.75%
+
