@@ -375,12 +375,41 @@ class GateTileThread(threading.Thread):
 
             self.out_queue.put((frame_idx, frame, metadata, tile_batch, metrics, frame_indices))
 
+class ONNXClassifier(object):
+    """
+    CPU / ONNX Runtime classifier standing in for TensorRT on non-Jetson development/macOS hosts (Step 35 / J6).
+    """
+
+    def __init__(self, onnx_path: Union[str, Path], size: int = IMAGE_SIZE, num_classes: int = NUM_CLASSES):
+        import onnxruntime as ort
+        self.session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+        self.input_name = self.session.get_inputs()[0].name
+        self.size = int(size)
+        self.num_classes = int(num_classes)
+
+    def infer(self, tiles: List[np.ndarray]) -> np.ndarray:
+        import cv2
+        processed = []
+        for t in tiles:
+            if t.shape[:2] != (self.size, self.size):
+                resized = cv2.resize(t, (self.size, self.size), interpolation=cv2.INTER_LINEAR)
+            else:
+                resized = t
+            # Fused ONNX expects float32 BGR in shape (B, 224, 224, 3)
+            bgr_f32 = resized.astype(np.float32)
+            processed.append(bgr_f32)
+        batch = np.stack(processed, axis=0)
+        logits = self.session.run(None, {self.input_name: batch})[0]
+        return logits.astype(np.float32)
+
+    def close(self) -> None:
+        pass
+
 
 class InferenceThread(threading.Thread):
     """
     Thread 3: GPU TensorRT Inference.
-    Owns the TRTClassifier and CUDA context. Context creation and destruction
-    are bound strictly inside this thread. Supports --dry-run mock inference.
+    Owns the TRTClassifier / ONNXClassifier and context. Supports --dry-run mock inference.
     """
 
     def __init__(
@@ -388,32 +417,49 @@ class InferenceThread(threading.Thread):
         in_queue: DropOldestQueue,
         out_queue: DropOldestQueue,
         engine_path: Optional[Union[str, Path]] = None,
+        onnx_path: Optional[Union[str, Path]] = None,
+        classifier: Optional[Any] = None,
         dry_run: bool = False,
     ):
         super(InferenceThread, self).__init__(name="InferenceThread")
         self.in_queue = in_queue
         self.out_queue = out_queue
         self.engine_path = Path(engine_path) if engine_path else None
+        self.onnx_path = Path(onnx_path) if onnx_path else None
+        self.classifier = classifier
         self.dry_run = dry_run
 
         self.tiles_classified = 0
         self.total_inference_time_s = 0.0
 
     def run(self) -> None:
-        clf = None
-        use_mock = self.dry_run or not HAS_TRT or not HAS_PYCUDA or self.engine_path is None or not self.engine_path.exists()
+        clf = self.classifier
+        use_mock = self.dry_run
 
-        if not use_mock:
-            try:
-                # CUDA context created INSIDE the inference thread (Rule R9)
-                clf = TRTClassifier(
-                    engine_path=self.engine_path,
-                    batch=ENGINE_BATCH,
-                    size=IMAGE_SIZE,
-                    num_classes=NUM_CLASSES,
-                )
-            except Exception as e:
-                print("[InferenceThread] Warning: TRTClassifier init failed (%s). Falling back to dry-run." % str(e))
+        if not use_mock and clf is None:
+            if HAS_TRT and HAS_PYCUDA and self.engine_path is not None and self.engine_path.exists():
+                try:
+                    # CUDA context created INSIDE the inference thread (Rule R9)
+                    clf = TRTClassifier(
+                        engine_path=self.engine_path,
+                        batch=ENGINE_BATCH,
+                        size=IMAGE_SIZE,
+                        num_classes=NUM_CLASSES,
+                    )
+                except Exception as e:
+                    print("[InferenceThread] Warning: TRTClassifier init failed (%s). Falling back." % str(e))
+
+            if clf is None and self.onnx_path is not None and self.onnx_path.exists():
+                try:
+                    clf = ONNXClassifier(
+                        onnx_path=self.onnx_path,
+                        size=IMAGE_SIZE,
+                        num_classes=NUM_CLASSES,
+                    )
+                except Exception as e:
+                    print("[InferenceThread] Warning: ONNXClassifier init failed (%s)." % str(e))
+
+            if clf is None:
                 use_mock = True
 
         try:
@@ -674,6 +720,8 @@ class EdgePipeline(object):
         self,
         source: Union[str, int],
         engine_path: Optional[Union[str, Path]] = None,
+        onnx_path: Optional[Union[str, Path]] = None,
+        classifier: Optional[Any] = None,
         dry_run: bool = False,
         max_frames: Optional[int] = None,
         output_jsonl: Optional[Union[str, Path]] = "artifacts/reports/pipeline_dryrun_events.jsonl",
@@ -686,6 +734,8 @@ class EdgePipeline(object):
     ):
         self.source = source
         self.engine_path = engine_path or (ROOT / "artifacts" / "engines" / "model_a_fp16.engine")
+        self.onnx_path = Path(onnx_path) if onnx_path else None
+        self.classifier = classifier
         self.dry_run = dry_run
         self.max_frames = max_frames
         self.output_jsonl = Path(output_jsonl) if output_jsonl else None
@@ -729,6 +779,8 @@ class EdgePipeline(object):
             in_queue=self.tile_queue,
             out_queue=self.result_queue,
             engine_path=self.engine_path,
+            onnx_path=self.onnx_path,
+            classifier=self.classifier,
             dry_run=self.dry_run,
         )
         self.t4_decision = DecisionAggregateStoreThread(
