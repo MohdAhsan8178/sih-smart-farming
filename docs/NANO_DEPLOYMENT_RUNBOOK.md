@@ -703,6 +703,8 @@ sudo systemctl enable --now sih-collector.timer
 
 ## 14. Copernicus CDSE Sentinel-2 Satellite NDVI Fallback (M4.1–M4.8)
 
+**Status:** `UNVERIFIED ON LIVE NETWORK` (Bench verified with synthetic mocked responses in CI; live network queries pending deployment credentials).
+
 When on-pod NoIR hardware is absent or uncalibrated, the Nano can report Sentinel-2 L2A satellite NDVI for the configured field polygon.
 
 ### 14.1 CDSE Account & OAuth2 Client Setup
@@ -725,7 +727,16 @@ sudo chmod 600 /etc/sih/cdse.json
 ```
 
 ### 14.3 Field Geometry Configuration
-Enter the field boundary polygon in `configs/field.json` as GeoJSON coordinates `[ [lon, lat], [lon, lat], ... ]`:
+By default, `configs/field.json` is unconfigured:
+```json
+{
+  "status": "NOT_CONFIGURED",
+  "field_id": null,
+  "polygon_coordinates": null,
+  "last_updated_utc": null
+}
+```
+To configure a field, enter the field boundary polygon in `configs/field.json` as GeoJSON coordinates `[ [lon, lat], [lon, lat], ... ]` (with first and last points identical):
 ```json
 {
   "status": "MEASURED",

@@ -1084,7 +1084,7 @@ class EdgeStorage(object):
         payload = {
             "schema_version": "1.0",
             "advisory_id": advisory_id,
-            "seq": 0,  # placeholder, replaced upon SQLite insert
+            "seq": 0,  # initial value, updated to monotonic rowid during SQLite insert
             "generated_at_utc": now_utc,
             "inference_backend": str(inference_backend),
             "replay": bool(replay),

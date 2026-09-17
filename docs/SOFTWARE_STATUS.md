@@ -1,12 +1,28 @@
-# SIH Smart Farming -- Edge Software Subsystem Status Document (M5.1)
+# SIH Smart Farming -- Edge Software Subsystem Status Document
 
-**Date:** 20 September 2026  
+**Date:** 21 September 2026  
 **Document:** `docs/SOFTWARE_STATUS.md`  
-**Purpose:** Master deployment status, verification states, provisional constant audit, physical hardware requirements, and single-command testing procedures on the Jetson Nano.
+**Purpose:** Master deployment status, remaining demo checklist, verification states, provisional constant audit, physical hardware requirements, and single-command testing procedures on the Jetson Nano.
 
 ---
 
-## 1. Subsystem Verification Status Matrix
+## 1. Remaining Before Demo
+
+The following itemized checklist lists all remaining tasks that require physical hardware bench actions or pre-demo configuration:
+
+| Category | Task Description | Target Component | Status / One Command to Validate |
+| :--- | :--- | :--- | :--- |
+| **`[HARDWARE]`** | **Physical Pod Sensor Assembly:** Connect IMX219-160 RGB camera to CSI-0, MLX90640 FIR array to I2C-1 (Pins 3/5 with 4.7k pullups), Quectel L76K GNSS to UART2 (`/dev/ttyTHS1`, Pins 8/10), and TP-Link TL-WN722N WiFi dongle to USB. | Jetson Nano 40-pin & CSI headers | `python3 -c "from edge.sensors import GPS; g = GPS('/dev/ttyTHS1'); print(g.get_current_fix())"` |
+| **`[HARDWARE]`** | **Firmware Flashing & Mast Node Test:** Flash `firmware/node_n01` onto mast ESP32 and `firmware/esp32cam_trap` onto trap ESP32-CAM via CP2102. Verify AP `SIH-NODE-01` (192.168.9.1) and `/readings` endpoint on battery. | Ground Mast ESP32 + ESP32-CAM | `curl -s http://192.168.9.1/api/v1/health` |
+| **`[HARDWARE]`** | **Thermal Reference Pads Calibration:** Place physical wet (water pad) and dry (sunlit dry pad) reference surfaces in MLX90640 FOV. Run setup script to write bounding boxes to `configs/thermal_refs.json`. | `configs/thermal_refs.json` | `python3 scripts/thermal_ref_setup.py --capture` |
+| **`[HARDWARE]`** | **Live WiFi Switching & Client Skip Test:** Validate `edge/wifi_switch.py` switching between `SIH-FIELD` AP and `SIH-NODE-01` mast STA, ensuring `iw dev <iface> station dump` correctly detects connected mobile phones. | `edge/wifi_switch.py` | `python3 edge/wifi_switch.py --dry-run` |
+| **`[HARDWARE]`** | **On-Pod NoIR Camera Bench Calibration (Lead-Time Gated):** If MidOpt DB660/850 filter arrives before demo, run `scripts/calibrate_dual_bandpass.py` before integrating sphere to measure unmixing matrix $K^{-1}$ and lift `NotImplementedError` in `core/ndvi.py`. (Otherwise, Sentinel-2 satellite NDVI serves as primary NDVI source). | `core/ndvi.py` | `python3 scripts/nano_smoke_test.py` |
+| **`[SOFTWARE]`** | **CDSE Credentials & Field Polygon Setup:** Populate `/etc/sih/cdse.json` (`chmod 600`) with Copernicus Data Space OAuth credentials and set test field boundary polygon in `configs/field.json`. | `/etc/sih/cdse.json`, `configs/field.json` | `python3 scripts/fetch_satellite_ndvi.py --credentials /etc/sih/cdse.json --field-config configs/field.json` |
+| **`[SOFTWARE]`** | **Systemd Production Services Installation:** Execute setup script on the physical Jetson Nano to install and enable `sih-gateway.service`, `sih-collector-boot.service`, and `sih-pipeline.service`. | `/etc/systemd/system/sih-*.service` | `sudo ./scripts/setup_nano_services.sh` |
+
+---
+
+## 2. Subsystem Verification Status Matrix
 
 | Subsystem | State | PROVISIONAL Constants in Use (Name, Value, File:Line) | Physical Measurements Still Required | One Command to Test on Nano |
 | :--- | :--- | :--- | :--- | :--- |
@@ -28,7 +44,7 @@
 
 ---
 
-## 2. Summary of Physical Next Steps for Hardware Team
+## 3. Summary of Physical Next Steps for Hardware Team
 
 1. **Jetson Nano Pod Assembly:** Connect IMX219-160 RGB camera to CSI-0, MLX90640 to I2C-1 (Pins 3/5 with 4.7k pullups), Quectel L76K GPS to UART (Pins 8/10), and TP-Link AR9271 WiFi dongle to USB.
 2. **Thermal Calibration:** Run `python3 scripts/thermal_ref_setup.py --capture`, inspect PNG, and enter wet/dry bounding box pixel coordinates.

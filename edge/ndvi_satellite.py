@@ -18,7 +18,11 @@ import urllib.parse
 import urllib.error
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-# Official CDSE endpoints
+# Official CDSE endpoints (Status: UNVERIFIED ON LIVE NETWORK; unit tested with synthetic responses in CI)
+# Documentation URLs:
+#   - OAuth2 / Token: https://documentation.dataspace.copernicus.eu/APIs/Token.html
+#   - Statistical API: https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Statistical.html
+#   - Evalscript V3: https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Evalscript/V3.html
 CDSE_TOKEN_URL = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
 CDSE_STATS_URL = "https://sh.dataspace.copernicus.eu/api/v1/statistics"
 
