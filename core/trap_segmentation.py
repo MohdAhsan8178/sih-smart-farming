@@ -309,10 +309,12 @@ def verify_fiducial_marker(img_bgr: np.ndarray,
 def _fill_holes(mask: np.ndarray) -> np.ndarray:
     """Flood from the border; anything unreached is an interior hole."""
     h, w = mask.shape
-    ff = mask.copy()
-    m = np.zeros((h + 2, w + 2), np.uint8)
+    padded = np.pad(mask, ((1, 1), (1, 1)), mode="constant", constant_values=0)
+    ff = padded.copy()
+    m = np.zeros((h + 4, w + 4), np.uint8)
     cv2.floodFill(ff, m, (0, 0), 255)
-    return cv2.bitwise_or(mask, cv2.bitwise_not(ff))
+    holes = cv2.bitwise_not(ff)[1:-1, 1:-1]
+    return cv2.bitwise_or(mask, holes)
 
 
 def extract_markers(dist: np.ndarray, abs_floor_px: float, rel_frac: float = 0.25) -> np.ndarray:
@@ -642,17 +644,19 @@ TRAP_ETL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "crop": "sugarcane",
         "trap_type": "yellow_sticky_trap",
         "threshold_value": 100.0,
-        "threshold_unit": "insects_per_trap_daily",
+        "threshold_unit": "insects_per_trap",
+        "provenance_status": "VERIFIED",
+        "local_archive_path": "docs/sources/dppqs_ipm_sugarcane.pdf",
         "source_url": "https://niphm.gov.in/IPMPackages/Sugarcane.pdf",
-        "source_quote": "take up the intervention when the population exceeds 100 per trap.",
-        "citation": "NIPHM (2014), 'AESA Based IPM Package for Sugarcane', p. 11.",
+        "source_quote": "Count the number of woolly aphids and white flies on the traps daily and take up the intervention when the population exceeds 100 per trap.",
+        "citation": "DPPQS / NIPHM (2014), 'AESA Based IPM Package for Sugarcane', p. 11 (PDF p. 19), Section D.",
         "ambiguity_note": (
-            "Source counts woolly aphid and whitefly together under one 100/trap daily threshold. "
-            "It is ambiguous whether 100 is combined across both species or per-species. "
+            "Source counts woolly aphid and whitefly together under one 100/trap daily monitoring threshold. "
+            "Threshold applies to cumulative catch per trap card. "
             "Resolved conservatively as a combined count across both sucking pest species."
         ),
         "management_action": (
-            "Intervention threshold exceeded (>100/trap daily). Conserve/release parasitoids "
+            "Intervention threshold exceeded (>100/trap cumulative). Conserve/release parasitoids "
             "Encarsia flavoscutellum; apply recommended IPM intervention if sustained."
         )
     },
@@ -661,17 +665,19 @@ TRAP_ETL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "crop": "sugarcane",
         "trap_type": "yellow_sticky_trap",
         "threshold_value": 100.0,
-        "threshold_unit": "insects_per_trap_daily",
+        "threshold_unit": "insects_per_trap",
+        "provenance_status": "VERIFIED",
+        "local_archive_path": "docs/sources/dppqs_ipm_sugarcane.pdf",
         "source_url": "https://niphm.gov.in/IPMPackages/Sugarcane.pdf",
-        "source_quote": "take up the intervention when the population exceeds 100 per trap.",
-        "citation": "NIPHM (2014), 'AESA Based IPM Package for Sugarcane', p. 11.",
+        "source_quote": "Count the number of woolly aphids and white flies on the traps daily and take up the intervention when the population exceeds 100 per trap.",
+        "citation": "DPPQS / NIPHM (2014), 'AESA Based IPM Package for Sugarcane', p. 11 (PDF p. 19), Section D.",
         "ambiguity_note": (
-            "Source counts woolly aphid and whitefly together under one 100/trap daily threshold. "
-            "It is ambiguous whether 100 is combined across both species or per-species. "
-            "Resolved conservatively as a combined count across both sucking pest species."
+            "Source counts woolly aphid and whitefly together under one 100/trap daily monitoring threshold. "
+            "Threshold applies to cumulative catch per trap card. "
+            "Resolved conservatively as combined count across both sucking pest species."
         ),
         "management_action": (
-            "Intervention threshold exceeded (>100/trap daily). Conserve Dipha aphidivora / "
+            "Intervention threshold exceeded (>100/trap cumulative). Conserve Dipha aphidivora / "
             "Micromus igorotus predators; apply recommended IPM intervention if sustained."
         )
     },
@@ -680,15 +686,18 @@ TRAP_ETL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "crop": "sugarcane",
         "trap_type": "yellow_sticky_trap",
         "threshold_value": 100.0,
-        "threshold_unit": "insects_per_trap_daily",
+        "threshold_unit": "insects_per_trap",
+        "provenance_status": "VERIFIED",
+        "local_archive_path": "docs/sources/dppqs_ipm_sugarcane.pdf",
         "source_url": "https://niphm.gov.in/IPMPackages/Sugarcane.pdf",
-        "source_quote": "take up the intervention when the population exceeds 100 per trap.",
-        "citation": "NIPHM (2014), 'AESA Based IPM Package for Sugarcane', p. 11.",
+        "source_quote": "Count the number of woolly aphids and white flies on the traps daily and take up the intervention when the population exceeds 100 per trap.",
+        "citation": "DPPQS / NIPHM (2014), 'AESA Based IPM Package for Sugarcane', p. 11 (PDF p. 19), Section D.",
         "ambiguity_note": (
-            "Source counts woolly aphid and whitefly together under one 100/trap daily threshold. "
+            "Source counts woolly aphid and whitefly together under one 100/trap daily monitoring threshold. "
+            "Threshold applies to cumulative catch per trap card. "
             "Resolved conservatively as combined count."
         ),
-        "management_action": "Intervention threshold exceeded (>100/trap daily). Apply recommended IPM intervention."
+        "management_action": "Intervention threshold exceeded (>100/trap cumulative). Apply recommended IPM intervention."
     },
 
     # --------------------------------------------------------------------------
@@ -911,7 +920,7 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
     # 1. Card Saturation Guard
     if card_saturated or (card_coverage is not None and card_coverage > max_card_saturation):
         return [{
-            "pest_name": "all",
+            "target_pest_context": "all",
             "status": "CARD_SATURATED",
             "card_replacement_required": True,
             "coverage_fraction": card_coverage,
@@ -923,7 +932,7 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
     if days_monitored is None:
         if card_replaced_at is None:
             return [{
-                "pest_name": "all",
+                "target_pest_context": "all",
                 "status": "MISSING_DEPLOYMENT_TIMESTAMP",
                 "card_replacement_required": False,
                 "detail": "card_replaced_at timestamp or explicit days_monitored is required to evaluate cumulative sticky-trap captures.",
@@ -944,7 +953,7 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
 
     if days_monitored < 1.0 or days_monitored > 7.0:
         return [{
-            "pest_name": "all",
+            "target_pest_context": "all",
             "status": "INVALID_MONITORING_WINDOW",
             "days_monitored": float(days_monitored),
             "card_replacement_required": days_monitored > 7.0,
@@ -957,20 +966,25 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
         norm_key = str(pest_key).strip().lower().replace(" ", "_").replace("-", "_")
 
         # Watershed-primary logic: if total_blobs_counted is provided and evaluating whitefly/trap pest
-        if total_blobs_counted is not None and norm_key in ("sugarcane_whitefly", "sugarcane_whitefly_woolly_aphid", "all_blobs"):
+        if total_blobs_counted is not None and norm_key in ("sugarcane_whitefly", "sugarcane_woolly_aphid", "sugarcane_whitefly_woolly_aphid", "all_blobs"):
             observed = float(total_blobs_counted)
             count_basis = "watershed_all_blobs"
         else:
             observed = float(count)
-            count_basis = "watershed_all_blobs" if norm_key in ("sugarcane_whitefly", "sugarcane_whitefly_woolly_aphid") else "direct_count"
+            count_basis = "watershed_all_blobs" if norm_key in ("sugarcane_whitefly", "sugarcane_woolly_aphid", "sugarcane_whitefly_woolly_aphid") else "direct_count"
+
+        # Reflect both whitefly and woolly aphid in target_pest_context per DPPQS source
+        if norm_key in ("sugarcane_whitefly", "sugarcane_woolly_aphid", "sugarcane_whitefly_woolly_aphid"):
+            target_pest_ctx = "sugarcane_whitefly_woolly_aphid"
+        else:
+            target_pest_ctx = norm_key
 
         daily_rate = float(round(observed / float(days_monitored), 2))
         weekly_rate = float(round(daily_rate * 7.0, 2))
 
         if norm_key not in TRAP_ETL_REGISTRY:
             results.append({
-                "target_pest_context": pest_key,
-                "pest_name": pest_key,
+                "target_pest_context": target_pest_ctx,
                 "count_basis": count_basis,
                 "count_observed": observed,
                 "days_monitored": float(days_monitored),
@@ -979,6 +993,9 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
                 "threshold_value": None,
                 "threshold_unit": None,
                 "status": "UNKNOWN_PEST",
+                "threshold_verification_status": "UNSOURCED",
+                "classification_verification_status": "RECALLED_UNVERIFIED",
+                "verification_status": "UNSOURCED",
                 "citation": "No ICAR/NIPHM record found in local registry for this pest identifier.",
                 "source_url": None,
                 "source_quote": None,
@@ -996,16 +1013,18 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
         elif thresh is None:
             status = "NO_PUBLISHED_ETL"
         else:
-            if unit == "insects_per_trap_daily":
-                status = "EXCEEDS_ETL" if daily_rate >= thresh else "BELOW_ETL"
+            # DPPQS: cumulative catch on the card since placement exceeds 100/trap
+            if unit == "insects_per_trap":
+                status = "EXCEEDS_ETL" if observed >= thresh else "BELOW_ETL"
             elif unit == "insects_per_trap_weekly":
                 status = "EXCEEDS_ETL" if weekly_rate >= thresh else "BELOW_ETL"
-            else:
+            elif unit == "insects_per_trap_daily":
                 status = "EXCEEDS_ETL" if daily_rate >= thresh else "BELOW_ETL"
+            else:
+                status = "EXCEEDS_ETL" if observed >= thresh else "BELOW_ETL"
 
         res_item = {
-            "target_pest_context": norm_key,
-            "pest_name": norm_key,
+            "target_pest_context": target_pest_ctx,
             "count_basis": count_basis,
             "count_observed": observed,
             "days_monitored": float(days_monitored),
@@ -1014,15 +1033,20 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
             "threshold_value": thresh,
             "threshold_unit": unit,
             "status": status,
+            "threshold_verification_status": entry.get("provenance_status", "VERIFIED"),
+            "classification_verification_status": "RECALLED_UNVERIFIED",
+            "verification_status": "RECALLED_UNVERIFIED",
             "citation": entry.get("citation"),
             "source_url": entry.get("source_url"),
             "source_quote": entry.get("source_quote"),
             "management_action": entry.get("management_action"),
         }
-        if norm_key in ("sugarcane_whitefly", "sugarcane_whitefly_woolly_aphid"):
+        if norm_key in ("sugarcane_whitefly", "sugarcane_woolly_aphid", "sugarcane_whitefly_woolly_aphid"):
             res_item["disclaimer"] = (
                 "small_pale_winged is an unverified CNN morphological category that does not distinguish "
-                "whitefly from thrips or aphids; total watershed blob count is authoritative."
+                "whitefly from thrips or aphids; total watershed blob count is authoritative. "
+                "The watershed count includes debris and non-target blobs, so count_observed is a "
+                "conservative OVER-estimate of target pests relative to the ETL."
             )
         if morphological_distribution is not None:
             res_item["morphological_distribution"] = morphological_distribution
@@ -1030,7 +1054,6 @@ def evaluate_trap_counts_against_etl(pest_counts: Dict[str, Any],
                 res_item["abstention_count"] = morphological_distribution["UNCERTAIN_NON_TARGET"]["count"]
                 res_item["abstention_fraction"] = morphological_distribution["UNCERTAIN_NON_TARGET"]["fraction"]
             res_item["total_blobs_counted"] = int(total_blobs_counted if total_blobs_counted is not None else observed)
-            res_item["verification_status"] = "RECALLED_UNVERIFIED"
             res_item["classification_source"] = "CROSS_DOMAIN_PRETRAINED"
 
         results.append(res_item)
