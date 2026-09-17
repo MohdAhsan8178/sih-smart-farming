@@ -238,3 +238,29 @@ def test_guard_catches_future_annotations():
     code = "from __future__ import annotations\n"
     issues = audit_code_string(code)
     assert any("__future__ import annotations" in msg for _, msg in issues)
+
+
+def test_nano_smoke_test_python36_compliance():
+    """G6.3: Verify scripts/nano_smoke_test.py is strictly Python 3.6 compliant
+    and has no third-party imports at the module top level."""
+    smoke_script = ROOT / "scripts" / "nano_smoke_test.py"
+    assert smoke_script.exists(), "scripts/nano_smoke_test.py missing"
+    content = smoke_script.read_text(encoding="utf-8")
+
+    # 1. AST audit for Python 3.7+ constructs
+    issues = audit_code_string(content, filename="scripts/nano_smoke_test.py")
+    assert not issues, "Found Python 3.7+ violations in nano_smoke_test.py: %s" % (issues,)
+
+    # 2. Assert no top-level third-party imports
+    tree = ast.parse(content, filename="scripts/nano_smoke_test.py")
+    disallowed_top_level = {"numpy", "cv2", "tensorrt", "pycuda", "onnxruntime", "torch", "scipy", "PIL", "matplotlib"}
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                mod = alias.name.split(".")[0]
+                assert mod not in disallowed_top_level, "Disallowed top-level import '%s' in nano_smoke_test.py" % mod
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                mod = node.module.split(".")[0]
+                assert mod not in disallowed_top_level, "Disallowed top-level from-import '%s' in nano_smoke_test.py" % mod
+

@@ -204,12 +204,15 @@ def test_watershed_primary_etl_evaluation():
     )
     assert len(res_below) == 1
     item = res_below[0]
-    assert item["target_pest_context"] == "sugarcane_whitefly"
+    assert item["target_pest_context"] == "sugarcane_whitefly_woolly_aphid"
     assert item["count_basis"] == "watershed_all_blobs"
     assert item["count_observed"] == 4.0, f"Expected 4.0, got {item['count_observed']}"
     assert item["daily_rate"] == 1.33
     assert item["status"] == "BELOW_ETL"
     assert item["threshold_value"] == 100.0
+    assert item["threshold_unit"] == "insects_per_trap"
+    assert item["threshold_verification_status"] == "VERIFIED"
+    assert item["classification_verification_status"] == "RECALLED_UNVERIFIED"
     assert "disclaimer" in item
     assert "watershed blob count is authoritative" in item["disclaimer"]
     assert item["abstention_count"] == 1
@@ -227,4 +230,61 @@ def test_watershed_primary_etl_evaluation():
     assert item_ex["count_observed"] == 350.0
     assert item_ex["daily_rate"] == 116.67
     assert item_ex["status"] == "EXCEEDS_ETL"
+
+    # Case 3 (H3.1): 150 blobs over 3 days -> EXCEEDS_ETL cumulative (under old rate logic, 150/3 = 50 was BELOW)
+    res_150 = evaluate_trap_counts_against_etl(
+        pest_counts={"sugarcane_whitefly": 50},
+        days_monitored=3.0,
+        total_blobs_counted=150,
+        morphological_distribution=morph_dist,
+    )
+    assert len(res_150) == 1
+    item_150 = res_150[0]
+    assert item_150["count_observed"] == 150.0
+    assert item_150["daily_rate"] == 50.0  # daily rate is informational
+    assert item_150["status"] == "EXCEEDS_ETL"  # cumulative 150 >= 100 exceeds ETL
+
+
+def test_h3_3_verification_status_frozen_enum_compliance():
+    """H3.3: Verify every verification_status emitted across trap, storage, and registry is in frozen enum."""
+    from core.trap_segmentation import TRAP_ETL_REGISTRY, classify_trap_blobs, evaluate_trap_counts_against_etl
+    import numpy as np
+
+    FROZEN_ENUM = {"VERIFIED", "WEB_VERIFIED", "RECALLED_UNVERIFIED", "UNSOURCED"}
+
+    # 1. TRAP_ETL_REGISTRY provenance statuses
+    for k, entry in TRAP_ETL_REGISTRY.items():
+        prov = entry.get("provenance_status")
+        if prov is not None:
+            assert prov in FROZEN_ENUM, f"TRAP_ETL_REGISTRY[{k}].provenance_status '{prov}' not in FROZEN_ENUM"
+
+    # 2. classify_trap_blobs output
+    dummy_blobs = [(np.zeros((64, 64, 3), dtype=np.uint8), (0, 0), 10)]
+    res = classify_trap_blobs(dummy_blobs)
+    assert res["verification_status"] in FROZEN_ENUM
+    assert res.get("threshold_verification_status", "VERIFIED") in FROZEN_ENUM
+    assert res.get("classification_verification_status", "RECALLED_UNVERIFIED") in FROZEN_ENUM
+
+    # 3. evaluate_trap_counts_against_etl output
+    eval_res = evaluate_trap_counts_against_etl(
+        pest_counts={"sugarcane_whitefly": 50, "unknown_pest": 10},
+        days_monitored=2.0,
+        total_blobs_counted=50,
+        morphological_distribution=res["morphological_distribution"],
+    )
+    for item in eval_res:
+        if "threshold_verification_status" in item:
+            assert item["threshold_verification_status"] in FROZEN_ENUM, (
+                f"threshold_verification_status '{item['threshold_verification_status']}' not in FROZEN_ENUM"
+            )
+        if "classification_verification_status" in item:
+            assert item["classification_verification_status"] in FROZEN_ENUM, (
+                f"classification_verification_status '{item['classification_verification_status']}' not in FROZEN_ENUM"
+            )
+        if "verification_status" in item:
+            assert item["verification_status"] in FROZEN_ENUM, (
+                f"verification_status '{item['verification_status']}' not in FROZEN_ENUM"
+            )
+
+
 

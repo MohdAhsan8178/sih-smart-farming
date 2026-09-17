@@ -159,5 +159,140 @@ def test_end_to_end_pipeline_dryrun():
         assert adv["vegetation"]["canopy_cover"]["mean"] is not None
 
 
+def test_g5_2_temperature_and_energy_single_application():
+    """
+    G5.2: Trace the exact Nano runtime path from TensorRT output to softmax/energy,
+    and prove T is applied exactly ONCE.
+    Asserts result equals softmax(z / T_CAL) and energy = -T_CAL * logsumexp(z[CROP_COLS] / T_CAL).
+    """
+    from scipy.special import logsumexp
+    from configs.train_config import T_CAL, TAU_ENERGY, TAU_CONF, TAU_PRIOR
+    from configs.classes import CROP_COLS, NOTCROP_COL, NUM_CLASSES
+    from core.rejection import softmax, open_set_energy, decide
+
+    # Known fixed logit vector
+    np.random.seed(42)
+    z_raw = np.random.randn(9, NUM_CLASSES).astype(np.float32)
+    z_copy = z_raw.copy()
+
+    # Hop 1: Direct mathematical expectations
+    expected_softmax = np.exp(z_raw / T_CAL) / np.sum(np.exp(z_raw / T_CAL), axis=1, keepdims=True)
+    expected_energy = -T_CAL * logsumexp(z_raw[:, CROP_COLS] / T_CAL, axis=1)
+
+    # Hop 2: Softmax scaling verification
+    probs = softmax(z_raw, T=T_CAL)
+    np.testing.assert_allclose(probs, expected_softmax, rtol=1e-5, atol=1e-6)
+
+    # Hop 3: Energy computation verification
+    energy = open_set_energy(z_raw, CROP_COLS, T=T_CAL)
+    np.testing.assert_allclose(energy, expected_energy, rtol=1e-5, atol=1e-6)
+
+    # Hop 4: Rejection decision integration (core/rejection.py:decide)
+    log_priors = np.zeros(NUM_CLASSES, dtype=np.float32)
+    decisions = decide(
+        logits=z_raw,
+        crop_cols=CROP_COLS,
+        notcrop_col=NOTCROP_COL,
+        log_priors=log_priors,
+        tau_energy=TAU_ENERGY,
+        T_cal=T_CAL,
+        tau_conf=TAU_CONF,
+        tau_prior=TAU_PRIOR,
+    )
+    assert len(decisions) == 9
+
+    # Assert logits array was never mutated in-place
+    np.testing.assert_array_equal(z_raw, z_copy)
+
+
+def test_h4_2_end_to_end_parity_mac_onnx_vs_pytorch():
+    """
+    H4.2: End-to-end parity test on Mac with ONNX Runtime standing in for TensorRT.
+    Loads 20 test_indist images (BGR as camera path provides), passes through real edge
+    preprocessing (cv2 bilinear resize to 224x224, float32 [0, 255]), and runs model_a_fused.onnx.
+    Compares against PyTorch EMA weights with Albumentations eval_transform (resize reproduced identically).
+    Asserts agreement and max logit difference (< 1e-4).
+    Also asserts that feeding RGB instead of BGR fails the strict parity check.
+    """
+    import cv2
+    import torch
+    import onnxruntime as ort
+    import pandas as pd
+    import albumentations as A
+    from albumentations.pytorch import ToTensorV2
+    from configs.classes import CLASS_NAMES
+    from train.model import build_model
+
+    repo_root = Path(__file__).resolve().parent.parent
+    csv_path = repo_root / "splits_v3/test_indist.csv"
+    ckpt_path = repo_root / "artifacts/checkpoints/v3/stage1.pt"
+    onnx_path = repo_root / "artifacts/onnx/model_a_fused.onnx"
+
+    if not csv_path.exists() or not ckpt_path.exists() or not onnx_path.exists():
+        pytest.skip("Required artifacts for H4.2 parity check not present on disk.")
+
+    df = pd.read_csv(csv_path).head(20)
+
+    # 1. PyTorch EMA model
+    model = build_model(num_classes=len(CLASS_NAMES), pretrained=False)
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    ema_sd = {k[7:] if k.startswith("module.") else k: v for k, v in ckpt["ema_state_dict"].items()}
+    model.load_state_dict(ema_sd)
+    model.eval()
+
+    # 2. ONNX Runtime session
+    sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    inp_name = sess.get_inputs()[0].name
+
+    tf = A.Compose([
+        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ToTensorV2(),
+    ])
+
+    agreements = 0
+    max_diffs = []
+
+    for i, row in df.iterrows():
+        p = repo_root / row["path"]
+        bgr = cv2.imread(str(p))
+        assert bgr is not None, f"Image {p} could not be read."
+
+        # Identical resize: cv2.INTER_LINEAR to 224x224
+        t_resized = cv2.resize(bgr, (224, 224), interpolation=cv2.INTER_LINEAR)
+
+        # Path A: PyTorch Albumentations on RGB
+        rgb = cv2.cvtColor(t_resized, cv2.COLOR_BGR2RGB)
+        transformed = tf(image=rgb)["image"]
+        with torch.no_grad():
+            pt_out = model(transformed.unsqueeze(0)).numpy()[0]
+        pt_pred = int(np.argmax(pt_out))
+
+        # Path B: Edge BGR float32 -> model_a_fused.onnx
+        batch_inp = np.zeros((9, 224, 224, 3), dtype=np.float32)
+        batch_inp[0] = t_resized.astype(np.float32)
+        onnx_out = sess.run(None, {inp_name: batch_inp})[0][0]
+        onnx_pred = int(np.argmax(onnx_out))
+
+        diff = float(np.max(np.abs(pt_out - onnx_out)))
+        max_diffs.append(diff)
+        if pt_pred == onnx_pred:
+            agreements += 1
+
+    # Verify 100% top-1 agreement and negligible numerical drift (< 1e-4)
+    assert agreements == len(df), f"Agreement was {agreements}/{len(df)}, expected 20/20"
+    assert max(max_diffs) < 1e-4, f"Max diff {max(max_diffs)} exceeded tolerance 1e-4"
+
+    # Channel order guard: verify that if wrong channel order (RGB) is fed, diff blows up
+    p0 = repo_root / df.iloc[0]["path"]
+    bgr0 = cv2.imread(str(p0))
+    t_rgb = cv2.cvtColor(cv2.resize(bgr0, (224, 224)), cv2.COLOR_BGR2RGB)
+    wrong_batch = np.zeros((9, 224, 224, 3), dtype=np.float32)
+    wrong_batch[0] = t_rgb.astype(np.float32)
+    wrong_out = sess.run(None, {inp_name: wrong_batch})[0][0]
+    rgb_diff = float(np.max(np.abs(pt_out - wrong_out)))
+    assert rgb_diff > 1.0, f"RGB input should have caused large channel order discrepancy, got {rgb_diff}"
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
+

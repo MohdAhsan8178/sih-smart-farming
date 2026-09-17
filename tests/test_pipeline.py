@@ -517,7 +517,7 @@ def test_section_b_icar_niphm_etl_comparison():
     assert "sugarcane_whitefly" in surviving
     assert "sugarcane_woolly_aphid" in surviving
     assert TRAP_ETL_REGISTRY["sugarcane_whitefly"]["threshold_value"] == 100.0
-    assert TRAP_ETL_REGISTRY["sugarcane_whitefly"]["threshold_unit"] == "insects_per_trap_daily"
+    assert TRAP_ETL_REGISTRY["sugarcane_whitefly"]["threshold_unit"] == "insects_per_trap"
     assert "https://niphm.gov.in" in TRAP_ETL_REGISTRY["sugarcane_whitefly"]["source_url"]
     assert "100 per trap" in TRAP_ETL_REGISTRY["sugarcane_whitefly"]["source_quote"]
     assert "ambiguity_note" in TRAP_ETL_REGISTRY["sugarcane_whitefly"]

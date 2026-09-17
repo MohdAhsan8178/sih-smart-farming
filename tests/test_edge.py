@@ -254,6 +254,7 @@ def test_section_e_irrigation_net_requirement_and_volume():
 # 2. Tests for edge/adc.py
 # ==============================================================================
 
+@pytest.mark.descoped
 def test_section_e_adc_gain_lsb_and_raw_conversion():
     """Verify ADS1115 LSB voltage scaling and 16-bit signed conversion."""
     # Gain 1: FSR = 4.096V, LSB = 0.125 mV (0.000125 V)
@@ -276,6 +277,7 @@ def test_section_e_adc_gain_lsb_and_raw_conversion():
         raw_to_voltage(40000, gain=1)
 
 
+@pytest.mark.descoped
 def test_section_e_adc_capacitive_moisture_calibration():
     """Verify capacitive soil moisture transfer function and guards."""
     v_dry = PROVISIONAL_V_DRY  # 3.0V
@@ -300,6 +302,7 @@ def test_section_e_adc_capacitive_moisture_calibration():
         voltage_to_moisture_pct(6.0)
 
 
+@pytest.mark.descoped
 def test_section_e_adc_driver_mock_reading():
     """Verify ADS1115Driver interface with mock synthetic voltages."""
     driver = ADS1115Driver(default_gain=1)
@@ -319,6 +322,7 @@ def test_section_e_adc_driver_mock_reading():
 # ==============================================================================
 
 # SCOPE NOTE (7 Sep 2026): Actuation hardware is out of scope. The system produces irrigation prescriptions for manual farmer execution. This module is retained as a validated reference implementation for future closed-loop deployment and is NOT wired into any runtime path.
+@pytest.mark.descoped
 def test_section_e_flow_pulse_and_rate_conversions():
     """Verify YF-S201 conversion factors: 450 pulses/L and 7.5 Hz/(L/min)."""
     # 450 pulses = 1.0 Liter
@@ -336,6 +340,7 @@ def test_section_e_flow_pulse_and_rate_conversions():
 
 
 # SCOPE NOTE (7 Sep 2026): Actuation hardware is out of scope. The system produces irrigation prescriptions for manual farmer execution. This module is retained as a validated reference implementation for future closed-loop deployment and is NOT wired into any runtime path.
+@pytest.mark.descoped
 def test_section_e_flow_monitor_accumulation_and_verification():
     """Verify FlowMonitor accumulation and target volume verification."""
     monitor = FlowMonitor(pulses_per_liter=450.0, hz_per_lpm=7.5)
@@ -367,6 +372,7 @@ def test_section_e_flow_monitor_accumulation_and_verification():
 # ==============================================================================
 
 # SCOPE NOTE (7 Sep 2026): Actuation hardware is out of scope. The system produces irrigation prescriptions for manual farmer execution. This module is retained as a validated reference implementation for future closed-loop deployment and is NOT wired into any runtime path.
+@pytest.mark.descoped
 def test_section_e_actuation_failsafe_normal_and_exception_deassertion():
     """Verify try...finally context manager guarantees pin deassertion."""
     mock_gpio = MockGPIO()
@@ -405,6 +411,7 @@ def test_section_e_actuation_failsafe_normal_and_exception_deassertion():
 
 
 # SCOPE NOTE (7 Sep 2026): Actuation hardware is out of scope. The system produces irrigation prescriptions for manual farmer execution. This module is retained as a validated reference implementation for future closed-loop deployment and is NOT wired into any runtime path.
+@pytest.mark.descoped
 def test_section_e_actuation_flow_disagreement_no_flow_fault():
     """Verify commanded OPEN with zero flow trips FAULT_NO_FLOW after timeout."""
     mock_gpio = MockGPIO()
@@ -438,6 +445,7 @@ def test_section_e_actuation_flow_disagreement_no_flow_fault():
 
 
 # SCOPE NOTE (7 Sep 2026): Actuation hardware is out of scope. The system produces irrigation prescriptions for manual farmer execution. This module is retained as a validated reference implementation for future closed-loop deployment and is NOT wired into any runtime path.
+@pytest.mark.descoped
 def test_section_e_actuation_leak_detection_when_closed():
     """Verify commanded CLOSED with pulses trips FAULT_LEAK_DETECTED."""
     mock_gpio = MockGPIO()
@@ -462,6 +470,7 @@ def test_section_e_actuation_leak_detection_when_closed():
 
 
 # SCOPE NOTE (7 Sep 2026): Actuation hardware is out of scope. The system produces irrigation prescriptions for manual farmer execution. This module is retained as a validated reference implementation for future closed-loop deployment and is NOT wired into any runtime path.
+@pytest.mark.descoped
 def test_section_e_actuation_watchdog_timeout_cutoff():
     """Verify continuous runtime exceeding watchdog limit forces shutdown."""
     mock_gpio = MockGPIO()
@@ -489,6 +498,7 @@ def test_section_e_actuation_watchdog_timeout_cutoff():
 # 5. Tests for edge/lora.py
 # ==============================================================================
 
+@pytest.mark.descoped
 def test_section_e_lora_crc16_ccitt_standard_vector():
     """Verify CRC16-CCITT algorithm against standard test vector '123456789' -> 0x29B1."""
     test_bytes = b"123456789"
@@ -496,6 +506,7 @@ def test_section_e_lora_crc16_ccitt_standard_vector():
     assert computed == 0x29B1, f"Expected 0x29B1, got 0x{computed:04X}"
 
 
+@pytest.mark.descoped
 def test_section_e_lora_packet_framing_and_parse_roundtrip():
     """Verify complete LoRa frame serialization, CRC integrity, and deserialization."""
     node_id = 42
@@ -516,6 +527,7 @@ def test_section_e_lora_packet_framing_and_parse_roundtrip():
     assert parsed["payload"] == payload
 
 
+@pytest.mark.descoped
 def test_section_e_lora_corrupted_packet_detection():
     """Verify corrupted packet rejection (CRC error, invalid sync, truncated buffer)."""
     packet = build_lora_packet(node_id=1, msg_type=MSG_COMMAND, seq_num=5, payload=b"start_valve_1")
@@ -540,6 +552,7 @@ def test_section_e_lora_corrupted_packet_detection():
     assert res_short["status"] == "PACKET_TOO_SHORT"
 
 
+@pytest.mark.descoped
 def test_section_e_lora_telemetry_payload_packing_roundtrip():
     """Verify 16-byte fixed binary telemetry encoding and decoding."""
     moisture = 45.50
@@ -571,6 +584,7 @@ def test_section_e_lora_telemetry_payload_packing_roundtrip():
     assert unpacked["fault_flags"] == faults
 
 
+@pytest.mark.descoped
 def test_section_e_lora_driver_mock_send_receive():
     """Verify SX1278Driver queue and transmission logic."""
     driver = SX1278Driver(node_id=10)

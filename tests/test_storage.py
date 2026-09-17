@@ -489,20 +489,41 @@ def test_standing_guard_generated_by_always_template():
 
 
 def test_cross_source_reliability_in_detections():
-    """F7: Verify cross-source reliability tiers are populated for all 29 classes and present in detections."""
-    from configs.classes import CLASS_NAMES, get_cross_source_reliability
+    """F7/G3: Verify cross-source reliability tiers follow exact spec logic and are present in detections."""
+    import json
+    from configs.classes import CLASS_NAMES
+    from configs.reliability import get_cross_source_reliability
     valid_tiers = {"TESTED_ROBUST", "TESTED_WEAK", "TESTED_FAILED", "UNTESTED"}
 
-    # 1. Verify all 29 classes receive a valid tier
-    for c in CLASS_NAMES:
-        tier = get_cross_source_reliability(c)
-        assert tier in valid_tiers, f"Class {c} received invalid tier {tier}"
+    # 1. Verify all 29 classes receive a valid tier and obey exact spec threshold logic
+    rel_json = Path(__file__).resolve().parent.parent / "artifacts/reports/model_a_cross_source_reliability.json"
+    if rel_json.exists():
+        with open(rel_json) as f:
+            rel_data = json.load(f)
+        for c in CLASS_NAMES:
+            tier = get_cross_source_reliability(c)
+            assert tier in valid_tiers, f"Class {c} received invalid tier {tier}"
+            if c in rel_data:
+                meta = rel_data[c]
+                sup = meta.get("support", 0)
+                rec = meta.get("recall")
+                # Rule: TESTED_ROBUST (recall >= 0.60), TESTED_WEAK (0.30 <= recall < 0.60), TESTED_FAILED (recall < 0.30), UNTESTED (support == 0)
+                if sup == 0 or rec is None:
+                    assert tier == "UNTESTED", f"Expected UNTESTED for {c}, got {tier}"
+                elif rec >= 0.60:
+                    assert tier == "TESTED_ROBUST", f"Expected TESTED_ROBUST for {c} with recall {rec}, got {tier}"
+                elif rec >= 0.30:
+                    assert tier == "TESTED_WEAK", f"Expected TESTED_WEAK for {c} with recall {rec}, got {tier}"
+                else:
+                    assert tier == "TESTED_FAILED", f"Expected TESTED_FAILED for {c} with recall {rec}, got {tier}"
 
-    # Verify specific benchmark tiers
+    # Verify specific benchmark tiers per G3.2
+    assert get_cross_source_reliability("sugarcane__healthy") == "TESTED_ROBUST"
+    assert get_cross_source_reliability("wheat__yellow_rust") == "TESTED_ROBUST"
     assert get_cross_source_reliability("rice__normal") == "TESTED_WEAK"
+    assert get_cross_source_reliability("wheat__powdery_mildew") == "TESTED_WEAK"
     assert get_cross_source_reliability("rice__bacterial_leaf_blight") == "TESTED_FAILED"
-    assert get_cross_source_reliability("sugarcane__healthy") == "TESTED_WEAK"
-    assert get_cross_source_reliability("wheat__yellow_rust") == "TESTED_WEAK"
+    assert get_cross_source_reliability("wheat__septoria") == "TESTED_FAILED"
     assert get_cross_source_reliability("sugarcane__smut") == "UNTESTED"
 
     # 2. Verify detection payload inclusion
