@@ -341,6 +341,17 @@ def check_system_resources():
     return disk_ok and ram_ok
 
 
+def check_mlx90640_hardware():
+    try:
+        if REPO_ROOT not in sys.path:
+            sys.path.insert(0, REPO_ROOT)
+        from edge.hardware_detect import detect_mlx90640
+        ok, reason = detect_mlx90640(bus_num=1, address=0x33)
+        return print_check("MLX90640 Thermal Array I2C (/dev/i2c-1:0x33)", ok, reason)
+    except Exception as e:
+        return print_check("MLX90640 Thermal Array I2C (/dev/i2c-1:0x33)", False, str(e))
+
+
 def main():
     logger = Logger(LOG_FILE)
     sys.stdout = logger
@@ -361,6 +372,7 @@ def main():
     print("\n[3] Hardware Firmware & Peripheral Drivers:")
     checks.append(check_firmware())
     checks.append(check_gps_uart())
+    checks.append(check_mlx90640_hardware())
 
     print("\n[4] AI Inference Engines:")
     checks.append(check_model_a_engine())

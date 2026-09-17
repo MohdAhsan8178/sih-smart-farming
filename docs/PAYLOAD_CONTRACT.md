@@ -96,7 +96,11 @@
 | `irrigation` | `t_min_24h_c`| float | Minimum air temp over 24h window | Diurnal air temp min (°C) |
 | `irrigation` | `t_max_24h_c`| float | Maximum air temp over 24h window | Diurnal air temp max (°C) |
 | `irrigation` | `t_mean_24h_c`| float| Mean air temp over 24h window | Diurnal air temp mean (°C) |
-| `irrigation` | `ra_mm_day`| float | `15.0` mm/day equivalent | Benchmark extraterrestrial radiation |
+| `irrigation` | `ra_mj_m2_day`| float | Dynamic FAO-56 Eq. 21 extraterrestrial radiation (MJ/m²/day) |
+| `irrigation` | `ra_mm_day`| float | $R_a \times 0.408$ equivalent depth in mm/day |
+| `irrigation` | `ra_source`| string | `"GPS"`, `"CONFIG_LATITUDE"` | Source of latitude for $R_a$ computation |
+| `irrigation` | `ra_latitude_deg`| float | Latitude used for $R_a$ calculation (°N/°S) |
+| `irrigation` | `day_of_year` | integer | 1 to 366 | Day of year ($J$) used for $R_a$ solar geometry |
 | `irrigation` | `et0_mm_day`| float | `0.0` to `15.0` mm/day | Reference evapotranspiration |
 | `irrigation` | `kc` | float | `0.20` to `1.35` | Growth-stage crop coefficient |
 | `irrigation` | `crop_et_mm_day`| float| `>= 0.0` mm/day | Crop evapotranspiration ($ET_c = ET_0 \times K_c$) |

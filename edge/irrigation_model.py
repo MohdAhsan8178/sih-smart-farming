@@ -208,6 +208,59 @@ def actual_vapour_pressure_from_rh_fao56(temp_c: float, rh_pct: float) -> float:
     return float(e0 * (float(rh_pct) / 100.0))
 
 
+def calculate_extraterrestrial_radiation_fao56(day_of_year: int, latitude_deg: float) -> Dict[str, float]:
+    """
+    Calculate daily extraterrestrial radiation (Ra) from day of year and latitude
+    using FAO-56 Eqs. 21–25.
+
+    Parameters:
+      day_of_year: Day of the year J in [1, 366].
+      latitude_deg: Latitude in decimal degrees (positive for Northern hemisphere, negative for Southern hemisphere).
+
+    Returns:
+      Dict containing:
+        ra_mj_m2_day: float, Ra in MJ / m^2 / day
+        ra_mm_day: float, equivalent water evaporation in mm / day (0.408 * Ra)
+        dr: float, inverse relative distance Earth-Sun (Eq. 23)
+        solar_declination_rad: float, solar declination delta (Eq. 24)
+        sunset_hour_angle_rad: float, sunset hour angle omega_s (Eq. 25)
+    """
+    if day_of_year < 1 or day_of_year > 366:
+        raise ValueError(f"day_of_year must be in [1, 366], got {day_of_year}")
+    if latitude_deg < -90.0 or latitude_deg > 90.0:
+        raise ValueError(f"latitude_deg must be in [-90, 90], got {latitude_deg}")
+
+    j = float(day_of_year)
+    phi = math.radians(float(latitude_deg))
+
+    # Eq. 23: Inverse relative distance Earth-Sun
+    dr = 1.0 + 0.033 * math.cos((2.0 * math.pi / 365.0) * j)
+
+    # Eq. 24: Solar declination (radians)
+    delta = 0.409 * math.sin((2.0 * math.pi / 365.0) * j - 1.39)
+
+    # Eq. 25: Sunset hour angle (radians)
+    tan_term = -math.tan(phi) * math.tan(delta)
+    clamped_term = max(-1.0, min(1.0, tan_term))
+    omega_s = math.acos(clamped_term)
+
+    # Eq. 21: Extraterrestrial radiation for daily periods (MJ / m^2 / day)
+    g_sc = 0.0820  # Solar constant (MJ / m^2 / min)
+    ra_mj = ((24.0 * 60.0) / math.pi) * g_sc * dr * (
+        omega_s * math.sin(phi) * math.sin(delta) + math.cos(phi) * math.cos(delta) * math.sin(omega_s)
+    )
+    ra_mj = max(0.0, float(ra_mj))
+    ra_mm = 0.408 * ra_mj
+
+    return {
+        "ra_mj_m2_day": float(round(ra_mj, 3)),
+        "ra_mm_day": float(round(ra_mm, 3)),
+        "dr": float(round(dr, 5)),
+        "solar_declination_rad": float(round(delta, 5)),
+        "sunset_hour_angle_rad": float(round(omega_s, 5)),
+    }
+
+
 # ==============================================================================
 # Reference Evapotranspiration: Penman-Monteith (FAO-56 Eq. 6)
 # ==============================================================================

@@ -47,8 +47,8 @@ DEFAULT_GATEWAY_PORT = 8080
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     """
-    Multi-threaded HTTP server handling each request in a separate thread.
-    Allows concurrent reads while edge/pipeline.py writes to the WAL-mode database.
+    Multi-threaded HTTP Server ensuring concurrent client connections are handled
+    without blocking during disk I/O, SQLite operations, or Model B processing.
     """
     daemon_threads = True
     allow_reuse_address = True
@@ -56,17 +56,23 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     def __init__(
         self,
         server_address: Tuple[str, int],
-        RequestHandlerClass,
+        RequestHandlerClass: Any,
         storage: Optional[EdgeStorage] = None,
         db_path: Union[str, Path] = DEFAULT_DB_PATH,
+        allow_mock: bool = False,
     ):
         super(ThreadedHTTPServer, self).__init__(server_address, RequestHandlerClass)
         self.db_path = Path(db_path)
         self.storage = storage if storage is not None else EdgeStorage(db_path=self.db_path)
         self.is_ready = True
-        # Seam for Subsystem 7 AP/STA mode-switching (AR9271 WiFi)
+        self.allow_mock = bool(allow_mock)
+        # Seam for Subsystem 7 AP/STA mode-switching (AR9271 WiFi) and sync management
         self.is_syncing = False
         self.sync_state = "IDLE"
+        self.sync_in_progress = False
+        self.last_sync_utc = None
+        self.last_sync_result = None
+        self._sync_lock = threading.Lock()
 
     def set_sync_state(self, syncing: bool, state_name: str = "IDLE") -> None:
         """
@@ -81,6 +87,33 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     def set_ready(self, ready: bool) -> None:
         """Sets server boot readiness (controls 503 boot window)."""
         self.is_ready = bool(ready)
+
+    def trigger_sync(self) -> bool:
+        """
+        Triggers an asynchronous mast synchronization pull cycle.
+        Returns True if started, False if a sync is already running.
+        """
+        with self._sync_lock:
+            if self.sync_in_progress:
+                return False
+            self.sync_in_progress = True
+
+        def _worker():
+            try:
+                from edge.mast_collector import MastCollector
+                collector = MastCollector(storage=self.storage)
+                res = collector.collect()
+                self.last_sync_result = res
+            except Exception as ex:
+                self.last_sync_result = {"status": "error", "error": str(ex)}
+            finally:
+                self.last_sync_utc = get_utc_iso_now()
+                with self._sync_lock:
+                    self.sync_in_progress = False
+
+        th = threading.Thread(target=_worker, daemon=True, name="MastSyncWorker")
+        th.start()
+        return True
 
 
 class GatewayRequestHandler(BaseHTTPRequestHandler):
@@ -128,9 +161,19 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
             if path == "/api/v1/health":
                 health = self.server.storage.get_health()
                 # Inject Subsystem 7 AP/STA mode-switch seam
-                health["syncing"] = getattr(self.server, "is_syncing", False)
+                health["syncing"] = getattr(self.server, "is_syncing", False) or getattr(self.server, "sync_in_progress", False)
                 health["sync_state"] = getattr(self.server, "sync_state", "IDLE")
                 self._send_json_response(200, health)
+                return
+
+            # Route: GET /api/v1/sync/status (L7.3)
+            if path == "/api/v1/sync/status":
+                status_payload = {
+                    "sync_in_progress": getattr(self.server, "sync_in_progress", False),
+                    "last_sync_utc": getattr(self.server, "last_sync_utc", None),
+                    "last_sync_result": getattr(self.server, "last_sync_result", None),
+                }
+                self._send_json_response(200, status_payload)
                 return
 
             # Route: GET /api/v1/manifest (§A2, §A3, §A4)
@@ -154,6 +197,15 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                     since_val = int(since_param)
 
                 manifest = self.server.storage.get_manifest(since=since_val, limit=limit_val)
+
+                # L4.2: If allow_mock is False, omit mock advisories from manifest
+                if not getattr(self.server, "allow_mock", False) and "advisories" in manifest:
+                    manifest["advisories"] = [
+                        a for a in manifest["advisories"]
+                        if a.get("inference_backend") != "mock"
+                    ]
+                    manifest["count"] = len(manifest["advisories"])
+
                 self._send_json_response(200, manifest)
                 return
 
@@ -165,6 +217,14 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 if advisory is None:
                     self._send_json_response(404, {"error": "not_found", "advisory_id": advisory_id})
                 else:
+                    # L4.2: If allow_mock is False and advisory is mock, reject with 403 Forbidden
+                    if not getattr(self.server, "allow_mock", False) and advisory.get("inference_backend") == "mock":
+                        self._send_error_json(
+                            403,
+                            "mock_advisory_rejected",
+                            "Gateway running in production mode rejecting mock advisory",
+                        )
+                        return
                     self._send_json_response(200, advisory)
                 return
 
@@ -332,6 +392,22 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 self._send_json_response(200, resp)
                 return
 
+            # Route: POST /api/v1/sync/trigger (L7.3)
+            if path == "/api/v1/sync/trigger":
+                started = self.server.trigger_sync()
+                if not started:
+                    self._send_error_json(
+                        409,
+                        "sync_in_progress",
+                        "Mast synchronization is already running",
+                    )
+                    return
+                self._send_json_response(202, {
+                    "status": "started",
+                    "timestamp": get_utc_iso_now(),
+                })
+                return
+
             self._send_json_response(404, {"error": "not_found", "path": path})
 
         except Exception as e:
@@ -350,18 +426,21 @@ class EdgeGateway(object):
         db_path: Union[str, Path] = DEFAULT_DB_PATH,
         storage: Optional[EdgeStorage] = None,
         verbose: bool = False,
+        allow_mock: bool = False,
     ):
         self.host = host
         self.port = int(port)
         self.db_path = Path(db_path)
         self.storage = storage if storage is not None else EdgeStorage(db_path=self.db_path)
         self.verbose = verbose
+        self.allow_mock = bool(allow_mock)
 
         self.server = ThreadedHTTPServer(
             (self.host, self.port),
             GatewayRequestHandler,
             storage=self.storage,
             db_path=self.db_path,
+            allow_mock=self.allow_mock,
         )
         self.server.verbose = self.verbose
         self._thread: Optional[threading.Thread] = None
@@ -397,6 +476,7 @@ def main():
     parser.add_argument("--port", type=int, default=DEFAULT_GATEWAY_PORT, help=f"Bind port (default: {DEFAULT_GATEWAY_PORT})")
     parser.add_argument("--db-path", type=str, default=str(DEFAULT_DB_PATH), help=f"Path to SQLite database (default: {DEFAULT_DB_PATH})")
     parser.add_argument("--verbose", action="store_true", help="Enable per-request HTTP access logging")
+    parser.add_argument("--allow-mock", action="store_true", default=False, help="Allow serving mock advisories in non-production environments")
     args = parser.parse_args()
 
     gateway = EdgeGateway(
@@ -404,6 +484,7 @@ def main():
         port=args.port,
         db_path=args.db_path,
         verbose=args.verbose,
+        allow_mock=args.allow_mock,
     )
 
     print("=" * 70)

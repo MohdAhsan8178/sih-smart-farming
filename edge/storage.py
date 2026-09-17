@@ -874,24 +874,27 @@ class EdgeStorage(object):
             total_cycle_days=total_cycle_days,
         )
 
-        # J5 Hardware-Gated Blocks: Thermal, NDVI, Irrigation
+        # J5 / L4 Hardware-Gated Blocks: Thermal, NDVI, Irrigation
         from edge.sensors import MastTelemetryReader
+        from edge.hardware_detect import detect_mlx90640, detect_noir_camera
         reader = MastTelemetryReader(self)
         mast_reading = reader.get_latest()
 
-        # 1. Thermal block (PENDING_HARDWARE.md Subsystem 1)
+        # 1. Thermal block (MLX90640 runtime I2C probe)
+        mlx_ok, mlx_reason = detect_mlx90640()
         thermal_block = {
-            "available": False,
-            "reason": "HARDWARE_NOT_CONNECTED (MLX90640 handheld thermal array absent, see PENDING_HARDWARE.md Subsystem 1)",
+            "available": mlx_ok,
+            "reason": mlx_reason,
         }
 
-        # 2. NDVI block (PENDING_HARDWARE.md Subsystem 4)
+        # 2. NDVI block (IMX219-77IR NoIR camera CSI probe)
+        noir_ok, noir_reason = detect_noir_camera()
         ndvi_block = {
-            "available": False,
-            "reason": "HARDWARE_NOT_CONNECTED (IMX219-77IR NoIR camera and DB660/850 filter absent, see PENDING_HARDWARE.md Subsystem 4)",
+            "available": noir_ok,
+            "reason": noir_reason,
         }
 
-        # 3. Irrigation block (FAO-56 Hargreaves-Samani, Eq 52)
+        # 3. Irrigation block (FAO-56 Hargreaves-Samani, Eq 52 & Dynamic Ra Eqs 21-25)
         history_24h = self.get_mast_readings_history(hours=24.0)
         valid_temps = [float(r["air_temp_c"]) for r in history_24h if r.get("air_temp_c") is not None]
 
@@ -907,7 +910,6 @@ class EdgeStorage(object):
                 if time_span_h >= 6.0:
                     has_min_coverage = True
 
-
         if mast_reading is not None and mast_reading.get("air_temp_c") is not None:
             if not has_min_coverage:
                 irrigation_block = {
@@ -920,11 +922,38 @@ class EdgeStorage(object):
                 t_mean = sum(valid_temps) / float(len(valid_temps))
                 delta_t = max(0.0, t_max - t_min)
                 kc = float(growth_stage.get("kc") if growth_stage and growth_stage.get("kc") is not None else 1.0)
-                
-                # FAO-56 Hargreaves-Samani Equation 52:
-                # ET0 = 0.0023 * (Tmean + 17.8) * (Tmax - Tmin)^0.5 * Ra
-                # Ra = 15.0 mm/day equivalent (benchmark for 20°N-28°N latitude, FAO-56 Table 2.6)
-                ra_mm_day = 15.0
+
+                # Day of year J
+                scan_dt = _parse_iso_timestamp(scan_row["started_utc"]) if scan_row["started_utc"] else None
+                if not scan_dt:
+                    scan_dt = datetime.datetime.now(datetime.timezone.utc)
+                day_of_year = scan_dt.timetuple().tm_yday
+
+                # Latitude resolution: GPS first, then config fallback
+                gps_lats = [float(e["lat"]) for e in events if e["lat"] is not None]
+                if gps_lats:
+                    resolved_lat = float(gps_lats[0])
+                    ra_source = "GPS"
+                else:
+                    config_lat = None
+                    if scan_row["metadata_json"]:
+                        try:
+                            s_meta = json.loads(scan_row["metadata_json"])
+                            if isinstance(s_meta, dict) and "latitude" in s_meta:
+                                config_lat = float(s_meta["latitude"])
+                        except Exception:
+                            pass
+                    if config_lat is None:
+                        config_lat = 28.5  # default field config latitude
+                    resolved_lat = float(config_lat)
+                    ra_source = "CONFIG_LATITUDE"
+
+                # Dynamic FAO-56 Extraterrestrial Radiation (Eqs. 21-25)
+                from edge.irrigation_model import calculate_extraterrestrial_radiation_fao56
+                ra_dict = calculate_extraterrestrial_radiation_fao56(day_of_year, resolved_lat)
+                ra_mm_day = ra_dict["ra_mm_day"]
+                ra_mj_m2_day = ra_dict["ra_mj_m2_day"]
+
                 et0_est = round(0.0023 * (t_mean + 17.8) * (delta_t ** 0.5) * ra_mm_day, 2)
                 et0_est = max(0.0, min(15.0, et0_est))
                 crop_et = round(et0_est * kc, 2)
@@ -938,6 +967,10 @@ class EdgeStorage(object):
                     "t_max_24h_c": round(t_max, 2),
                     "t_mean_24h_c": round(t_mean, 2),
                     "ra_mm_day": ra_mm_day,
+                    "ra_mj_m2_day": ra_mj_m2_day,
+                    "ra_source": ra_source,
+                    "ra_latitude_deg": resolved_lat,
+                    "day_of_year": day_of_year,
                     "et0_mm_day": et0_est,
                     "kc": kc,
                     "crop_et_mm_day": crop_et,
@@ -1083,7 +1116,7 @@ class EdgeStorage(object):
         # Query 1 extra row to determine truncation
         rows = conn.execute(
             """
-            SELECT advisory_id, seq, generated_at_utc, bytes, replay
+            SELECT advisory_id, seq, generated_at_utc, bytes, replay, payload_json
             FROM advisories
             WHERE seq > ?
             ORDER BY seq ASC
@@ -1095,16 +1128,23 @@ class EdgeStorage(object):
         truncated = len(rows) > limit
         items = rows[:limit]
 
-        advisories_list = [
-            {
+        advisories_list = []
+        for r in items:
+            backend = "trt"
+            if r["payload_json"]:
+                try:
+                    p = json.loads(r["payload_json"])
+                    backend = p.get("inference_backend", "trt")
+                except Exception:
+                    pass
+            advisories_list.append({
                 "advisory_id": r["advisory_id"],
                 "seq": r["seq"],
                 "generated_at_utc": r["generated_at_utc"],
                 "bytes": r["bytes"],
                 "replay": bool(r["replay"]),
-            }
-            for r in items
-        ]
+                "inference_backend": backend,
+            })
 
         return {
             "schema_version": "1.0",

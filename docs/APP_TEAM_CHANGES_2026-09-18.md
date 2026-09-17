@@ -47,8 +47,8 @@ This document details all schema, telemetry, and contract changes between the in
 ### 2.2 Modified Blocks
 1. **`irrigation` Block**:
    - **Method**: Switched to `"fao56_hargreaves_samani"` (FAO-56 Eq 52).
-   - **Inputs**: Calculated from 24h diurnal air temperature spread ($T_{min}, T_{max}, T_{mean}$) recorded by ground mast SHT40, and benchmark extraterrestrial radiation $R_a = 15.0\text{ mm/day}$ (FAO-56 Table 2.6).
-   - **New Fields Added**: `t_min_24h_c` (float), `t_max_24h_c` (float), `t_mean_24h_c` (float), `ra_mm_day` (float = 15.0), `samples_24h` (int >= 6).
+   - **Inputs**: Calculated from 24h diurnal air temperature spread ($T_{min}, T_{max}, T_{mean}$) recorded by ground mast SHT40, and dynamic extraterrestrial radiation $R_a$ (FAO-56 Eqs. 21–25) calculated from day of year and pod GPS latitude (with field config fallback).
+   - **New Fields Added**: `t_min_24h_c` (float), `t_max_24h_c` (float), `t_mean_24h_c` (float), `ra_mj_m2_day` (float), `ra_mm_day` (float), `ra_source` (`"GPS"` or `"CONFIG_LATITUDE"`), `ra_latitude_deg` (float), `day_of_year` (int 1-366), `samples_24h` (int >= 6).
    - **Fields Removed**: `canopy_temp_c`, `cwsi`, `water_level_mm`, `paddy_awd` (sensors absent from physical build; see `PENDING_HARDWARE.md`).
    - **Coverage Rule**: Requires $\ge 6$ readings spanning $\ge 6.0$ hours in last 24h. Otherwise returns `"available": false` with explicit explanation.
 
@@ -69,6 +69,12 @@ This document details all schema, telemetry, and contract changes between the in
      - `AT_ETL`: Observed count exactly equals economic threshold (`count_observed == threshold`).
      - `BELOW_ETL`: Observed count is below economic threshold (`count_observed < threshold`).
    - Standardized status strings for special conditions: `NO_PUBLISHED_ETL`, `NOT_SAMPLED_BY_STICKY_TRAP`, `UNKNOWN_PEST`, `CARD_SATURATED`, `INVALID_MONITORING_WINDOW`, `MISSING_DEPLOYMENT_TIMESTAMP`.
+
+6. **Production Mock Advisory Guard**:
+   - By default, Gateway operates in production mode (`allow_mock=False`).
+   - `GET /api/v1/advisory/<id>` returns `403 Forbidden` (`{"error": "mock_advisory_rejected", ...}`) if requested advisory was generated with `inference_backend: "mock"`.
+   - `GET /api/v1/manifest` automatically filters out mock advisories in production mode.
+   - For offline test harnesses and development, pass `--allow-mock` CLI flag to the Gateway.
 
 ---
 
@@ -109,8 +115,10 @@ This document details all schema, telemetry, and contract changes between the in
 | Method | Path | Request Body | Description |
 |---|---|---|---|
 | `GET` | `/api/v1/health` | None | Device liveness, unacked count, storage free KB, sync state |
-| `GET` | `/api/v1/manifest?since=&limit=` | None | Monotonic advisory catalog pagination |
-| `GET` | `/api/v1/advisory/<id_or_seq>` | None | Complete frozen v1.0 advisory document |
+| `GET` | `/api/v1/manifest?since=&limit=` | None | Monotonic advisory catalog pagination (in production mode, mock advisories omitted) |
+| `GET` | `/api/v1/advisory/<id_or_seq>` | None | Complete frozen v1.0 advisory document (returns 403 Forbidden in production mode if advisory was generated with mock backend) |
 | `POST` | `/api/v1/ack` | `{"advisory_id": "<id>"}` | Cursor advancement |
 | `POST` | `/api/v1/trap/upload?trap_id=&days=` | Multipart JPG image | Sticky trap card photo for Model B segmentation & classification |
 | `GET` | `/api/v1/media/<id>` | None | Returns `410 Gone` (media retention pruned per policy) |
+| `POST` | `/api/v1/sync/trigger` | None | Triggers async collector sync against mast node (returns `202 Accepted` or `409 Conflict` if sync is already in progress) |
+| `GET` | `/api/v1/sync/status` | None | Returns current sync status (`idle`, `connecting`, `pulling`, `success`, `error`), last sync timestamp, records pulled |

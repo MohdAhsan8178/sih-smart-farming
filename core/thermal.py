@@ -180,6 +180,37 @@ def cwsi(tc, ta, vpd_kpa, ll_slope, ll_intercept, ul_offset):
     return float(np.clip((d - ll) / (ul - ll), 0.0, 1.0))
 
 
+def calculate_cwsi_reference_based(tc, t_wet, t_dry):
+    """
+    Computes Crop Water Stress Index (CWSI) using physical wet and dry reference surfaces (L6.3).
+
+    Formula (Jones, 1999; Idso et al., 1981):
+      CWSI = (Tc - T_wet) / (T_dry - T_wet)
+
+    Constraints:
+      1. T_wet and T_dry MUST be explicitly configured / measured.
+      2. If missing or invalid, NEVER guess or use uncalibrated defaults.
+      3. Returns (None, "WET_DRY_REFERENCES_NOT_CONFIGURED") on missing references.
+    """
+    if t_wet is None or t_dry is None:
+        return None, "WET_DRY_REFERENCES_NOT_CONFIGURED"
+
+    try:
+        t_wet_val = float(t_wet)
+        t_dry_val = float(t_dry)
+        tc_val = float(tc)
+    except (ValueError, TypeError):
+        return None, "INVALID_REFERENCE_TEMPERATURES"
+
+    denom = t_dry_val - t_wet_val
+    if denom <= 0.5:
+        return None, "INSUFFICIENT_REFERENCE_TEMPERATURE_GAP (T_dry - T_wet <= 0.5C)"
+
+    cwsi_raw = (tc_val - t_wet_val) / denom
+    cwsi_clamped = max(0.0, min(1.0, cwsi_raw))
+    return float(round(cwsi_clamped, 4)), "OK"
+
+
 def compute_vpd(air_temp_c, relative_humidity_pct):
     """
     Calculate Vapour Pressure Deficit (VPD in kPa) using the standard Tetens equation (FAO-56).

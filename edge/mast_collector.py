@@ -16,6 +16,7 @@ Python 3.6 compatible.
 """
 
 import argparse
+import datetime
 import json
 import logging
 import os
@@ -33,7 +34,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from edge.sensors import GPS
-from edge.storage import DEFAULT_DB_PATH, EdgeStorage, get_utc_iso_now
+from edge.storage import DEFAULT_DB_PATH, EdgeStorage, get_utc_iso_now, _parse_iso_timestamp
 from edge.trap_job import process_trap_card
 
 logger = logging.getLogger("edge.mast_collector")
@@ -100,22 +101,54 @@ class MastCollector(object):
             raise RuntimeError("Health check returned status %d" % code)
         return json.loads(raw.decode("utf-8"))
 
-    def sync_time_from_gps(self):
+    def sync_time_from_gps(self, mast_health=None):
         """
         Synchronizes the DS3231 RTC on the mast node if Nano has a valid GPS fix.
-        Per Guide §6: Only call /time when Nano's own GPS fix and time are valid.
+        Per Guide §6 & Runbook:
+          Only send POST /time when:
+            1. Nano GPS fix is valid (valid=True, non-null utc_timestamp), AND
+            2. (mast rtc_valid is False OR |mast_utc - gps_utc| > 120 seconds).
         """
         fix = self.gps_reader.get_current_fix()
         if not fix or not fix.get("valid") or not fix.get("utc_timestamp"):
             logger.info("Nano GPS fix not valid/available; skipping mast clock synchronization.")
             return False, "GPS_FIX_INVALID_OR_ABSENT"
 
-        utc_ts = int(fix["utc_timestamp"])
-        logger.info("Nano GPS fix valid (UTC timestamp %d). Syncing mast DS3231 clock...", utc_ts)
         try:
-            code, raw = self._http_request("/time", method="POST", params={"utc": utc_ts})
+            gps_utc_ts = int(fix["utc_timestamp"])
+        except (ValueError, TypeError):
+            logger.warning("GPS fix timestamp invalid: %s", fix.get("utc_timestamp"))
+            return False, "GPS_TIMESTAMP_INVALID"
+
+        # Check mast health state if provided
+        if isinstance(mast_health, dict):
+            mast_rtc_valid = bool(mast_health.get("rtc_valid", False))
+            mast_utc_str = mast_health.get("utc")
+            if mast_rtc_valid and mast_utc_str:
+                try:
+                    mast_dt = _parse_iso_timestamp(mast_utc_str)
+                    if mast_dt is not None:
+                        mast_utc_ts = int(mast_dt.timestamp())
+                        drift = abs(mast_utc_ts - gps_utc_ts)
+                        if drift <= 120:
+                            logger.info(
+                                "Mast RTC is already valid and in sync (|drift|=%ds <= 120s); skipping POST /time.",
+                                drift,
+                            )
+                            return True, "RTC_IN_SYNC"
+                        else:
+                            logger.info(
+                                "Mast RTC drift detected (|drift|=%ds > 120s). Initiating resync.",
+                                drift,
+                            )
+                except Exception as ex:
+                    logger.warning("Could not parse mast utc timestamp '%s': %s", mast_utc_str, ex)
+
+        logger.info("Nano GPS fix valid (UTC timestamp %d). Syncing mast DS3231 clock...", gps_utc_ts)
+        try:
+            code, raw = self._http_request("/time", method="POST", params={"utc": gps_utc_ts})
             if code == 200:
-                logger.info("Mast RTC synchronized successfully to %d", utc_ts)
+                logger.info("Mast RTC synchronized successfully to %d", gps_utc_ts)
                 return True, "SYNCED"
             return False, "HTTP_%d" % code
         except Exception as e:
@@ -225,8 +258,8 @@ class MastCollector(object):
         log_epoch = int(health.get("log_epoch", 1))
         logger.info("Mast online: node=%s, epoch=%d, rtc_valid=%s, battery=%.2fV", node_id, log_epoch, health.get("rtc_valid"), float(health.get("battery_v") or 0.0))
 
-        # 2. Time synchronization (if GPS fix is valid)
-        time_synced, time_reason = self.sync_time_from_gps()
+        # 2. Time synchronization (if GPS fix is valid and drift > 120s or rtc_valid is False)
+        time_synced, time_reason = self.sync_time_from_gps(mast_health=health)
 
         # 3. Pull sensor readings
         records_pulled, final_seq = self.pull_readings(node_id, log_epoch)

@@ -255,3 +255,114 @@ def test_ap_sta_mode_switch_seam(test_gateway):
     status, body, _ = http_get(f"{base_url}/api/v1/health")
     assert body["syncing"] is False
     assert body["sync_state"] == "AP_HOSTING"
+
+
+def test_l4_2_mock_advisory_guard_production_mode():
+    """
+    L4.2: In production mode (allow_mock=False), GET /api/v1/advisory/<id> rejects mock
+    advisories with 403 Forbidden, and GET /api/v1/manifest filters them out.
+    When allow_mock=True, mock advisories are permitted.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "mock_guard.db"
+        storage = EdgeStorage(db_path=db_path)
+
+        # 1. Create a real TRT advisory and a mock advisory
+        storage.record_scan_start("scan_trt")
+        storage.record_frame_event(
+            scan_id="scan_trt", frame_idx=0, timestamp_utc="2026-09-17T06:00:00Z",
+            cell_id="cell_0", gate_passed=True, gate_metrics={}, n_valid_tiles=9,
+            frame_state="HEALTHY", class_id=0, confidence=0.95, tile_decisions=[],
+        )
+        storage.create_advisory("scan_trt", advisory_id="adv_trt_001", inference_backend="trt")
+
+        storage.record_scan_start("scan_mock")
+        storage.record_frame_event(
+            scan_id="scan_mock", frame_idx=0, timestamp_utc="2026-09-17T06:01:00Z",
+            cell_id="cell_0", gate_passed=True, gate_metrics={}, n_valid_tiles=9,
+            frame_state="HEALTHY", class_id=0, confidence=0.95, tile_decisions=[],
+        )
+        storage.create_advisory("scan_mock", advisory_id="adv_mock_001", inference_backend="mock")
+
+        # Test A: Production mode (allow_mock=False, default)
+        gw_prod = EdgeGateway(host="127.0.0.1", port=0, storage=storage, db_path=db_path, allow_mock=False)
+        gw_prod.start_background()
+        port_prod = gw_prod.server.server_address[1]
+        base_prod = f"http://127.0.0.1:{port_prod}"
+
+        try:
+            # Manifest should contain only TRT advisory
+            s_man, b_man, _ = http_get(f"{base_prod}/api/v1/manifest")
+            assert s_man == 200
+            adv_ids = [a["advisory_id"] for a in b_man["advisories"]]
+            assert "adv_trt_001" in adv_ids
+            assert "adv_mock_001" not in adv_ids
+
+            # Direct retrieval of TRT advisory -> 200 OK
+            s_trt, b_trt, _ = http_get(f"{base_prod}/api/v1/advisory/adv_trt_001")
+            assert s_trt == 200
+            assert b_trt["advisory_id"] == "adv_trt_001"
+
+            # Direct retrieval of mock advisory -> 403 Forbidden
+            s_mock, b_mock, _ = http_get(f"{base_prod}/api/v1/advisory/adv_mock_001")
+            assert s_mock == 403
+            assert b_mock["error"] == "mock_advisory_rejected"
+        finally:
+            gw_prod.stop()
+
+        # Test B: Development mode (allow_mock=True)
+        gw_dev = EdgeGateway(host="127.0.0.1", port=0, storage=storage, db_path=db_path, allow_mock=True)
+        gw_dev.start_background()
+        port_dev = gw_dev.server.server_address[1]
+        base_dev = f"http://127.0.0.1:{port_dev}"
+
+        try:
+            # Manifest should contain both advisories
+            s_man_dev, b_man_dev, _ = http_get(f"{base_dev}/api/v1/manifest")
+            assert s_man_dev == 200
+            adv_ids_dev = [a["advisory_id"] for a in b_man_dev["advisories"]]
+            assert "adv_trt_001" in adv_ids_dev
+            assert "adv_mock_001" in adv_ids_dev
+
+            # Direct retrieval of mock advisory -> 200 OK
+            s_mock_dev, b_mock_dev, _ = http_get(f"{base_dev}/api/v1/advisory/adv_mock_001")
+            assert s_mock_dev == 200
+            assert b_mock_dev["advisory_id"] == "adv_mock_001"
+        finally:
+            gw_dev.stop()
+
+
+def test_l7_3_sync_endpoints():
+    """
+    L7.3: Verify GET /api/v1/sync/status and POST /api/v1/sync/trigger endpoints.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "sync_test.db"
+        storage = EdgeStorage(db_path=db_path)
+        gateway = EdgeGateway(host="127.0.0.1", port=0, storage=storage, db_path=db_path)
+        gateway.start_background()
+        port = gateway.server.server_address[1]
+        base_url = f"http://127.0.0.1:{port}"
+
+        try:
+            # Initial status
+            status, body, _ = http_get(f"{base_url}/api/v1/sync/status")
+            assert status == 200
+            assert "sync_in_progress" in body
+            assert body["sync_in_progress"] is False
+
+            # Trigger sync -> 202 Accepted
+            status, body, _ = http_post_json(f"{base_url}/api/v1/sync/trigger", {})
+            assert status == 202
+            assert body["status"] == "started"
+            assert "timestamp" in body
+
+            # If triggered again while running -> 409 Conflict (simulated by setting sync_in_progress)
+            gateway.server.sync_in_progress = True
+            status, body, _ = http_post_json(f"{base_url}/api/v1/sync/trigger", {})
+            assert status == 409
+            assert body["error"] == "sync_in_progress"
+            gateway.server.sync_in_progress = False
+        finally:
+            gateway.stop()
+

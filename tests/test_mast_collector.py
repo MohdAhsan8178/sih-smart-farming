@@ -44,11 +44,14 @@ def _find_free_port():
 
 class FakeMastHandler(BaseHTTPRequestHandler):
     """
-    Simulates the ESP32 Ground Mast HTTP API per Guide §6.
+    Simulates the ESP32 Ground Mast HTTP API per Guide §6 and firmware/node_n01/node_n01.ino.
     """
     log_epoch = 101
     rtc_valid = True
+    rtc_found = True
     node_id = "N01"
+    field_id = "F01"
+    fw_version = "n01-1.0.0"
     inject_500_on_page = None
     readings_call_count = 0
     time_received = None
@@ -71,13 +74,30 @@ class FakeMastHandler(BaseHTTPRequestHandler):
             self.end_headers()
             resp = {
                 "node_id": self.node_id,
-                "firmware": "n01-1.0.0",
+                "field_id": self.field_id,
+                "fw_version": self.fw_version,
                 "log_epoch": self.log_epoch,
                 "utc": get_utc_iso_now(),
                 "rtc_valid": self.rtc_valid,
+                "uptime_s": 1200,
                 "battery_v": 11.85,
                 "last_seq": 105,
-                "status": {"sht40": "OK", "mlx90614": "OK", "bh1750": "OK", "ads1115": "OK", "rtc": "OK"},
+                "sample_interval_s": 600,
+                "sensors": {
+                    "sht40": "OK",
+                    "mlx90614": "OK",
+                    "bh1750": "OK",
+                    "ads1115": "OK",
+                    "rtc": "OK" if self.rtc_found and self.rtc_valid else ("NOT_SET" if self.rtc_found else "ERR"),
+                },
+                "trap": {
+                    "status": "NONE",
+                    "cam_state": "IDLE",
+                    "last_trap_id": 1,
+                },
+                "fs_used_b": 150000,
+                "fs_total_b": 2000000,
+                "wifi_clients": 1,
             }
             self.wfile.write(json.dumps(resp).encode("utf-8"))
             return
@@ -100,7 +120,7 @@ class FakeMastHandler(BaseHTTPRequestHandler):
                     {
                         "seq": 1,
                         "node_id": self.node_id,
-                        "field_id": "F01",
+                        "field_id": self.field_id,
                         "utc": "2026-09-17T06:10:00Z",
                         "rtc_valid": True,
                         "uptime_s": 600,
@@ -117,7 +137,7 @@ class FakeMastHandler(BaseHTTPRequestHandler):
                     {
                         "seq": 2,
                         "node_id": self.node_id,
-                        "field_id": "F01",
+                        "field_id": self.field_id,
                         "utc": "2026-09-17T06:20:00Z",
                         "rtc_valid": False,  # Untrusted RTC
                         "uptime_s": 1200,
@@ -134,7 +154,7 @@ class FakeMastHandler(BaseHTTPRequestHandler):
                     {
                         "seq": 3,
                         "node_id": self.node_id,
-                        "field_id": "F01",
+                        "field_id": self.field_id,
                         "utc": "2026-09-17T06:30:00Z",
                         "rtc_valid": True,
                         "uptime_s": 1800,
@@ -149,14 +169,21 @@ class FakeMastHandler(BaseHTTPRequestHandler):
                         "status": {"sht40": "OK"},
                     },
                 ]
-                resp = {"records": records, "count": 3, "next_since": 3, "truncated": True}
+                resp = {
+                    "node_id": self.node_id,
+                    "log_epoch": self.log_epoch,
+                    "records": records,
+                    "count": 3,
+                    "next_since": 3,
+                    "truncated": True,
+                }
             else:
                 # Page 2: since == 3 -> records 4..5 with truncated=False
                 records = [
                     {
                         "seq": 4,
                         "node_id": self.node_id,
-                        "field_id": "F01",
+                        "field_id": self.field_id,
                         "utc": "2026-09-17T06:40:00Z",
                         "rtc_valid": True,
                         "uptime_s": 2400,
@@ -171,7 +198,14 @@ class FakeMastHandler(BaseHTTPRequestHandler):
                         "status": {"sht40": "OK"},
                     },
                 ]
-                resp = {"records": records, "count": 1, "next_since": 4, "truncated": False}
+                resp = {
+                    "node_id": self.node_id,
+                    "log_epoch": self.log_epoch,
+                    "records": records,
+                    "count": 1,
+                    "next_since": 4,
+                    "truncated": False,
+                }
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -199,7 +233,30 @@ class FakeMastHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(resp).encode("utf-8"))
             return
 
+        if path in ("/trap/latest", "/api/v1/trap/latest"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            resp = {
+                "trap_id": 1,
+                "node_id": self.node_id,
+                "received_utc": "2026-09-17T04:30:15Z",
+                "rtc_valid": True,
+                "bytes": 50000,
+                "sensor": "OV2640",
+                "frame": "UXGA_1600x1200",
+            }
+            self.wfile.write(json.dumps(resp).encode("utf-8"))
+            return
+
         if path in ("/trap/image", "/api/v1/trap/image"):
+            if "id" not in params or not params["id"]:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "missing id"}')
+                return
+
             trap_id = params.get("id", ["1"])[0]
             # Generate dummy yellow sticky card image with 3 dark insect spots
             dummy_img = np.zeros((400, 400, 3), dtype=np.uint8)
@@ -226,12 +283,51 @@ class FakeMastHandler(BaseHTTPRequestHandler):
             path = path[len("/api/v1"):]
 
         if path == "/time":
-            utc_val = params.get("utc", [None])[0]
-            FakeMastHandler.time_received = int(utc_val) if utc_val else None
+            if "utc" not in params or not params["utc"]:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "missing utc"}')
+                return
+
+            utc_raw = params["utc"][0]
+            try:
+                e = int(utc_raw)
+            except ValueError:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "implausible time"}')
+                return
+
+            if e < 1735689600 or e > 4102444800:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "implausible time"}')
+                return
+
+            if not getattr(FakeMastHandler, "rtc_found", True):
+                self.send_response(503)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "rtc not found"}')
+                return
+
+            FakeMastHandler.time_received = e
+            FakeMastHandler.rtc_valid = True
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(b'{"ok": true, "rtc_valid": true}')
+            dt_str = datetime.datetime.fromtimestamp(e, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self.wfile.write(json.dumps({"ok": True, "utc": dt_str, "rtc_valid": True}).encode("utf-8"))
+            return
+
+        if path == "/trap/trigger":
+            self.send_response(202)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"started": true}')
             return
 
         self.send_response(404)
@@ -404,3 +500,162 @@ def test_k1_4_wifi_switch_restores_ap_on_exception():
         # Confirm connection up SIH-FIELD was STILL executed in finally!
         calls = [c[0][0] for c in mock_subproc.call_args_list]
         assert ["nmcli", "connection", "up", "SIH-FIELD"] in calls
+
+
+def test_l1_1_time_endpoint_validation():
+    """
+    L1.1 & L1.2: Verify /time endpoint rejects non-integer or implausible unix timestamps
+    with 400 Bad Request, and accepts valid unix seconds.
+    """
+    port = _find_free_port()
+    server = HTTPServer(("127.0.0.1", port), FakeMastHandler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    base_url = f"http://127.0.0.1:{port}/api/v1"
+
+    # 1. Missing utc parameter -> 400
+    req = urllib.request.Request(f"{base_url}/time", data=b"", method="POST")
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        urllib.request.urlopen(req)
+    assert exc_info.value.code == 400
+
+    # 2. Non-integer / ISO string -> 400
+    req = urllib.request.Request(f"{base_url}/time?utc=2026-09-17T06:30:00Z", data=b"", method="POST")
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        urllib.request.urlopen(req)
+    assert exc_info.value.code == 400
+
+    # 3. Implausible timestamp (year < 2025: < 1735689600) -> 400
+    req = urllib.request.Request(f"{base_url}/time?utc=1000000", data=b"", method="POST")
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        urllib.request.urlopen(req)
+    assert exc_info.value.code == 400
+
+    # 4. Implausible timestamp (year > 2100: > 4102444800) -> 400
+    req = urllib.request.Request(f"{base_url}/time?utc=5000000000", data=b"", method="POST")
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        urllib.request.urlopen(req)
+    assert exc_info.value.code == 400
+
+    # 5. Valid integer unix timestamp -> 200
+    valid_ts = 1789641234
+    req = urllib.request.Request(f"{base_url}/time?utc={valid_ts}", data=b"", method="POST")
+    with urllib.request.urlopen(req) as resp:
+        assert resp.status == 200
+        data = json.loads(resp.read().decode("utf-8"))
+        assert data["ok"] is True
+        assert data["rtc_valid"] is True
+        assert FakeMastHandler.time_received == valid_ts
+
+    server.shutdown()
+
+
+def test_l1_3_firmware_contract_keys():
+    """
+    L1.3: Regex parse firmware/node_n01/node_n01.ino to extract endpoints, query arguments,
+    and top-level JSON keys, asserting exact alignment with collector and fake mast.
+    """
+    import re
+    ino_path = REPO_ROOT / "firmware/node_n01/node_n01.ino"
+    assert ino_path.exists(), f"Firmware file not found at {ino_path}"
+    content = ino_path.read_text(encoding="utf-8")
+
+    # 1. Verify query arguments parsed in firmware
+    has_arg_matches = set(re.findall(r'server\.hasArg\(["\'](\w+)["\']\)', content))
+    expected_args = {"since", "limit", "utc", "id"}
+    assert expected_args.issubset(has_arg_matches), f"Missing query args: {expected_args - has_arg_matches}"
+
+    # 2. Verify endpoints routed in firmware
+    endpoint_matches = set(re.findall(r'server\.on\(["\'](/api/v1/[\w/]+)["\']', content))
+    expected_endpoints = {
+        "/api/v1/health",
+        "/api/v1/readings",
+        "/api/v1/trap/list",
+        "/api/v1/trap/latest",
+        "/api/v1/trap/image",
+        "/api/v1/trap/trigger",
+        "/api/v1/time",
+        "/api/v1/trap/upload",
+    }
+    assert expected_endpoints.issubset(endpoint_matches), f"Missing endpoints: {expected_endpoints - endpoint_matches}"
+
+    # 3. Verify top-level JSON keys in hHealth
+    health_keys = set(re.findall(r'd\[["\'](\w+)["\']\]\s*=', content))
+    expected_health_keys = {"node_id", "field_id", "fw_version", "log_epoch", "rtc_valid", "uptime_s", "last_seq", "sample_interval_s", "fs_used_b", "fs_total_b", "wifi_clients"}
+    assert expected_health_keys.issubset(health_keys), f"Missing health keys: {expected_health_keys - health_keys}"
+
+    # 4. Verify readings response chunk header keys
+    assert r'\"node_id\":' in content or '"node_id":' in content
+    assert r'\"log_epoch\":' in content or '"log_epoch":' in content
+    assert r'\"records\":' in content or '"records":' in content
+    assert r'\"count\":' in content or '"count":' in content
+    assert r'\"next_since\":' in content or '"next_since":' in content
+    assert r'\"truncated\":' in content or '"truncated":' in content
+
+
+def test_l1_4_sync_time_drift_rules():
+    """
+    L1.4: Verify GPS time sync only sends POST /time when:
+      1. Nano GPS fix is valid, AND
+      2. (mast rtc_valid is False OR |mast utc - GPS utc| > 120 s).
+    """
+    port = _find_free_port()
+    server = HTTPServer(("127.0.0.1", port), FakeMastHandler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage = EdgeStorage(db_path=Path(tmpdir) / "test.db")
+        mock_gps = MagicMock()
+        mock_gps.get_current_fix.return_value = {
+            "valid": True,
+            "utc_timestamp": 1789640000,
+        }
+
+        collector = MastCollector(
+            base_url=f"http://127.0.0.1:{port}/api/v1",
+            storage=storage,
+            gps_reader=mock_gps,
+        )
+
+        FakeMastHandler.time_received = None
+
+        # Case A: Mast RTC valid and drift <= 120s (e.g. mast is at 1789640030, drift = 30s) -> SKIP
+        health_in_sync = {
+            "node_id": "N01",
+            "rtc_valid": True,
+            "utc": datetime.datetime.fromtimestamp(1789640030, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        synced, reason = collector.sync_time_from_gps(mast_health=health_in_sync)
+        assert synced is True
+        assert reason == "RTC_IN_SYNC"
+        assert FakeMastHandler.time_received is None  # No POST /time sent
+
+        # Case B: Mast RTC valid but drift > 120s (e.g. mast is at 1789640500, drift = 500s) -> SYNC
+        health_drifted = {
+            "node_id": "N01",
+            "rtc_valid": True,
+            "utc": datetime.datetime.fromtimestamp(1789640500, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        synced, reason = collector.sync_time_from_gps(mast_health=health_drifted)
+        assert synced is True
+        assert reason == "SYNCED"
+        assert FakeMastHandler.time_received == 1789640000
+
+        # Case C: Mast RTC invalid (rtc_valid=False) -> SYNC
+        FakeMastHandler.time_received = None
+        health_invalid = {
+            "node_id": "N01",
+            "rtc_valid": False,
+            "utc": "2026-09-17T06:00:00Z",
+        }
+        synced, reason = collector.sync_time_from_gps(mast_health=health_invalid)
+        assert synced is True
+        assert reason == "SYNCED"
+        assert FakeMastHandler.time_received == 1789640000
+
+    server.shutdown()
+

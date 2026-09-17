@@ -162,9 +162,10 @@ def test_end_to_end_pipeline_dryrun():
 
 def test_g5_2_temperature_and_energy_single_application():
     """
-    G5.2: Trace the exact Nano runtime path from TensorRT output to softmax/energy,
+    G5.2 / L2.3: Trace the exact Nano runtime path from TensorRT output to softmax/energy,
     and prove T is applied exactly ONCE.
-    Asserts result equals softmax(z / T_CAL) and energy = -T_CAL * logsumexp(z[CROP_COLS] / T_CAL).
+    Asserts result equals softmax(z / T_CAL) and energy = -1.0 * logsumexp(z[CROP_COLS] / 1.0).
+    Energy is evaluated strictly on raw logits at T=1.0 per L2 spec.
     """
     from scipy.special import logsumexp
     from configs.train_config import T_CAL, TAU_ENERGY, TAU_CONF, TAU_PRIOR
@@ -178,14 +179,14 @@ def test_g5_2_temperature_and_energy_single_application():
 
     # Hop 1: Direct mathematical expectations
     expected_softmax = np.exp(z_raw / T_CAL) / np.sum(np.exp(z_raw / T_CAL), axis=1, keepdims=True)
-    expected_energy = -T_CAL * logsumexp(z_raw[:, CROP_COLS] / T_CAL, axis=1)
+    expected_energy = -1.0 * logsumexp(z_raw[:, CROP_COLS] / 1.0, axis=1)
 
     # Hop 2: Softmax scaling verification
     probs = softmax(z_raw, T=T_CAL)
     np.testing.assert_allclose(probs, expected_softmax, rtol=1e-5, atol=1e-6)
 
-    # Hop 3: Energy computation verification
-    energy = open_set_energy(z_raw, CROP_COLS, T=T_CAL)
+    # Hop 3: Energy computation verification (T=1.0 raw logits)
+    energy = open_set_energy(z_raw, CROP_COLS, T=1.0)
     np.testing.assert_allclose(energy, expected_energy, rtol=1e-5, atol=1e-6)
 
     # Hop 4: Rejection decision integration (core/rejection.py:decide)
@@ -204,6 +205,69 @@ def test_g5_2_temperature_and_energy_single_application():
 
     # Assert logits array was never mutated in-place
     np.testing.assert_array_equal(z_raw, z_copy)
+
+
+def test_l2_2_energy_temperature_invariance_and_tau_energy_rejection():
+    """
+    L2.2: Verify decide() on 50 validation logits rejects exactly the samples where
+    open_set_energy(z, CROP_COLS, T=1.0) > TAU_ENERGY (-2.7957), independent of T_cal.
+    """
+    from configs.train_config import T_CAL, TAU_ENERGY, TAU_CONF, TAU_PRIOR
+    from configs.classes import CROP_COLS, NOTCROP_COL, NUM_CLASSES
+    from core.rejection import open_set_energy, decide
+
+    np.random.seed(12345)
+    # Generate 50 synthetic logits spanning in-distribution and out-of-distribution energies
+    z_val = np.random.randn(50, NUM_CLASSES).astype(np.float64) * 2.5
+    # Force some logits to have distinct not_crop argmax, high crop energy, and low crop energy
+    z_val[0:5, NOTCROP_COL] = 10.0  # NOT_CROP
+    z_val[5:15, CROP_COLS] = -5.0   # High energy (OOD / UNKNOWN)
+    z_val[15:25, CROP_COLS[0]] = 8.0  # Low energy (in-distribution)
+
+    log_priors = np.zeros(NUM_CLASSES, dtype=np.float64)
+
+    # Compute ground truth energy at T=1.0
+    energy_t1 = open_set_energy(z_val, CROP_COLS, T=1.0)
+
+    # Evaluate decide() across multiple temperature calibration settings
+    temps_to_test = [1.0, T_CAL, 0.5, 1.5, 2.0]
+    results_by_temp = []
+
+    for t_val in temps_to_test:
+        decisions = decide(
+            logits=z_val,
+            crop_cols=CROP_COLS,
+            notcrop_col=NOTCROP_COL,
+            log_priors=log_priors,
+            tau_energy=TAU_ENERGY,
+            T_cal=t_val,
+            tau_conf=TAU_CONF,
+            tau_prior=TAU_PRIOR,
+        )
+        results_by_temp.append(decisions)
+
+    # 1. Assert energy values in decision dicts are IDENTICAL across all temperatures and match energy_t1
+    for d_list in results_by_temp:
+        assert len(d_list) == 50
+        for i, d in enumerate(d_list):
+            np.testing.assert_allclose(d["energy"], energy_t1[i], rtol=1e-5, atol=1e-6)
+
+    # 2. For each sample where notcrop is not argmax, assert state == 'UNKNOWN' iff energy_t1[i] > TAU_ENERGY
+    for d_list in results_by_temp:
+        for i, d in enumerate(d_list):
+            is_not_crop = int(np.argmax(z_val[i])) == int(NOTCROP_COL)
+            if not is_not_crop:
+                if energy_t1[i] > TAU_ENERGY:
+                    assert d["state"] == "UNKNOWN", f"Sample {i} energy {energy_t1[i]} > {TAU_ENERGY} but got state {d['state']}"
+                else:
+                    assert d["state"] in ("OK", "ABSTAIN"), f"Sample {i} energy {energy_t1[i]} <= {TAU_ENERGY} but got state {d['state']}"
+
+    # 3. Assert boolean mask of UNKNOWN rejections is 100% invariant to T_cal
+    mask_baseline = [d["state"] == "UNKNOWN" for d in results_by_temp[0]]
+    for idx, d_list in enumerate(results_by_temp[1:], 1):
+        mask_test = [d["state"] == "UNKNOWN" for d in d_list]
+        assert mask_test == mask_baseline, f"UNKNOWN mask mismatch for T_cal={temps_to_test[idx]}"
+
 
 
 def test_h4_2_end_to_end_parity_mac_onnx_vs_pytorch():

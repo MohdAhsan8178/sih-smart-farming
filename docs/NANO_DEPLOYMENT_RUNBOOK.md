@@ -626,3 +626,81 @@ If the Jetson Nano abruptly reboots when inference starts:
    sudo nvpmodel -m 1
    ```
    *(5W mode disables 2 CPU cores and throttles GPU clock to 640 MHz; tile latency increases to ~24 ms).*
+
+---
+
+## 11. Mast Node Clock Synchronization Rules (Guide §6 / L1.4)
+
+When connecting to the ESP32 Ground Mast node (`SIH-NODE-01` at `192.168.9.1`), the Nano pod evaluates whether to issue `POST /api/v1/time?utc=<unix_seconds>`:
+
+### 11.1 Synchronization Gate Conditions
+The Nano will send `POST /time` **IF AND ONLY IF**:
+1. The Nano's onboard GPS fix is valid (`valid: true`, non-null UTC timestamp in range `[1735689600, 4102444800]`), **AND**
+2. At least one of the following drift conditions is met:
+   - The mast's `rtc_valid` flag is `false` (RTC lost power / uninitialized).
+   - The absolute time drift between the mast's DS3231 RTC and the Nano's GPS timestamp exceeds 120 seconds:
+     $$\left| t_{\text{mast, UTC}} - t_{\text{GPS, UTC}} \right| > 120\text{ s}$$
+
+If `rtc_valid` is `true` and $\left| t_{\text{mast}} - t_{\text{GPS}} \right| \le 120\text{ s}$, `POST /time` is skipped to avoid unnecessary non-volatile flash writes on the DS3231.
+
+---
+
+## 12. MLX90640 I2C 400 kHz Bus Configuration (L6.2)
+
+> [!NOTE]
+> **Status:** `UNVERIFIED ON EAGLE-101`  
+> Physical I2C timing must be validated with an oscilloscope or logic analyzer on the bench before production field flight.
+
+The Melexis MLX90640 32x24 thermal sensor requires I2C Fast Mode (400 kHz) to sustain 2–4 Hz frame refresh rates without bus choking (each full subpage transfer reads 832 16-bit words = 1664 bytes).
+
+### 12.1 Configuring Jetson Nano I2C Bus Speed to 400 kHz
+To configure `/dev/i2c-1` (pins 3 & 5 on the 40-pin header) for 400 kHz:
+```bash
+# Verify current I2C bus clock frequency (default 100 kHz)
+sudo cat /sys/bus/i2c/devices/i2c-1/bus_clk_rate || true
+
+# Set clock rate to 400000 Hz in device tree / runtime sysfs:
+sudo sh -c 'echo 400000 > /sys/bus/i2c/devices/i2c-1/bus_clk_rate' 2>/dev/null || true
+```
+Ensure $4.7\text{ k}\Omega$ pull-up resistors to 3.3V are populated on both SDA (Pin 3) and SCL (Pin 5).
+
+---
+
+## 13. Systemd Services & Timer Management (L7.1, L7.2)
+
+Production deployment on the Jetson Nano utilizes systemd unit files installed by `scripts/setup_nano_services.sh`:
+
+### 13.1 Service Inventory
+
+| Unit Name | Type | Purpose | Dependencies & Constraints |
+| :--- | :--- | :--- | :--- |
+| `sih-gateway.service` | `simple` | Offline HTTP API Gateway (`0.0.0.0:8080`) | `After=network-online.target` |
+| `sih-pipeline.service` | `simple` | Model A Edge Video Inference Daemon | `After=sih-gateway.service`, `Requires=sih-gateway.service` |
+| `sih-collector.service`| `oneshot` | Ground Mast Pull Collector | Mutex guarded via `/usr/bin/flock -n /run/lock/sih-collector.lock` |
+| `sih-collector.timer`  | `timer` | Triggers collection every 30 minutes | `OnBootSec=2min`, `OnUnitActiveSec=30min` |
+
+### 13.2 Installation & Startup
+```bash
+# Run installer as root
+sudo ./scripts/setup_nano_services.sh
+
+# Enable and start services
+sudo systemctl enable --now sih-gateway.service
+sudo systemctl enable --now sih-collector.timer
+sudo systemctl enable sih-pipeline.service
+```
+
+### 13.3 Manual Execution & Diagnostics
+```bash
+# Manually trigger immediate mast collection
+sudo systemctl start sih-collector.service
+
+# View live service logs
+journalctl -u sih-gateway.service -f
+journalctl -u sih-collector.service -n 50 --no-pager
+journalctl -u sih-pipeline.service -f
+
+# Check timer status and next scheduled run
+systemctl list-timers sih-collector.timer
+```
+

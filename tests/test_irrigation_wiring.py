@@ -122,10 +122,38 @@ def test_k4_2_irrigation_calculation_with_24h_history():
         assert irr["method"] == "fao56_hargreaves_samani"
         assert irr["t_min_24h_c"] == 22.0
         assert irr["t_max_24h_c"] == 34.0
-        assert irr["ra_mm_day"] == 15.0
+        assert irr["ra_mm_day"] > 0.0
+        assert irr["ra_mj_m2_day"] > 0.0
+        assert irr["ra_source"] in ("GPS", "CONFIG_LATITUDE")
+        assert irr["day_of_year"] >= 1
         assert irr["et0_mm_day"] > 0.0
         assert irr["kc"] > 0.0
         assert irr["crop_et_mm_day"] > 0.0
         assert irr["soil1_v"] == 1.85
         assert irr["soil2_v"] == 1.90
         assert irr["battery_v"] == 11.8
+
+
+def test_l3_2_fao56_example8_radiation():
+    """
+    L3.2: Verify calculate_extraterrestrial_radiation_fao56 against FAO-56 Example 8:
+      Location: 20°S (latitude = -20.0°)
+      Date: 3 September (J = 246)
+      FAO-56 Benchmark: Ra = 32.2 MJ / m^2 / day (equivalent to 13.14 mm/day)
+      Assertion: Calculated Ra is within +-0.1 MJ / m^2 / day of 32.2.
+    """
+    from edge.irrigation_model import calculate_extraterrestrial_radiation_fao56
+
+    res = calculate_extraterrestrial_radiation_fao56(day_of_year=246, latitude_deg=-20.0)
+
+    ra_mj = res["ra_mj_m2_day"]
+    ra_mm = res["ra_mm_day"]
+
+    # Benchmark: 32.2 MJ/m^2/day
+    assert abs(ra_mj - 32.2) <= 0.1, f"Ra {ra_mj} MJ/m^2/day deviates from 32.2 by > 0.1"
+    # Benchmark mm/day: 0.408 * 32.2 = 13.1376 -> ~13.14 mm/day
+    assert abs(ra_mm - 13.14) <= 0.1, f"Ra mm/day {ra_mm} deviates from 13.14 by > 0.1"
+    assert res["dr"] > 0.0
+    assert res["solar_declination_rad"] > 0.0
+    assert res["sunset_hour_angle_rad"] > 0.0
+
