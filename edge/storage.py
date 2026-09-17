@@ -238,6 +238,25 @@ class EdgeStorage(object):
                     """
                 )
 
+                # 7. Ground Mast Telemetry (ESP32 Station SIH-NODE-01, Step 32 / J4)
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS mast_telemetry (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        node_id TEXT NOT NULL,
+                        recorded_at_utc TEXT NOT NULL,
+                        received_at_utc TEXT NOT NULL,
+                        firmware_version TEXT,
+                        air_temp_c REAL,
+                        humidity_pct REAL,
+                        canopy_temp_c REAL,
+                        soil_moisture_json TEXT,
+                        water_level_mm REAL,
+                        raw_payload_json TEXT
+                    );
+                    """
+                )
+
                 # Performance indexes
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_frame_events_scan ON frame_events(scan_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_frame_events_cell ON frame_events(cell_id);")
@@ -245,6 +264,7 @@ class EdgeStorage(object):
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_advisories_acked ON advisories(acked);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_trap_records_trap ON trap_records(trap_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_trap_records_job ON trap_records(job_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_mast_telemetry_time ON mast_telemetry(received_at_utc);")
 
     # -------------------------------------------------------------------------
     # Scan Session Lifecycle
@@ -811,6 +831,62 @@ class EdgeStorage(object):
             total_cycle_days=total_cycle_days,
         )
 
+        # J5 Hardware-Gated Blocks: Thermal, NDVI, Irrigation
+        from edge.sensors import MastTelemetryReader
+        reader = MastTelemetryReader(self)
+        mast_reading = reader.get_latest()
+
+        # 1. Thermal block (PENDING_HARDWARE.md Subsystem 1)
+        thermal_block = {
+            "available": False,
+            "reason": "HARDWARE_NOT_CONNECTED (MLX90640 handheld thermal array absent, see PENDING_HARDWARE.md Subsystem 1)",
+        }
+
+        # 2. NDVI block (PENDING_HARDWARE.md Subsystem 4)
+        ndvi_block = {
+            "available": False,
+            "reason": "HARDWARE_NOT_CONNECTED (IMX219-77IR NoIR camera and DB660/850 filter absent, see PENDING_HARDWARE.md Subsystem 4)",
+        }
+
+        # 3. Irrigation block (PENDING_HARDWARE.md Subsystem 2 & 6 / FAO-56)
+        if mast_reading is not None and mast_reading.get("air_temp_c") is not None:
+            air_temp = float(mast_reading["air_temp_c"])
+            hum = float(mast_reading.get("humidity_pct") or 60.0)
+            kc = float(growth_stage.get("kc") if growth_stage and growth_stage.get("kc") is not None else 1.0)
+            
+            # FAO-56 Hargreaves-Samani / simplified ET0 (Allen et al., 1998, Chapter 3)
+            # Benchmark extra-terrestrial radiation Ra ~= 15.0 mm/day equivalent for 20 deg N
+            et0_est = round(0.0023 * (air_temp + 17.8) * (10.0 ** 0.5) * 15.0 * 0.408, 2)
+            et0_est = max(0.0, min(15.0, et0_est))
+            crop_et = round(et0_est * kc, 2)
+
+            irrigation_block = {
+                "available": True,
+                "method": "fao56_hargreaves_samani",
+                "air_temp_c": air_temp,
+                "humidity_pct": hum,
+                "et0_mm_day": et0_est,
+                "kc": kc,
+                "crop_et_mm_day": crop_et,
+                "soil_moisture_v": mast_reading.get("soil_moisture_v"),
+                "water_level_mm": mast_reading.get("water_level_mm"),
+                "source": "derived_fao56",
+            }
+            if dominant_crop == "rice" and mast_reading.get("water_level_mm") is not None:
+                wl = float(mast_reading["water_level_mm"])
+                awd_status = "SAFE_DRYING" if wl >= -150.0 else "IRRIGATION_REQUIRED"
+                irrigation_block["paddy_awd"] = {
+                    "water_level_mm": wl,
+                    "awd_threshold_mm": -150.0,
+                    "status": awd_status,
+                    "guideline": "IRRI Safe Alternate Wetting and Drying (AWD)",
+                }
+        else:
+            irrigation_block = {
+                "available": False,
+                "reason": "HARDWARE_NOT_CONNECTED (Ground mast SHT31 weather / ultrasonic gauge data absent or stale, see PENDING_HARDWARE.md Subsystem 2 & 6)",
+            }
+
         # Pest block: Explicitly passed or resolved from latest trap record
         resolved_pest = pest_data
         if resolved_pest is None:
@@ -850,6 +926,9 @@ class EdgeStorage(object):
             },
             "growth_stage": growth_stage,
             "vegetation": vegetation,
+            "thermal": thermal_block,
+            "ndvi": ndvi_block,
+            "irrigation": irrigation_block,
             "detections": detections,
             "gps": {
                 "status": "OK" if gps_points > 0 else "ABSENT",
@@ -1167,6 +1246,80 @@ class EdgeStorage(object):
             "scale_status": row["scale_status"],
             "etl_status": row["etl_status"],
             "pest": json.loads(row["pest_json"]),
+        }
+
+    def record_mast_telemetry(self, telemetry: Dict[str, Any]) -> int:
+        """Records ground mast telemetry (SIH-NODE-01) from ESP32 to SQLite."""
+        conn = self._get_connection()
+        now_utc = get_utc_iso_now()
+
+        node_id = str(telemetry.get("node_id", "SIH-NODE-01"))
+        rec_utc = str(telemetry.get("recorded_at_utc") or now_utc)
+        fw_ver = telemetry.get("firmware_version")
+        air_t = float(telemetry["air_temp_c"]) if telemetry.get("air_temp_c") is not None else None
+        hum = float(telemetry["humidity_pct"]) if telemetry.get("humidity_pct") is not None else None
+        canopy_t = float(telemetry["canopy_temp_c"]) if telemetry.get("canopy_temp_c") is not None else None
+        soil_m = json.dumps(telemetry.get("soil_moisture_v")) if telemetry.get("soil_moisture_v") is not None else None
+        water_l = float(telemetry["water_level_mm"]) if telemetry.get("water_level_mm") is not None else None
+
+        with conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO mast_telemetry (
+                    node_id, recorded_at_utc, received_at_utc, firmware_version,
+                    air_temp_c, humidity_pct, canopy_temp_c, soil_moisture_json,
+                    water_level_mm, raw_payload_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    node_id,
+                    rec_utc,
+                    now_utc,
+                    str(fw_ver) if fw_ver is not None else None,
+                    air_t,
+                    hum,
+                    canopy_t,
+                    soil_m,
+                    water_l,
+                    json.dumps(telemetry),
+                ),
+            )
+            return cursor.lastrowid
+
+    def get_latest_mast_telemetry(self, node_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Fetches the latest mast telemetry row from SQLite."""
+        conn = self._get_connection()
+        if node_id:
+            row = conn.execute(
+                "SELECT * FROM mast_telemetry WHERE node_id = ? ORDER BY id DESC LIMIT 1;",
+                (str(node_id),),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM mast_telemetry ORDER BY id DESC LIMIT 1;"
+            ).fetchone()
+
+        if not row:
+            return None
+
+        soil_v = None
+        if row["soil_moisture_json"]:
+            try:
+                soil_v = json.loads(row["soil_moisture_json"])
+            except Exception:
+                soil_v = None
+
+        return {
+            "id": row["id"],
+            "node_id": row["node_id"],
+            "recorded_at_utc": row["recorded_at_utc"],
+            "received_at_utc": row["received_at_utc"],
+            "firmware_version": row["firmware_version"],
+            "air_temp_c": row["air_temp_c"],
+            "humidity_pct": row["humidity_pct"],
+            "canopy_temp_c": row["canopy_temp_c"],
+            "soil_moisture_v": soil_v,
+            "water_level_mm": row["water_level_mm"],
         }
 
     def close(self) -> None:

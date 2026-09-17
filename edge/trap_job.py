@@ -191,7 +191,7 @@ def process_trap_image(
         scale_mm_per_pixel=resolved_scale,
         scale_status=scale_status,
         etl_status=etl_status,
-        pest_payload=primary_etl,
+        pest_payload=etl_results,
     )
 
     summary = {
@@ -205,7 +205,7 @@ def process_trap_image(
         "scale_status": scale_status,
         "etl_status": etl_status,
         "morphological_distribution": morph_dist,
-        "pest": primary_etl,
+        "pest": etl_results,
     }
     logger.info(
         "Job %s completed: %d blobs, ETL=%s, scale_status=%s",
