@@ -17,3 +17,5 @@ logs/
 *.pack
 kaggle/output/
 kaggle/model_b_package/
+.DS_Store
+**/.DS_Store

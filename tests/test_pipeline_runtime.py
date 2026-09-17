@@ -30,6 +30,7 @@ from edge.pipeline import (
     _QUEUE_TIMEOUT,
     load_log_priors,
 )
+from edge.storage import EdgeStorage
 
 
 def test_drop_oldest_queue_basic():
@@ -293,6 +294,42 @@ def test_h4_2_end_to_end_parity_mac_onnx_vs_pytorch():
     assert rgb_diff > 1.0, f"RGB input should have caused large channel order discrepancy, got {rgb_diff}"
 
 
+def test_k3_3_backend_trt_unavailable_raises_and_writes_no_advisory():
+    """
+    K3.3: Strict backend enforcement.
+    When backend="trt" on a host where TRT is unavailable (or missing engine),
+    EdgePipeline.run() raises RuntimeError immediately and writes NO advisory.
+    """
+    video_path = Path("test_video_from_dataset_images.mp4")
+    if not video_path.exists():
+        video_path = Path("data/video/test_video_from_dataset_images.mp4")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test_no_fallback.db"
+        storage = EdgeStorage(db_path=db_path)
+
+        pipeline = EdgePipeline(
+            source=str(video_path),
+            backend="trt",
+            engine_path=Path(tmpdir) / "nonexistent.engine",
+            dry_run=False,
+            max_frames=5,
+            db_path=db_path,
+            queue_size=4,
+        )
+
+        with pytest.raises(RuntimeError) as exc_info:
+            pipeline.run()
+
+        assert "TensorRT backend requested but" in str(exc_info.value)
+
+        # Assert no advisory was written to SQLite
+        manifest = storage.get_manifest()
+        assert len(manifest["advisories"]) == 0
+        assert storage.get_advisory("latest") is None
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
+
 

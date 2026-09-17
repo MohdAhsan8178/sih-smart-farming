@@ -258,6 +258,42 @@ df -h /
 
 ---
 
+## 5. Configuring the 40-Pin Header UART for NEO-6M GPS (`/dev/ttyTHS1`)
+
+**Status:** UNVERIFIED ON HARDWARE (Bench verified in simulation; hardware validation pending dongle/wiring test on physical Nano).
+
+The NEO-6M GPS receiver connects directly to the Jetson Nano 40-pin expansion header UART (Pin 8 = UART2 TXD -> GPS RX, Pin 10 = UART2 RXD -> GPS TX, Pin 2 = 5V VCC, Pin 6 = GND). The serial device node is `/dev/ttyTHS1` operating at 9600 baud.
+
+> [!WARNING]
+> On default JetPack 4.6 installations, `/dev/ttyTHS1` is bound to the `nvgetty.service` system serial console. If `nvgetty` is running, it competes for incoming serial bytes, causing NMEA sentence fragmentation and framing errors.
+
+Execute the following commands on the Jetson Nano to free `/dev/ttyTHS1` and set permissions:
+
+```bash
+# 1. Stop and disable the nvgetty serial console service
+sudo systemctl stop nvgetty.service
+sudo systemctl disable nvgetty.service
+
+# 2. Add current user to dialout group for non-root serial port access
+sudo usermod -a -G dialout $USER
+
+# 3. Add udev rule for persistent device permissions
+sudo tee /etc/udev/rules.d/99-nv-gps.rules << 'EOF'
+KERNEL=="ttyTHS1", MODE="0666", GROUP="dialout"
+EOF
+
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
+# 4. Install pyserial (listed in requirements-edge.txt)
+pip3 install pyserial==3.5
+
+# 5. Reboot the Nano to ensure service and group changes take effect
+sudo reboot
+```
+
+---
+
 ## 6. Running `edge/pipeline.py` on Jetson Nano (Real Inference)
 
 Run the edge processing pipeline **WITHOUT** `--dry-run`, executing real TensorRT inference on the Maxwell GPU alongside real vegetation indices and phenology lookup.

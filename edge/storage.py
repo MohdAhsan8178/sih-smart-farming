@@ -48,6 +48,20 @@ def get_utc_iso_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _parse_iso_timestamp(ts_str: Optional[str]) -> Optional[datetime.datetime]:
+    """Parses ISO timestamp string into timezone-aware datetime in a Python 3.6 compatible manner."""
+    if not ts_str:
+        return None
+    clean = str(ts_str).strip()
+    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            naive = datetime.datetime.strptime(clean.replace("+00:00", "").replace("Z", ""), fmt)
+            return naive.replace(tzinfo=datetime.timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
 class EdgeStorage(object):
     """
     Thread-safe SQLite storage engine for edge pipeline telemetry, detections,
@@ -238,21 +252,48 @@ class EdgeStorage(object):
                     """
                 )
 
-                # 7. Ground Mast Telemetry (ESP32 Station SIH-NODE-01, Step 32 / J4)
+                # 7. Ground Mast Telemetry (ESP32 Station SIH-NODE-01 / Guide §6)
+                try:
+                    mt_cols = set(r["name"] for r in conn.execute("PRAGMA table_info(mast_telemetry);").fetchall())
+                    if mt_cols and "log_epoch" not in mt_cols:
+                        conn.execute("DROP TABLE mast_telemetry;")
+                except Exception:
+                    pass
+
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS mast_telemetry (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        log_epoch INTEGER NOT NULL,
+                        seq INTEGER NOT NULL,
                         node_id TEXT NOT NULL,
-                        recorded_at_utc TEXT NOT NULL,
-                        received_at_utc TEXT NOT NULL,
-                        firmware_version TEXT,
+                        field_id TEXT,
+                        utc TEXT,
+                        rtc_valid INTEGER NOT NULL DEFAULT 0,
+                        uptime_s INTEGER,
                         air_temp_c REAL,
-                        humidity_pct REAL,
-                        canopy_temp_c REAL,
-                        soil_moisture_json TEXT,
-                        water_level_mm REAL,
-                        raw_payload_json TEXT
+                        rh_pct REAL,
+                        ir_object_c REAL,
+                        ir_ambient_c REAL,
+                        lux REAL,
+                        soil1_v REAL,
+                        soil2_v REAL,
+                        battery_v REAL,
+                        status_json TEXT,
+                        received_at TEXT NOT NULL,
+                        UNIQUE(log_epoch, seq)
+                    );
+                    """
+                )
+
+                # 8. Ground Mast Sync Cursor (Guide §6)
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS mast_sync_state (
+                        node_id TEXT PRIMARY KEY,
+                        log_epoch INTEGER NOT NULL,
+                        last_seq INTEGER NOT NULL,
+                        updated_at TEXT NOT NULL
                     );
                     """
                 )
@@ -264,7 +305,8 @@ class EdgeStorage(object):
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_advisories_acked ON advisories(acked);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_trap_records_trap ON trap_records(trap_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_trap_records_job ON trap_records(job_id);")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_mast_telemetry_time ON mast_telemetry(received_at_utc);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_mast_telemetry_epoch_seq ON mast_telemetry(log_epoch, seq);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_mast_telemetry_rec ON mast_telemetry(received_at);")
 
     # -------------------------------------------------------------------------
     # Scan Session Lifecycle
@@ -542,6 +584,7 @@ class EdgeStorage(object):
         days_since_planting: Optional[int] = None,
         total_cycle_days: Optional[int] = None,
         pest_data: Optional[Dict[str, Any]] = None,
+        inference_backend: str = "trt",
     ) -> Dict[str, Any]:
         """
         Synthesizes a complete frozen Advisory document (schema v1.0) from recorded
@@ -848,43 +891,66 @@ class EdgeStorage(object):
             "reason": "HARDWARE_NOT_CONNECTED (IMX219-77IR NoIR camera and DB660/850 filter absent, see PENDING_HARDWARE.md Subsystem 4)",
         }
 
-        # 3. Irrigation block (PENDING_HARDWARE.md Subsystem 2 & 6 / FAO-56)
-        if mast_reading is not None and mast_reading.get("air_temp_c") is not None:
-            air_temp = float(mast_reading["air_temp_c"])
-            hum = float(mast_reading.get("humidity_pct") or 60.0)
-            kc = float(growth_stage.get("kc") if growth_stage and growth_stage.get("kc") is not None else 1.0)
-            
-            # FAO-56 Hargreaves-Samani / simplified ET0 (Allen et al., 1998, Chapter 3)
-            # Benchmark extra-terrestrial radiation Ra ~= 15.0 mm/day equivalent for 20 deg N
-            et0_est = round(0.0023 * (air_temp + 17.8) * (10.0 ** 0.5) * 15.0 * 0.408, 2)
-            et0_est = max(0.0, min(15.0, et0_est))
-            crop_et = round(et0_est * kc, 2)
+        # 3. Irrigation block (FAO-56 Hargreaves-Samani, Eq 52)
+        history_24h = self.get_mast_readings_history(hours=24.0)
+        valid_temps = [float(r["air_temp_c"]) for r in history_24h if r.get("air_temp_c") is not None]
 
-            irrigation_block = {
-                "available": True,
-                "method": "fao56_hargreaves_samani",
-                "air_temp_c": air_temp,
-                "humidity_pct": hum,
-                "et0_mm_day": et0_est,
-                "kc": kc,
-                "crop_et_mm_day": crop_et,
-                "soil_moisture_v": mast_reading.get("soil_moisture_v"),
-                "water_level_mm": mast_reading.get("water_level_mm"),
-                "source": "derived_fao56",
-            }
-            if dominant_crop == "rice" and mast_reading.get("water_level_mm") is not None:
-                wl = float(mast_reading["water_level_mm"])
-                awd_status = "SAFE_DRYING" if wl >= -150.0 else "IRRIGATION_REQUIRED"
-                irrigation_block["paddy_awd"] = {
-                    "water_level_mm": wl,
-                    "awd_threshold_mm": -150.0,
-                    "status": awd_status,
-                    "guideline": "IRRI Safe Alternate Wetting and Drying (AWD)",
+        # Minimum coverage rule:
+        # At least 6 samples spanning >= 6.0 hours (to capture diurnal day/night spread)
+        has_min_coverage = False
+        time_span_h = 0.0
+        if len(valid_temps) >= 6 and len(history_24h) >= 2:
+            dt0 = _parse_iso_timestamp(history_24h[0]["received_at"])
+            dt1 = _parse_iso_timestamp(history_24h[-1]["received_at"])
+            if dt0 and dt1:
+                time_span_h = abs((dt1 - dt0).total_seconds()) / 3600.0
+                if time_span_h >= 6.0:
+                    has_min_coverage = True
+
+
+        if mast_reading is not None and mast_reading.get("air_temp_c") is not None:
+            if not has_min_coverage:
+                irrigation_block = {
+                    "available": False,
+                    "reason": "INSUFFICIENT_24H_HISTORY (need >=6 readings spanning >=6h in last 24h for Tmin/Tmax, found %d readings spanning %.1fh)" % (len(valid_temps), time_span_h),
+                }
+            else:
+                t_min = min(valid_temps)
+                t_max = max(valid_temps)
+                t_mean = sum(valid_temps) / float(len(valid_temps))
+                delta_t = max(0.0, t_max - t_min)
+                kc = float(growth_stage.get("kc") if growth_stage and growth_stage.get("kc") is not None else 1.0)
+                
+                # FAO-56 Hargreaves-Samani Equation 52:
+                # ET0 = 0.0023 * (Tmean + 17.8) * (Tmax - Tmin)^0.5 * Ra
+                # Ra = 15.0 mm/day equivalent (benchmark for 20°N-28°N latitude, FAO-56 Table 2.6)
+                ra_mm_day = 15.0
+                et0_est = round(0.0023 * (t_mean + 17.8) * (delta_t ** 0.5) * ra_mm_day, 2)
+                et0_est = max(0.0, min(15.0, et0_est))
+                crop_et = round(et0_est * kc, 2)
+
+                irrigation_block = {
+                    "available": True,
+                    "method": "fao56_hargreaves_samani",
+                    "air_temp_c": mast_reading["air_temp_c"],
+                    "rh_pct": mast_reading.get("rh_pct"),
+                    "t_min_24h_c": round(t_min, 2),
+                    "t_max_24h_c": round(t_max, 2),
+                    "t_mean_24h_c": round(t_mean, 2),
+                    "ra_mm_day": ra_mm_day,
+                    "et0_mm_day": et0_est,
+                    "kc": kc,
+                    "crop_et_mm_day": crop_et,
+                    "soil1_v": mast_reading.get("soil1_v"),
+                    "soil2_v": mast_reading.get("soil2_v"),
+                    "battery_v": mast_reading.get("battery_v"),
+                    "samples_24h": len(valid_temps),
+                    "source": "derived_fao56",
                 }
         else:
             irrigation_block = {
                 "available": False,
-                "reason": "HARDWARE_NOT_CONNECTED (Ground mast SHT31 weather / ultrasonic gauge data absent or stale, see PENDING_HARDWARE.md Subsystem 2 & 6)",
+                "reason": "HARDWARE_NOT_CONNECTED (Ground mast SHT40 weather telemetry absent or stale)",
             }
 
         # Pest block: Explicitly passed or resolved from latest trap record
@@ -902,6 +968,7 @@ class EdgeStorage(object):
             "advisory_id": advisory_id,
             "seq": 0,  # placeholder, replaced upon SQLite insert
             "generated_at_utc": now_utc,
+            "inference_backend": str(inference_backend),
             "replay": bool(replay),
             "scan": {
                 "started_utc": scan_row["started_utc"],
@@ -1248,43 +1315,104 @@ class EdgeStorage(object):
             "pest": json.loads(row["pest_json"]),
         }
 
-    def record_mast_telemetry(self, telemetry: Dict[str, Any]) -> int:
-        """Records ground mast telemetry (SIH-NODE-01) from ESP32 to SQLite."""
+    def record_mast_reading(
+        self,
+        record: Dict[str, Any],
+        log_epoch: int,
+        received_at: Optional[str] = None,
+    ) -> int:
+        """Records a single ground mast reading (Guide §6) into SQLite."""
         conn = self._get_connection()
-        now_utc = get_utc_iso_now()
+        now_utc = received_at or record.get("received_at") or record.get("utc") or get_utc_iso_now()
 
-        node_id = str(telemetry.get("node_id", "SIH-NODE-01"))
-        rec_utc = str(telemetry.get("recorded_at_utc") or now_utc)
-        fw_ver = telemetry.get("firmware_version")
-        air_t = float(telemetry["air_temp_c"]) if telemetry.get("air_temp_c") is not None else None
-        hum = float(telemetry["humidity_pct"]) if telemetry.get("humidity_pct") is not None else None
-        canopy_t = float(telemetry["canopy_temp_c"]) if telemetry.get("canopy_temp_c") is not None else None
-        soil_m = json.dumps(telemetry.get("soil_moisture_v")) if telemetry.get("soil_moisture_v") is not None else None
-        water_l = float(telemetry["water_level_mm"]) if telemetry.get("water_level_mm") is not None else None
+        seq = int(record["seq"])
+        node_id = str(record.get("node_id", "N01"))
+        field_id = record.get("field_id")
+        rtc_valid = 1 if record.get("rtc_valid") is True else 0
+        utc_val = record.get("utc")
+        uptime_s = int(record["uptime_s"]) if record.get("uptime_s") is not None else None
+
+        air_temp = float(record["air_temp_c"]) if record.get("air_temp_c") is not None else None
+        rh_pct = float(record["rh_pct"]) if record.get("rh_pct") is not None else None
+        ir_obj = float(record["ir_object_c"]) if record.get("ir_object_c") is not None else None
+        ir_amb = float(record["ir_ambient_c"]) if record.get("ir_ambient_c") is not None else None
+        lux = float(record["lux"]) if record.get("lux") is not None else None
+        soil1_v = float(record["soil1_v"]) if record.get("soil1_v") is not None else None
+        soil2_v = float(record["soil2_v"]) if record.get("soil2_v") is not None else None
+        battery_v = float(record["battery_v"]) if record.get("battery_v") is not None else None
+
+        status_val = record.get("status")
+        status_json = json.dumps(status_val) if isinstance(status_val, dict) else (str(status_val) if status_val is not None else None)
 
         with conn:
             cursor = conn.execute(
                 """
-                INSERT INTO mast_telemetry (
-                    node_id, recorded_at_utc, received_at_utc, firmware_version,
-                    air_temp_c, humidity_pct, canopy_temp_c, soil_moisture_json,
-                    water_level_mm, raw_payload_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                INSERT OR REPLACE INTO mast_telemetry (
+                    log_epoch, seq, node_id, field_id, utc, rtc_valid, uptime_s,
+                    air_temp_c, rh_pct, ir_object_c, ir_ambient_c, lux,
+                    soil1_v, soil2_v, battery_v, status_json, received_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
+                    int(log_epoch),
+                    seq,
                     node_id,
-                    rec_utc,
+                    str(field_id) if field_id is not None else None,
+                    str(utc_val) if utc_val is not None else None,
+                    rtc_valid,
+                    uptime_s,
+                    air_temp,
+                    rh_pct,
+                    ir_obj,
+                    ir_amb,
+                    lux,
+                    soil1_v,
+                    soil2_v,
+                    battery_v,
+                    status_json,
                     now_utc,
-                    str(fw_ver) if fw_ver is not None else None,
-                    air_t,
-                    hum,
-                    canopy_t,
-                    soil_m,
-                    water_l,
-                    json.dumps(telemetry),
                 ),
             )
             return cursor.lastrowid
+
+    def record_mast_readings(
+        self,
+        records: List[Dict[str, Any]],
+        log_epoch: int,
+        received_at: Optional[str] = None,
+    ) -> int:
+        """Records a batch of ground mast readings atomically."""
+        count = 0
+        for rec in records:
+            if isinstance(rec, dict) and "seq" in rec:
+                rec_ts = rec.get("received_at") or received_at
+                self.record_mast_reading(rec, log_epoch=log_epoch, received_at=rec_ts)
+                count += 1
+        return count
+
+    def get_mast_cursor(self, node_id: str = "N01") -> Tuple[int, int]:
+        """Returns (log_epoch, last_seq) stored for the node, defaulting to (0, 0)."""
+        conn = self._get_connection()
+        row = conn.execute(
+            "SELECT log_epoch, last_seq FROM mast_sync_state WHERE node_id = ?;",
+            (str(node_id),),
+        ).fetchone()
+        if row:
+            return (int(row["log_epoch"]), int(row["last_seq"]))
+        return (0, 0)
+
+    def update_mast_cursor(self, node_id: str, log_epoch: int, last_seq: int) -> None:
+        """Persists the sync cursor for a mast node."""
+        conn = self._get_connection()
+        now_utc = get_utc_iso_now()
+        with conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO mast_sync_state (node_id, log_epoch, last_seq, updated_at)
+                VALUES (?, ?, ?, ?);
+                """,
+                (str(node_id), int(log_epoch), int(last_seq), now_utc),
+            )
 
     def get_latest_mast_telemetry(self, node_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Fetches the latest mast telemetry row from SQLite."""
@@ -1302,25 +1430,83 @@ class EdgeStorage(object):
         if not row:
             return None
 
-        soil_v = None
-        if row["soil_moisture_json"]:
+        status_obj = None
+        if row["status_json"]:
             try:
-                soil_v = json.loads(row["soil_moisture_json"])
+                status_obj = json.loads(row["status_json"])
             except Exception:
-                soil_v = None
+                status_obj = None
 
         return {
             "id": row["id"],
+            "log_epoch": row["log_epoch"],
+            "seq": row["seq"],
             "node_id": row["node_id"],
-            "recorded_at_utc": row["recorded_at_utc"],
-            "received_at_utc": row["received_at_utc"],
-            "firmware_version": row["firmware_version"],
+            "field_id": row["field_id"],
+            "utc": row["utc"],
+            "rtc_valid": bool(row["rtc_valid"]),
+            "uptime_s": row["uptime_s"],
             "air_temp_c": row["air_temp_c"],
-            "humidity_pct": row["humidity_pct"],
-            "canopy_temp_c": row["canopy_temp_c"],
-            "soil_moisture_v": soil_v,
-            "water_level_mm": row["water_level_mm"],
+            "rh_pct": row["rh_pct"],
+            "ir_object_c": row["ir_object_c"],
+            "ir_ambient_c": row["ir_ambient_c"],
+            "lux": row["lux"],
+            "soil1_v": row["soil1_v"],
+            "soil2_v": row["soil2_v"],
+            "battery_v": row["battery_v"],
+            "status": status_obj,
+            "received_at": row["received_at"],
         }
+
+    def get_mast_readings_history(
+        self,
+        hours: float = 24.0,
+        node_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetches mast readings recorded over the last `hours` window.
+        """
+        conn = self._get_connection()
+        cutoff_dt = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours)
+        cutoff_iso = cutoff_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        query = "SELECT * FROM mast_telemetry WHERE received_at >= ? "
+        params = [cutoff_iso]
+        if node_id:
+            query += "AND node_id = ? "
+            params.append(str(node_id))
+        query += "ORDER BY id ASC;"
+
+        rows = conn.execute(query, tuple(params)).fetchall()
+        result = []
+        for row in rows:
+            status_obj = None
+            if row["status_json"]:
+                try:
+                    status_obj = json.loads(row["status_json"])
+                except Exception:
+                    status_obj = None
+            result.append({
+                "id": row["id"],
+                "log_epoch": row["log_epoch"],
+                "seq": row["seq"],
+                "node_id": row["node_id"],
+                "field_id": row["field_id"],
+                "utc": row["utc"],
+                "rtc_valid": bool(row["rtc_valid"]),
+                "uptime_s": row["uptime_s"],
+                "air_temp_c": row["air_temp_c"],
+                "rh_pct": row["rh_pct"],
+                "ir_object_c": row["ir_object_c"],
+                "ir_ambient_c": row["ir_ambient_c"],
+                "lux": row["lux"],
+                "soil1_v": row["soil1_v"],
+                "soil2_v": row["soil2_v"],
+                "battery_v": row["battery_v"],
+                "status": status_obj,
+                "received_at": row["received_at"],
+            })
+        return result
 
     def close(self) -> None:
         """Closes the current thread's connection."""

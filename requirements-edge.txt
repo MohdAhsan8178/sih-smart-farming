@@ -2,4 +2,5 @@ numpy==1.19.5
 pycuda==2020.1
 Pillow==8.4.0
 requests==2.27.1
+pyserial==3.5
 # opencv and tensorrt come WITH JetPack 4.6.4. Do NOT pip install them.

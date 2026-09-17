@@ -409,13 +409,15 @@ class ONNXClassifier(object):
 class InferenceThread(threading.Thread):
     """
     Thread 3: GPU TensorRT Inference.
-    Owns the TRTClassifier / ONNXClassifier and context. Supports --dry-run mock inference.
+    Owns the TRTClassifier / ONNXClassifier and context.
+    Strict backend enforcement: trt, onnx, or mock.
     """
 
     def __init__(
         self,
         in_queue: DropOldestQueue,
         out_queue: DropOldestQueue,
+        backend: str = "trt",
         engine_path: Optional[Union[str, Path]] = None,
         onnx_path: Optional[Union[str, Path]] = None,
         classifier: Optional[Any] = None,
@@ -424,21 +426,35 @@ class InferenceThread(threading.Thread):
         super(InferenceThread, self).__init__(name="InferenceThread")
         self.in_queue = in_queue
         self.out_queue = out_queue
+        self.backend = "mock" if dry_run else str(backend).lower()
         self.engine_path = Path(engine_path) if engine_path else None
         self.onnx_path = Path(onnx_path) if onnx_path else None
         self.classifier = classifier
-        self.dry_run = dry_run
+        self.dry_run = (self.backend == "mock")
+        self.error: Optional[Exception] = None
 
         self.tiles_classified = 0
         self.total_inference_time_s = 0.0
 
     def run(self) -> None:
         clf = self.classifier
-        use_mock = self.dry_run
+        use_mock = (self.backend == "mock")
 
-        if not use_mock and clf is None:
-            if HAS_TRT and HAS_PYCUDA and self.engine_path is not None and self.engine_path.exists():
-                try:
+        try:
+            if not use_mock and clf is None:
+                if self.backend == "trt":
+                    if not HAS_TRT:
+                        raise RuntimeError(
+                            "TensorRT backend requested but TensorRT is unavailable: HAS_TRT is False"
+                        )
+                    if not HAS_PYCUDA:
+                        raise RuntimeError(
+                            "TensorRT backend requested but PyCUDA is unavailable: HAS_PYCUDA is False"
+                        )
+                    if self.engine_path is None or not self.engine_path.exists():
+                        raise RuntimeError(
+                            "TensorRT backend requested but engine file is missing: %s" % str(self.engine_path)
+                        )
                     # CUDA context created INSIDE the inference thread (Rule R9)
                     clf = TRTClassifier(
                         engine_path=self.engine_path,
@@ -446,23 +462,19 @@ class InferenceThread(threading.Thread):
                         size=IMAGE_SIZE,
                         num_classes=NUM_CLASSES,
                     )
-                except Exception as e:
-                    print("[InferenceThread] Warning: TRTClassifier init failed (%s). Falling back." % str(e))
-
-            if clf is None and self.onnx_path is not None and self.onnx_path.exists():
-                try:
+                elif self.backend == "onnx":
+                    if self.onnx_path is None or not self.onnx_path.exists():
+                        raise RuntimeError(
+                            "ONNX backend requested but model file is missing: %s" % str(self.onnx_path)
+                        )
                     clf = ONNXClassifier(
                         onnx_path=self.onnx_path,
                         size=IMAGE_SIZE,
                         num_classes=NUM_CLASSES,
                     )
-                except Exception as e:
-                    print("[InferenceThread] Warning: ONNXClassifier init failed (%s)." % str(e))
+                else:
+                    raise RuntimeError("Unknown inference backend requested: '%s'" % self.backend)
 
-            if clf is None:
-                use_mock = True
-
-        try:
             while True:
                 item = self.in_queue.get()
                 if item is _QUEUE_TIMEOUT:
@@ -480,7 +492,7 @@ class InferenceThread(threading.Thread):
 
                 t0 = time.time()
                 if not use_mock and clf is not None:
-                    # Real TensorRT FP16 engine inference
+                    # Real TensorRT FP16 or ONNX engine inference
                     logits = clf.infer(tile_batch.tiles)
                 else:
                     # Dry-run mock inference
@@ -501,6 +513,10 @@ class InferenceThread(threading.Thread):
 
                 self.out_queue.put((frame_idx, metadata, tile_batch, gate_metrics, logits, frame_indices))
 
+        except Exception as e:
+            self.error = e
+            # Unblock downstream thread and terminate
+            self.out_queue.close()
         finally:
             # Rule R9 teardown: close classifier before context pop/detach
             if clf is not None:
@@ -526,6 +542,7 @@ class DecisionAggregateStoreThread(threading.Thread):
         scan_id: Optional[str] = None,
         days_since_planting: Optional[int] = None,
         total_cycle_days: Optional[int] = None,
+        inference_backend: str = "trt",
     ):
         super(DecisionAggregateStoreThread, self).__init__(name="DecisionAggregateStoreThread")
         self.in_queue = in_queue
@@ -534,6 +551,7 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.scan_id = scan_id or ("scan_%s" % datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S"))
         self.days_since_planting = days_since_planting
         self.total_cycle_days = total_cycle_days
+        self.inference_backend = str(inference_backend).lower()
 
         if isinstance(storage, (str, Path)):
             self.storage = EdgeStorage(db_path=storage)
@@ -548,6 +566,7 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.frame_verdicts_count = collections.defaultdict(int)
         self.cell_verdicts_count = collections.defaultdict(int)
         self.last_advisory = None
+        self.aborted = False
 
     def run(self) -> None:
         scan_meta = {}
@@ -692,19 +711,21 @@ class DecisionAggregateStoreThread(threading.Thread):
                     jsonl_file.write(json.dumps(event) + "\n")
                     jsonl_file.flush()
 
-            # End of scan: record completion and assemble Advisory JSON document
-            self.storage.record_scan_end(
-                scan_id=self.scan_id,
-                frames_evaluated=self.events_written,
-                tiles_classified=self.events_written * N_TILES,
-            )
-            self.last_advisory = self.storage.create_advisory(
-                scan_id=self.scan_id,
-                replay=True,
-                days_since_planting=self.days_since_planting,
-                total_cycle_days=self.total_cycle_days,
-            )
-            self.storage.prune_retained_data()
+            # End of scan: record completion and assemble Advisory JSON document only if not aborted
+            if not self.aborted and self.events_written > 0:
+                self.storage.record_scan_end(
+                    scan_id=self.scan_id,
+                    frames_evaluated=self.events_written,
+                    tiles_classified=self.events_written * N_TILES,
+                )
+                self.last_advisory = self.storage.create_advisory(
+                    scan_id=self.scan_id,
+                    replay=True,
+                    days_since_planting=self.days_since_planting,
+                    total_cycle_days=self.total_cycle_days,
+                    inference_backend=self.inference_backend,
+                )
+                self.storage.prune_retained_data()
 
         finally:
             if jsonl_file is not None:
@@ -719,6 +740,7 @@ class EdgePipeline(object):
     def __init__(
         self,
         source: Union[str, int],
+        backend: str = "trt",
         engine_path: Optional[Union[str, Path]] = None,
         onnx_path: Optional[Union[str, Path]] = None,
         classifier: Optional[Any] = None,
@@ -733,10 +755,17 @@ class EdgePipeline(object):
         total_cycle_days: Optional[int] = None,
     ):
         self.source = source
-        self.engine_path = engine_path or (ROOT / "artifacts" / "engines" / "model_a_fp16.engine")
-        self.onnx_path = Path(onnx_path) if onnx_path else None
+        self.backend = "mock" if dry_run else str(backend).lower()
+        self.engine_path = Path(engine_path) if engine_path else (ROOT / "artifacts" / "engines" / "model_a_fp16.engine")
+        if onnx_path:
+            self.onnx_path = Path(onnx_path)
+        elif self.backend == "onnx":
+            self.onnx_path = ROOT / "artifacts" / "onnx" / "model_a_fused.onnx"
+        else:
+            self.onnx_path = None
+
         self.classifier = classifier
-        self.dry_run = dry_run
+        self.dry_run = (self.backend == "mock")
         self.max_frames = max_frames
         self.output_jsonl = Path(output_jsonl) if output_jsonl else None
         self.db_path = Path(db_path)
@@ -778,6 +807,7 @@ class EdgePipeline(object):
         self.t3_inference = InferenceThread(
             in_queue=self.tile_queue,
             out_queue=self.result_queue,
+            backend=self.backend,
             engine_path=self.engine_path,
             onnx_path=self.onnx_path,
             classifier=self.classifier,
@@ -791,6 +821,7 @@ class EdgePipeline(object):
             scan_id=self.scan_id,
             days_since_planting=self.days_since_planting,
             total_cycle_days=self.total_cycle_days,
+            inference_backend=self.backend,
         )
 
         self.threads = [self.t1_capture, self.t2_gate_tile, self.t3_inference, self.t4_decision]
@@ -805,6 +836,11 @@ class EdgePipeline(object):
         for t in self.threads:
             t.join()
 
+        # Fail fast if inference or other worker encountered a fatal error
+        if getattr(self.t3_inference, "error", None) is not None:
+            self.t4_decision.aborted = True
+            raise self.t3_inference.error
+
         t_elapsed = time.time() - t_start
 
         frames_seen = self.t1_capture.frames_read
@@ -815,6 +851,7 @@ class EdgePipeline(object):
 
         metrics = {
             "elapsed_seconds": t_elapsed,
+            "inference_backend": self.backend,
             "frames_seen": frames_seen,
             "frames_passed": frames_passed,
             "gate_pass_rate_pct": pass_rate_pct,
@@ -843,6 +880,7 @@ class EdgePipeline(object):
         print("EDGE PROCESSING PIPELINE EXECUTION REPORT (Step 21 & Step 33)")
         print("=" * 70)
         print("Input Source        : %s" % str(self.source))
+        print("Inference Backend   : %s" % str(metrics.get("inference_backend", self.backend)).upper())
         print("Dry Run Mode        : %s" % ("ENABLED" if self.dry_run else "DISABLED"))
         print("Total Time Elapsed  : %.2f seconds" % metrics["elapsed_seconds"])
         print("Throughput (Read)   : %.2f fps" % metrics["fps_read"])
@@ -884,8 +922,10 @@ class EdgePipeline(object):
 def main():
     parser = argparse.ArgumentParser(description="Edge Processing Pipeline for Handheld Nano Pod (Step 21 & Step 33)")
     parser.add_argument("--source", type=str, required=True, help="Path to video file or camera index (e.g. 0)")
-    parser.add_argument("--engine", type=str, default=None, help="Path to TensorRT engine")
-    parser.add_argument("--dry-run", action="store_true", help="Run with simulated inference")
+    parser.add_argument("--backend", type=str, choices=["trt", "onnx", "mock"], default="trt", help="Inference backend (default: trt)")
+    parser.add_argument("--engine", type=str, default=None, help="Path to TensorRT engine (for --backend trt)")
+    parser.add_argument("--onnx", type=str, default=None, help="Path to ONNX model (for --backend onnx)")
+    parser.add_argument("--dry-run", action="store_true", help="Run with simulated mock inference (alias for --backend mock)")
     parser.add_argument("--report", action="store_true", help="Print detailed execution metrics report")
     parser.add_argument("--max-frames", type=int, default=None, help="Maximum frames to process")
     parser.add_argument("--output", type=str, default="artifacts/reports/pipeline_dryrun_events.jsonl", help="Output JSONL path")
@@ -896,9 +936,13 @@ def main():
     parser.add_argument("--total-cycle-days", type=int, default=None, help="Variety maturity cycle duration in days override")
     args = parser.parse_args()
 
+    backend_choice = "mock" if args.dry_run else args.backend
+
     pipeline = EdgePipeline(
         source=args.source,
+        backend=backend_choice,
         engine_path=args.engine,
+        onnx_path=args.onnx,
         dry_run=args.dry_run,
         max_frames=args.max_frames,
         output_jsonl=args.output,

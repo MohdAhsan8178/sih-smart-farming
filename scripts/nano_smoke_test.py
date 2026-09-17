@@ -136,6 +136,53 @@ def check_firmware():
     return print_check("TP-Link TL-WN722N Firmware", exists, detail)
 
 
+def check_gps_uart(port="/dev/ttyTHS1", timeout_s=10.0):
+    """
+    K2.3: NEO-6M GPS UART check on Jetson Nano 40-pin header UART (/dev/ttyTHS1).
+    Opens the port, reads for up to timeout_s (10s), reports NMEA line count and fix status.
+    """
+    if not os.path.exists(port):
+        return print_check("NEO-6M GPS UART ({})".format(port), False, "Device node absent (Simulation Mode / Hardware not connected)")
+
+    try:
+        import serial
+    except ImportError:
+        return print_check("NEO-6M GPS UART ({})".format(port), False, "pyserial not installed (pip install pyserial==3.5)")
+
+    try:
+        if REPO_ROOT not in sys.path:
+            sys.path.insert(0, REPO_ROOT)
+        from edge.sensors import parse_nmea_sentence
+
+        line_count = 0
+        valid_fix = False
+        satellites = 0
+        t0 = time.time()
+
+        with serial.Serial(port, 9600, timeout=1.0) as ser:
+            while time.time() - t0 < timeout_s:
+                raw = ser.readline()
+                if raw:
+                    line_count += 1
+                    try:
+                        line = raw.decode("ascii", errors="replace")
+                        parsed = parse_nmea_sentence(line)
+                        if parsed and parsed.get("valid"):
+                            valid_fix = True
+                            if "satellites" in parsed:
+                                satellites = parsed["satellites"]
+                    except Exception:
+                        pass
+                if valid_fix and line_count >= 10:
+                    break
+
+        elapsed = time.time() - t0
+        detail = "Read {} lines in {:.1f}s, fix={}, sats={}".format(line_count, elapsed, "VALID" if valid_fix else "NO_FIX", satellites)
+        return print_check("NEO-6M GPS UART ({})".format(port), line_count > 0, detail)
+    except Exception as e:
+        return print_check("NEO-6M GPS UART ({})".format(port), False, "Error opening {}: {}".format(port, e))
+
+
 def check_model_a_engine():
     engine_candidates = [
         os.path.join(REPO_ROOT, "artifacts", "trt", "model_a.engine"),
@@ -313,6 +360,7 @@ def main():
 
     print("\n[3] Hardware Firmware & Peripheral Drivers:")
     checks.append(check_firmware())
+    checks.append(check_gps_uart())
 
     print("\n[4] AI Inference Engines:")
     checks.append(check_model_a_engine())

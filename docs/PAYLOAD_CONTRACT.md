@@ -14,6 +14,7 @@
 | `advisory_id` | string | No | String identifier (e.g. `2026-09-17T06:30:00Z_field1`) | Unique advisory document identifier |
 | `seq` | integer | No | `>= 1` | Monotonic sequential advisory sequence number assigned by SQLite rowid |
 | `generated_at_utc` | string | No | ISO-8601 UTC string (`YYYY-MM-DDTHH:MM:SSZ`) | Timestamp of advisory synthesis |
+| `inference_backend` | string | No | `"trt"`, `"onnx"`, `"mock"` | Explicit runtime inference engine backend |
 | `replay` | boolean | No | `true`, `false` | Provenance label (`true` for seeded replay / demo data; `false` for live) |
 | `scan` | object | No | Object | Session scan summary metrics |
 | `crop_health` | object | No | Object | Frame consensus crop health diagnosis |
@@ -21,7 +22,7 @@
 | `vegetation` | object | No | Object | Nadir RGB vegetation cover & relative indices |
 | `thermal` | object | No | Object | Canopy thermal status & CWSI availability block |
 | `ndvi` | object | No | Object | Dual-bandpass NoIR camera NDVI status block |
-| `irrigation` | object | No | Object | FAO-56 crop water requirement & paddy AWD block |
+| `irrigation` | object | No | Object | FAO-56 Hargreaves-Samani crop water requirement block |
 | `detections` | array | No | List of detection objects | Individual spatial/temporal plant detections with GPS |
 | `gps` | object | No | Object | Pod GPS fix status and accuracy metadata |
 | `disease` | array | No | List of disease objects | Active disease diagnoses requiring agronomic attention |
@@ -90,12 +91,16 @@
 | `thermal` | `reason` | string | Citation to PENDING_HARDWARE.md Subsystem 1 | Machine-readable availability explanation |
 | `ndvi` | `available` | boolean | `false` | `false` when IMX219-77IR + DB660/850 is absent |
 | `ndvi` | `reason` | string | Citation to PENDING_HARDWARE.md Subsystem 4 | Machine-readable availability explanation |
-| `irrigation` | `available` | boolean | `false` (unless mast data present) | FAO-56 crop water requirement availability |
+| `irrigation` | `available` | boolean | `false` (unless mast data present) | FAO-56 Hargreaves-Samani ET0 availability |
 | `irrigation` | `method` | string | `"fao56_hargreaves_samani"` (when available) | ET0 calculation methodology |
+| `irrigation` | `t_min_24h_c`| float | Minimum air temp over 24h window | Diurnal air temp min (°C) |
+| `irrigation` | `t_max_24h_c`| float | Maximum air temp over 24h window | Diurnal air temp max (°C) |
+| `irrigation` | `t_mean_24h_c`| float| Mean air temp over 24h window | Diurnal air temp mean (°C) |
+| `irrigation` | `ra_mm_day`| float | `15.0` mm/day equivalent | Benchmark extraterrestrial radiation |
 | `irrigation` | `et0_mm_day`| float | `0.0` to `15.0` mm/day | Reference evapotranspiration |
 | `irrigation` | `kc` | float | `0.20` to `1.35` | Growth-stage crop coefficient |
 | `irrigation` | `crop_et_mm_day`| float| `>= 0.0` mm/day | Crop evapotranspiration ($ET_c = ET_0 \times K_c$) |
-| `irrigation` | `paddy_awd` | object | Present for rice when water level sensed | Alternate Wetting and Drying prescription |
+| `irrigation` | `samples_24h`| integer | `>= 6` | Valid air temperature readings in 24h |
 
 ### 2.6 Trap Pest Block (`pest[]`)
 | Field | Type | Nullable | Allowed Values | Description |
@@ -140,18 +145,29 @@
 
 ---
 
-## 3. Ground Mast Telemetry Ingestion Contract (`POST /api/v1/mast/telemetry`)
+## 3. Ground Mast Telemetry Pull Record Schema (Guide §6)
+
+The ground mast ESP32 acts as an HTTP server (`GET /readings?since=&limit=`) pulled by the Jetson Nano client.
 
 | Field | Type | Required | Allowed Values / Range | Description |
 |---|---|---|---|---|
-| `node_id` | string | Yes | `"SIH-NODE-01"` | Fixed ground mast identifier |
-| `recorded_at_utc` | string | Yes | ISO-8601 UTC string | Telemetry recording timestamp |
-| `firmware_version` | string | Yes | String (e.g. `"1.0.0"`) | ESP32 mast firmware version |
-| `air_temp_c` | float | No | `-10.0` to `60.0` | SHT31-D air temperature in Celsius |
-| `humidity_pct` | float | No | `0.0` to `100.0` | SHT31-D relative humidity in percent |
-| `canopy_temp_c` | float | No | `-10.0` to `80.0` | MLX90614 canopy temperature in Celsius |
-| `soil_moisture_v` | array | No | List of floats in `[0.5, 3.5]` | Capacitive probe ADC voltage readings |
-| `water_level_mm` | float | No | `0.0` to `300.0` | JSN-SR04T ultrasonic ponded water depth |
+| `log_epoch` | integer | Yes | Monotonic boot timestamp | Epoch counter to distinguish reboots |
+| `seq` | integer | Yes | `>= 1` | Monotonic sequential reading ID |
+| `node_id` | string | Yes | `"SIH-NODE-01"` | Ground mast node identifier |
+| `field_id` | string | No | String (e.g. `"F01"`) or null | Field identifier |
+| `utc` | string | No | ISO-8601 UTC string or null | RTC timestamp if synchronized |
+| `rtc_valid` | boolean | Yes | `true`, `false` | RTC time validity flag |
+| `uptime_s` | integer | No | `>= 0` | ESP32 uptime in seconds |
+| `air_temp_c` | float | No | `-10.0` to `60.0` | SHT40 air temperature in °C |
+| `rh_pct` | float | No | `0.0` to `100.0` | SHT40 relative humidity in % |
+| `ir_object_c` | float | No | `-10.0` to `80.0` | MLX90614 surface temperature in °C |
+| `ir_ambient_c`| float | No | `-10.0` to `60.0` | MLX90614 ambient temperature in °C |
+| `lux` | float | No | `0.0` to `120000.0` | BH1750 ambient illuminance |
+| `soil1_v` | float | No | `0.0` to `3.3` | ADS1115 soil moisture probe 1 voltage |
+| `soil2_v` | float | No | `0.0` to `3.3` | ADS1115 soil moisture probe 2 voltage |
+| `battery_v` | float | No | `0.0` to `5.0` | LiFePO4 battery voltage |
+| `status` | object | No | Subsystem status dictionary | Sensor health bits |
+| `received_at` | string | Yes | ISO-8601 UTC string | Timestamp recorded by Nano |
 
 ---
 

@@ -2,12 +2,17 @@
 """
 Generate and synchronize docs/PAYLOAD_CONTRACT.md from authoritative code constants.
 """
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from configs.classes import CLASS_NAMES
 from configs.classes_model_b import CLASS_NAMES as MODEL_B_CLASSES
 from edge.rules_engine import TEMPLATES
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def generate_payload_contract() -> str:
     template_ids = sorted(list(TEMPLATES.keys()))

@@ -217,6 +217,10 @@ def process_trap_image(
     return summary
 
 
+# Alias for backward compatibility
+process_trap_card = process_trap_image
+
+
 def run_watcher(
     inbox_dir: Union[str, Path],
     scale: Optional[float] = None,

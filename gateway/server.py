@@ -332,35 +332,6 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 self._send_json_response(200, resp)
                 return
 
-            # Route: POST /api/v1/mast/telemetry and alias /api/v1/telemetry (Step 32 / J4.3)
-            if path in ("/api/v1/mast/telemetry", "/api/v1/telemetry"):
-                content_length = self.headers.get("Content-Length")
-                if not content_length:
-                    self._send_error_json(400, "bad_request", "Missing Content-Length header")
-                    return
-
-                try:
-                    length = int(content_length)
-                    raw_body = self.rfile.read(length)
-                    body_json = json.loads(raw_body.decode("utf-8"))
-                except Exception as ex:
-                    self._send_error_json(400, "bad_request", "Malformed JSON: %s" % ex)
-                    return
-
-                if not isinstance(body_json, dict):
-                    self._send_error_json(400, "bad_request", "Telemetry payload must be a JSON object")
-                    return
-
-                # Record telemetry into SQLite storage
-                rec_id = self.server.storage.record_mast_telemetry(body_json)
-                self._send_json_response(200, {
-                    "status": "ok",
-                    "telemetry_id": rec_id,
-                    "node_id": body_json.get("node_id", "SIH-NODE-01"),
-                    "recorded_at_utc": body_json.get("recorded_at_utc"),
-                })
-                return
-
             self._send_json_response(404, {"error": "not_found", "path": path})
 
         except Exception as e:

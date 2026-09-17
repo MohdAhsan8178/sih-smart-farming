@@ -60,28 +60,32 @@ def test_j6_end_to_end_pipeline_integration():
         gw.start_background()
 
         try:
-            # 2. Ingest Mast Telemetry via HTTP POST
-            now_iso = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            telemetry_payload = {
-                "node_id": "SIH-NODE-01",
-                "recorded_at_utc": now_iso,
-                "firmware_version": "1.0.0",
-                "air_temp_c": 29.5,
-                "humidity_pct": 68.0,
-                "canopy_temp_c": 27.2,
-                "soil_moisture_v": [1.85, 1.88, 1.83],
-                "water_level_mm": -30.0,
-            }
-            req_telemetry = urllib.request.Request(
-                f"http://127.0.0.1:{port}/api/v1/mast/telemetry",
-                data=json.dumps(telemetry_payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req_telemetry, timeout=5.0) as resp:
-                assert resp.status == 200
-                res_tel = json.loads(resp.read().decode("utf-8"))
-                assert res_tel["status"] == "ok"
+            # 2. Ingest Ground Mast Telemetry via EdgeStorage (Guide §6 pull model)
+            # Create 8 readings spanning 7 hours so 24h Hargreaves-Samani ET0 coverage is satisfied
+            base_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=7)
+            mast_readings = []
+            temps = [22.0, 24.5, 27.0, 31.5, 32.0, 30.0, 28.5, 29.5]
+            for i, t_val in enumerate(temps):
+                ts_iso = (base_time + datetime.timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                mast_readings.append({
+                    "seq": i + 1,
+                    "node_id": "SIH-NODE-01",
+                    "field_id": "F01",
+                    "utc": ts_iso,
+                    "rtc_valid": True,
+                    "uptime_s": 1000 + i * 3600,
+                    "air_temp_c": t_val,
+                    "rh_pct": 65.0,
+                    "ir_object_c": t_val - 1.5,
+                    "ir_ambient_c": t_val - 0.5,
+                    "lux": 45000.0,
+                    "soil1_v": 1.85,
+                    "soil2_v": 1.88,
+                    "battery_v": 4.12,
+                    "status": {"sht40": "OK", "mlx": "OK", "bh1750": "OK", "ads": "OK"},
+                    "received_at": ts_iso,
+                })
+            storage.record_mast_readings(mast_readings, log_epoch=1726650000)
 
             # 3. Ingest Sticky-Trap Image via HTTP POST /api/v1/trap/upload
             # Generate a synthetic trap image with 10 blobs for Model B
@@ -106,8 +110,9 @@ def test_j6_end_to_end_pipeline_integration():
             scan_id = "integration_scan_001"
             pipeline = EdgePipeline(
                 source=str(video_path),
+                backend="onnx",
                 onnx_path=onnx_path,
-                dry_run=False,          # Non-dry-run real inference!
+                dry_run=False,          # Non-dry-run real inference with ONNX Runtime!
                 max_frames=6,           # Process 6 video frames (54 tiles)
                 output_jsonl=jsonl_path,
                 db_path=db_path,
@@ -120,6 +125,7 @@ def test_j6_end_to_end_pipeline_integration():
             metrics = pipeline.run()
             assert metrics["frames_seen"] >= 6
             assert metrics["tiles_classified"] >= 9
+            assert metrics["inference_backend"] == "onnx"
 
             # 5. Fetch Synthesized Advisory via HTTP GET /api/v1/advisory/<id>
             adv_id = pipeline.t4_decision.last_advisory["advisory_id"]
@@ -135,6 +141,7 @@ def test_j6_end_to_end_pipeline_integration():
             assert advisory["schema_version"] == "1.0"
             assert advisory["advisory_id"] == adv_id
             assert advisory["seq"] >= 1
+            assert advisory["inference_backend"] == "onnx"
             assert "generated_at_utc" in advisory
 
             # Scan block
