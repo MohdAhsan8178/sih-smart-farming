@@ -218,6 +218,120 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 self._send_json_response(200, {"status": "ok", "acked": target_id})
                 return
 
+            # Route: POST /api/v1/trap/upload (Step 31 / H5.2)
+            if path == "/api/v1/trap/upload":
+                content_length = self.headers.get("Content-Length")
+                if not content_length:
+                    self._send_error_json(400, "bad_request", "Missing Content-Length header")
+                    return
+
+                try:
+                    length = int(content_length)
+                    raw_body = self.rfile.read(length)
+                except Exception as ex:
+                    self._send_error_json(400, "bad_request", "Failed to read body: %s" % ex)
+                    return
+
+                query = urllib.parse.parse_qs(parsed.query)
+
+                # Metadata extraction from query params or HTTP headers
+                trap_id = query.get("trap_id", [self.headers.get("X-Trap-Id", "TRAP_01")])[0]
+                placed_at = query.get("placed_at", [self.headers.get("X-Placed-At", None)])[0]
+                days_param = query.get("days", [self.headers.get("X-Days-Monitored", None)])[0]
+                days_monitored = float(days_param) if days_param else None
+
+                scale_param = query.get("scale", [self.headers.get("X-Scale", None)])[0]
+                scale = float(scale_param) if scale_param else None
+
+                allow_prov_param = query.get("allow_provisional", [self.headers.get("X-Allow-Provisional", "false")])[0]
+                allow_provisional = str(allow_prov_param).lower() in ("true", "1", "yes")
+
+                content_type = self.headers.get("Content-Type", "")
+                image_bytes = raw_body
+
+                # Multipart form parsing if uploaded via form
+                if "multipart/form-data" in content_type:
+                    boundary = None
+                    for part in content_type.split(";"):
+                        part = part.strip()
+                        if part.startswith("boundary="):
+                            boundary = part.split("=", 1)[1].strip().strip('"').encode("ascii")
+                    if boundary:
+                        parts = raw_body.split(b"--" + boundary)
+                        for p in parts:
+                            if b"Content-Disposition:" in p:
+                                header_data, body_data = p.split(b"\r\n\r\n", 1)
+                                header_str = header_data.decode("latin1", errors="replace")
+                                body_data = body_data.rstrip(b"\r\n--")
+                                if 'name="image"' in header_str or 'filename=' in header_str:
+                                    image_bytes = body_data
+                                elif 'name="trap_id"' in header_str:
+                                    trap_id = body_data.decode("utf-8", errors="replace").strip()
+                                elif 'name="placed_at"' in header_str:
+                                    placed_at = body_data.decode("utf-8", errors="replace").strip()
+                                elif 'name="days"' in header_str:
+                                    days_monitored = float(body_data.decode("utf-8", errors="replace").strip())
+                                elif 'name="scale"' in header_str:
+                                    scale = float(body_data.decode("utf-8", errors="replace").strip())
+                                elif 'name="allow_provisional"' in header_str:
+                                    allow_provisional = body_data.decode("utf-8", errors="replace").strip().lower() in ("true", "1", "yes")
+
+                # Persist incoming card to inbox
+                inbox_dir = ROOT / "data" / "trap_inbox"
+                inbox_dir.mkdir(parents=True, exist_ok=True)
+                now_ts = int(time.time() * 1000)
+                job_id = "trap_job_%s_%d" % (trap_id, now_ts)
+                saved_path = inbox_dir / ("%s.jpg" % job_id)
+                with open(str(saved_path), "wb") as f:
+                    f.write(image_bytes)
+
+                # Process trap card through Model B job
+                from edge.trap_job import process_trap_image
+                try:
+                    job_res = process_trap_image(
+                        image_path=saved_path,
+                        scale=scale,
+                        allow_provisional=allow_provisional,
+                        trap_id=trap_id,
+                        placed_at=placed_at,
+                        days_monitored=days_monitored,
+                        storage=self.server.storage,
+                        job_id=job_id,
+                    )
+                except ValueError as scale_err:
+                    self._send_error_json(400, "scale_uncalibrated", str(scale_err))
+                    return
+                except Exception as proc_err:
+                    self._send_error_json(500, "processing_failure", str(proc_err))
+                    return
+
+                # Synthesize / update latest advisory with the new trap result
+                conn = self.server.storage._get_connection()
+                latest_scan = conn.execute("SELECT scan_id FROM scans ORDER BY started_utc DESC LIMIT 1;").fetchone()
+                advisory_id = None
+                if latest_scan:
+                    scan_id = latest_scan["scan_id"]
+                    try:
+                        adv = self.server.storage.create_advisory(scan_id=scan_id)
+                        advisory_id = adv["advisory_id"]
+                    except Exception:
+                        pass
+
+                resp = {
+                    "status": "ok",
+                    "job_id": job_id,
+                    "trap_id": trap_id,
+                    "record_id": job_res["record_id"],
+                    "advisory_id": advisory_id,
+                    "total_blobs_counted": job_res["total_blobs_counted"],
+                    "scale_status": job_res["scale_status"],
+                    "scale_mm_per_pixel": job_res["scale_mm_per_pixel"],
+                    "etl_status": job_res["etl_status"],
+                    "pest": job_res["pest"],
+                }
+                self._send_json_response(200, resp)
+                return
+
             self._send_json_response(404, {"error": "not_found", "path": path})
 
         except Exception as e:

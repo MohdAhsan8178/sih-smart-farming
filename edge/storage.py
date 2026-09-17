@@ -31,7 +31,8 @@ import sqlite3
 import threading
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from configs.classes import CLASS_NAMES, NUM_CLASSES, get_cross_source_reliability
+from configs.classes import CLASS_NAMES, NUM_CLASSES
+from configs.reliability import get_cross_source_reliability
 import configs.train_config as train_config
 import numpy as np
 
@@ -217,11 +218,33 @@ class EdgeStorage(object):
                     """
                 )
 
+                # 6. Sticky-Trap Pest Records (Model B Gateway Job, Step 31 / H5)
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS trap_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        trap_id TEXT NOT NULL,
+                        job_id TEXT UNIQUE NOT NULL,
+                        image_path TEXT NOT NULL,
+                        placed_at_utc TEXT,
+                        processed_at_utc TEXT NOT NULL,
+                        days_monitored REAL,
+                        total_blobs_counted INTEGER NOT NULL,
+                        scale_mm_per_pixel REAL,
+                        scale_status TEXT NOT NULL,
+                        etl_status TEXT NOT NULL,
+                        pest_json TEXT NOT NULL
+                    );
+                    """
+                )
+
                 # Performance indexes
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_frame_events_scan ON frame_events(scan_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_frame_events_cell ON frame_events(cell_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_advisories_seq ON advisories(seq);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_advisories_acked ON advisories(acked);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_trap_records_trap ON trap_records(trap_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_trap_records_job ON trap_records(job_id);")
 
     # -------------------------------------------------------------------------
     # Scan Session Lifecycle
@@ -788,6 +811,15 @@ class EdgeStorage(object):
             total_cycle_days=total_cycle_days,
         )
 
+        # Pest block: Explicitly passed or resolved from latest trap record
+        resolved_pest = pest_data
+        if resolved_pest is None:
+            latest_trap = self.get_latest_trap_record()
+            if latest_trap and "pest" in latest_trap:
+                resolved_pest = latest_trap["pest"]
+        if resolved_pest is None:
+            resolved_pest = []
+
         # Construct payload strictly according to ans_for_vitthal.md §8 and data_flow_architecture.md §7.3
         payload = {
             "schema_version": "1.0",
@@ -833,7 +865,7 @@ class EdgeStorage(object):
                 }
                 for d in detections if "__" in d["class"] and "normal" not in d["class"] and "healthy" not in d["class"]
             ],
-            "pest": pest_data if pest_data is not None else [],
+            "pest": resolved_pest,
             "inputs": [
                 {"name": "pod_camera_rgb", "source_node": "POD", "status": "OK"},
                 {"name": "pod_gps", "source_node": "POD", "status": "OK" if gps_points > 0 else "ABSENT"},
@@ -940,7 +972,11 @@ class EdgeStorage(object):
         Returns parsed advisory dictionary or None if not found.
         """
         conn = self._get_connection()
-        if isinstance(advisory_id_or_seq, int) or (isinstance(advisory_id_or_seq, str) and advisory_id_or_seq.isdigit()):
+        if str(advisory_id_or_seq).lower() == "latest":
+            row = conn.execute(
+                "SELECT payload_json FROM advisories ORDER BY seq DESC LIMIT 1;"
+            ).fetchone()
+        elif isinstance(advisory_id_or_seq, int) or (isinstance(advisory_id_or_seq, str) and advisory_id_or_seq.isdigit()):
             row = conn.execute(
                 "SELECT payload_json FROM advisories WHERE seq = ?;",
                 (int(advisory_id_or_seq),),
@@ -1056,6 +1092,83 @@ class EdgeStorage(object):
 
         return pruned
 
+    # -------------------------------------------------------------------------
+    # Sticky-Trap Job Storage (Model B Gateway Job, Step 31 / H5)
+    # -------------------------------------------------------------------------
+
+    def record_trap_job(
+        self,
+        trap_id: str,
+        job_id: str,
+        image_path: str,
+        placed_at_utc: Optional[str],
+        days_monitored: Optional[float],
+        total_blobs_counted: int,
+        scale_mm_per_pixel: Optional[float],
+        scale_status: str,
+        etl_status: str,
+        pest_payload: List[Dict[str, Any]],
+    ) -> int:
+        """Records a completed Model B trap processing job to SQLite."""
+        conn = self._get_connection()
+        now_utc = get_utc_iso_now()
+
+        with conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO trap_records (
+                    trap_id, job_id, image_path, placed_at_utc, processed_at_utc,
+                    days_monitored, total_blobs_counted, scale_mm_per_pixel,
+                    scale_status, etl_status, pest_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    str(trap_id),
+                    str(job_id),
+                    str(image_path),
+                    str(placed_at_utc) if placed_at_utc is not None else None,
+                    now_utc,
+                    float(days_monitored) if days_monitored is not None else None,
+                    int(total_blobs_counted),
+                    float(scale_mm_per_pixel) if scale_mm_per_pixel is not None else None,
+                    str(scale_status),
+                    str(etl_status),
+                    json.dumps(pest_payload),
+                ),
+            )
+            return cursor.lastrowid
+
+    def get_latest_trap_record(self, trap_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Fetches the most recent trap job record, returning parsed pest dictionary."""
+        conn = self._get_connection()
+        if trap_id:
+            row = conn.execute(
+                "SELECT * FROM trap_records WHERE trap_id = ? ORDER BY id DESC LIMIT 1;",
+                (str(trap_id),),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM trap_records ORDER BY id DESC LIMIT 1;"
+            ).fetchone()
+
+        if not row:
+            return None
+
+        return {
+            "id": row["id"],
+            "trap_id": row["trap_id"],
+            "job_id": row["job_id"],
+            "image_path": row["image_path"],
+            "placed_at_utc": row["placed_at_utc"],
+            "processed_at_utc": row["processed_at_utc"],
+            "days_monitored": row["days_monitored"],
+            "total_blobs_counted": row["total_blobs_counted"],
+            "scale_mm_per_pixel": row["scale_mm_per_pixel"],
+            "scale_status": row["scale_status"],
+            "etl_status": row["etl_status"],
+            "pest": json.loads(row["pest_json"]),
+        }
+
     def close(self) -> None:
         """Closes the current thread's connection."""
         if hasattr(self._local, "conn") and self._local.conn is not None:
@@ -1064,3 +1177,4 @@ class EdgeStorage(object):
             except Exception:
                 pass
             self._local.conn = None
+
