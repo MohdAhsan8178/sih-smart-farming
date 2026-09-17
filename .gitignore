@@ -9,3 +9,11 @@ kaggle.json
 .env
 *.pt
 .venv/
+logs/
+*.zip
+*.rar
+*.tar.gz
+*.parquet
+*.pack
+kaggle/output/
+kaggle/model_b_package/
