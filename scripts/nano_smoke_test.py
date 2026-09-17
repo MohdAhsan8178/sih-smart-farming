@@ -133,7 +133,7 @@ def check_firmware():
     fw_path = "/lib/firmware/ath9k_htc/htc_9271.fw"
     exists = os.path.exists(fw_path)
     detail = "Found at {}".format(fw_path) if exists else "Missing at {}".format(fw_path)
-    return print_check("TP-Link TL-WN722N Firmware", exists, detail)
+    return print_check("Atheros AR9271-P Firmware", exists, detail)
 
 
 def check_gps_uart(port="/dev/ttyTHS1", timeout_s=10.0):

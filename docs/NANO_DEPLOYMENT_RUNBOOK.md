@@ -714,17 +714,22 @@ When on-pod NoIR hardware is absent or uncalibrated, the Nano can report Sentine
 4. Set Grant Types to `Client Credentials`. Copy the generated `Client ID` and `Client Secret`.
 
 ### 14.2 Credentials Storage
-Save the credentials to `/etc/sih/cdse.json` on the Jetson Nano with restrictive 600 permissions:
+Save the credentials to `/etc/sih/cdse.json` on the Jetson Nano with restrictive permissions:
 ```bash
 sudo mkdir -p /etc/sih
-sudo cat << EOF > /etc/sih/cdse.json
+sudo tee /etc/sih/cdse.json > /dev/null << 'EOF'
 {
   "client_id": "<YOUR_CLIENT_ID>",
   "client_secret": "<YOUR_CLIENT_SECRET>"
 }
 EOF
+sudo chown nvidia:nvidia /etc/sih/cdse.json
 sudo chmod 600 /etc/sih/cdse.json
 ```
+
+> [!NOTE]
+> **File Permissions & Service User:**  
+> Production systemd services (`sih-gateway.service`, `sih-pipeline.service`, `sih-collector.service`) run under `User=nvidia` (as specified in `scripts/setup_nano_services.sh`). Setting ownership to `nvidia:nvidia` with `chmod 600` ensures both the background services and manual execution (`python3 scripts/fetch_satellite_ndvi.py`) have read access while preventing world-readability. Alternatively, `sudo chown root:nvidia /etc/sih/cdse.json && sudo chmod 640 /etc/sih/cdse.json` may be used.
 
 ### 14.3 Field Geometry Configuration
 By default, `configs/field.json` is unconfigured:

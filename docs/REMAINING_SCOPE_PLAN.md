@@ -136,8 +136,8 @@ Four modules were built, audited, and tested, but currently sit uncalled by `edg
 
 ### Item 5: Mast Node ESP32 Firmware
 - **What it is:** C++/Arduino firmware for an unattended ESP32 field station:
-  - Periodically samples SHT31 (ambient temp/RH), capacitive soil moisture, and rain gauge.
-  - Broadcasts SoftAP `SIH-NODE-01` (192.168.5.1).
+  - Periodically samples SHT40 ambient temp/RH (early draft referenced SHT31; SHT40 confirmed in `docs/HARDWARE_WIRING_GUIDE.md`), capacitive soil moisture, and battery voltage.
+  - Broadcasts SoftAP `SIH-NODE-01` (192.168.9.1).
   - Captures sticky trap images via ESP32-CAM.
   - Serves telemetry history over local HTTP GET endpoints when the farmer walks nearby with the handheld pod.
 - **What currently exists:**
@@ -230,7 +230,7 @@ We recommend dividing the remaining 14 days into **four distinct phases**, prior
 #### Phase 3: Sensor Architecture & Firmware (24–26 September)
 *Goal: Provide a robust hardware abstraction layer that runs live when sensors exist and degrades cleanly when absent.*
 1. **Build `edge/sensors.py` (Step 23):**
-   - Unified interface querying I2C sensors (ADS1115 soil moisture, MLX90640 thermal array, SHT31 air temp/RH, GPS).
+   - Unified interface querying sensors (ADS1115 soil moisture, MLX90640 thermal array, SHT40 air temp/RH [early draft referenced SHT31], GPS).
    - Enforce explicit `null-with-reason` flags (`THERMAL_UNATTACHED`, `SOIL_PROBE_UNATTACHED`, `GPS_UNATTACHED`) when hardware is missing.
    - Include a `--simulate` flag strictly for bench testing and dry runs.
 2. **Develop Mast Station Firmware (`firmware/esp32_mast/`):**

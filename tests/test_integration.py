@@ -7,7 +7,7 @@ Execution Flow:
      standing in for NVIDIA TensorRT on development/macOS hosts.
   3. Rejection & Consensus: Multi-tile quality gating, open-set energy gate, prior adjustment, spatial & temporal consensus.
   4. Rules Engine: Deterministic agronomic action synthesis.
-  5. Ground Mast Telemetry: HTTP `POST /api/v1/mast/telemetry` with weather and water level data.
+  5. Ground Mast Telemetry: Pull ingestion of weather telemetry via `edge/mast_collector.py`.
   6. Sticky-Trap Node: HTTP `POST /api/v1/trap/upload` with sticky trap card image evaluated by Model B.
   7. Mobile App Gateway: HTTP `GET /api/v1/advisory/<id>` fetching authoritative advisory JSON.
   8. Contract Validation: Validates the entire payload against `docs/PAYLOAD_CONTRACT.md`.

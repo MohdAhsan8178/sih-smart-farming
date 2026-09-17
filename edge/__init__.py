@@ -1,7 +1,7 @@
 """
 edge package
 ------------
-Edge sensing, agronomic modeling, actuation, and LoRa telemetry for Jetson Nano / node gateways.
+Edge sensing, agronomic modeling, WiFi telemetry, and advisory generation for Jetson Nano pod and node gateways.
 """
 
 # Active edge package initialisation.

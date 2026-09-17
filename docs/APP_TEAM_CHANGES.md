@@ -1,6 +1,6 @@
 # App Team Handoff & Payload Changes Specification
 
-**Last Updated:** 21 September 2026  
+**Last Updated:** 17 September 2026  
 **Document:** `docs/APP_TEAM_CHANGES.md`  
 **Supersedes:** `data_flow_architecture.md` field definitions and `ans_for_vitthal.md` legacy draft items.  
 **Authoritative Reference:** `docs/PAYLOAD_CONTRACT.md` (validated by `tests/test_payload_contract.py`).

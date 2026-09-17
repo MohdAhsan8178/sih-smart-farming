@@ -3,6 +3,9 @@ edge/lora.py
 ------------
 SX1278 LoRa Packet Transport Framing, CRC16-CCITT, and Telemetry Serialization.
 
+NOTE: DESCOPED HARDWARE MODULE (Architecture confirmed 12 Sep 2026: all-WiFi architecture, no LoRa).
+Retained solely as non-runtime reference and protocol regression test coverage.
+
 Implements:
   1. Pure CRC16-CCITT calculation and validation (polynomial 0x1021, init 0xFFFF).
   2. Binary packet framing with header synchronization, node addressing, sequence tracking,
