@@ -26,8 +26,8 @@ SEED          = 42
 TAU_DISEASE = 0.4       # per-tile disease probability floor (calibrated STEP 15)
 TAU_MARGIN  = 0.15      # disease must beat healthy on the SAME tile by this (calibrated STEP 15)
 TAU_CONF    = 0.60      # abstain below this (on UNADJUSTED probabilities)
-TAU_ENERGY  = -2.7424   # <- refitted on clean val set (leakage-free); original STEP 15 value: -2.8529
-T_CAL       = 0.610     # <- refitted on clean val set (leakage-free); original STEP 15 value: 0.597
+TAU_ENERGY  = -2.7957   # <- refitted on SSIM-confirmed clean val set (N=2,616); original STEP 15: -2.8529, pHash-clean: -2.7424
+T_CAL       = 0.6162    # <- refitted on SSIM-confirmed clean val set (N=2,616); original STEP 15: 0.597, pHash-clean: 0.610
 TAU_PRIOR   = 0.0       # <- swept in STEP 15 (best validation macro-F1 with weighted loss)
 CELL_K, CELL_N, CELL_MIN_SCORE = 2, 3, 0.55
 
