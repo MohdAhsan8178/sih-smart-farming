@@ -22,6 +22,7 @@
 | `vegetation` | object | No | Object | Nadir RGB vegetation cover & relative indices |
 | `thermal` | object | No | Object | Canopy thermal status & CWSI availability block |
 | `ndvi` | object | No | Object | Dual-bandpass NoIR camera NDVI status block |
+| `ndvi_satellite` | object | No | Object | Sentinel-2 L2A satellite NDVI fallback block |
 | `irrigation` | object | No | Object | FAO-56 Hargreaves-Samani crop water requirement block |
 | `detections` | array | No | List of detection objects | Individual spatial/temporal plant detections with GPS |
 | `gps` | object | No | Object | Pod GPS fix status and accuracy metadata |
@@ -84,27 +85,53 @@
 | `ndvi` | float / null | Yes | `null` (hardware pending) | Dual-bandpass normalized difference vegetation index |
 | `ndvi_status` | string | No | `"GATED_HARDWARE_CALIBRATION"`, `"PENDING_HARDWARE_FINALIZATION"` | Hardware gating status |
 
-### 2.5 Hardware-Gated Blocks (`thermal`, `ndvi`, `irrigation`)
-| Block | Field | Type | Value When Hardware Absent | Description |
+### 2.5 Hardware-Gated & Environmental Blocks (`thermal`, `ndvi`, `ndvi_satellite`, `irrigation`)
+
+#### Thermal Block (`thermal`)
+| Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
-| `thermal` | `available` | boolean | `false` | `false` when MLX90640 thermal array is absent |
-| `thermal` | `reason` | string | Citation to PENDING_HARDWARE.md Subsystem 1 | Machine-readable availability explanation |
-| `ndvi` | `available` | boolean | `false` | `false` when IMX219-77IR + DB660/850 is absent |
-| `ndvi` | `reason` | string | Citation to PENDING_HARDWARE.md Subsystem 4 | Machine-readable availability explanation |
-| `irrigation` | `available` | boolean | `false` (unless mast data present) | FAO-56 Hargreaves-Samani ET0 availability |
-| `irrigation` | `method` | string | `"fao56_hargreaves_samani"` (when available) | ET0 calculation methodology |
-| `irrigation` | `t_min_24h_c`| float | Minimum air temp over 24h window | Diurnal air temp min (°C) |
-| `irrigation` | `t_max_24h_c`| float | Maximum air temp over 24h window | Diurnal air temp max (°C) |
-| `irrigation` | `t_mean_24h_c`| float| Mean air temp over 24h window | Diurnal air temp mean (°C) |
-| `irrigation` | `ra_mj_m2_day`| float | Dynamic FAO-56 Eq. 21 extraterrestrial radiation (MJ/m²/day) |
-| `irrigation` | `ra_mm_day`| float | $R_a \times 0.408$ equivalent depth in mm/day |
-| `irrigation` | `ra_source`| string | `"GPS"`, `"CONFIG_LATITUDE"` | Source of latitude for $R_a$ computation |
-| `irrigation` | `ra_latitude_deg`| float | Latitude used for $R_a$ calculation (°N/°S) |
-| `irrigation` | `day_of_year` | integer | 1 to 366 | Day of year ($J$) used for $R_a$ solar geometry |
-| `irrigation` | `et0_mm_day`| float | `0.0` to `15.0` mm/day | Reference evapotranspiration |
-| `irrigation` | `kc` | float | `0.20` to `1.35` | Growth-stage crop coefficient |
-| `irrigation` | `crop_et_mm_day`| float| `>= 0.0` mm/day | Crop evapotranspiration ($ET_c = ET_0 \times K_c$) |
-| `irrigation` | `samples_24h`| integer | `>= 6` | Valid air temperature readings in 24h |
+| `available` | boolean | No | `true`, `false` | True when MLX90640 frame captured and references valid |
+| `reason` | string | Yes | `THERMAL_REFS_NOT_CONFIGURED`, `INSUFFICIENT_REFERENCE_GAP`, etc. | Explanation if CWSI unavailable |
+| `tc_c` | float | Yes | Numeric (°C) | Median canopy temperature excluding reference boxes |
+| `twet_c` | float | Yes | Numeric (°C) | Median temperature of wet reference pad |
+| `tdry_c` | float | Yes | Numeric (°C) | Median temperature of dry reference pad |
+| `cwsi` | float | Yes | Numeric | Raw Crop Water Stress Index $(T_c - T_{wet})/(T_{dry} - T_{wet})$ |
+| `flag` | string | Yes | `"NORMAL"`, `"CWSI_BELOW_ZERO"`, `"CWSI_ABOVE_ONE"` | Out-of-bounds flag (unclamped reporting) |
+| `thermal_source` | string | No | `"hardware"`, `"mock"` | Origin of thermal data |
+| `frame_utc` | string | Yes | ISO-8601 UTC string or `null` | Capture timestamp of thermal frame |
+
+#### Sentinel-2 Satellite NDVI Block (`ndvi_satellite`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `available` | boolean | No | `true`, `false` | True when a clear Sentinel-2 scene is cached |
+| `reason` | string | Yes | `NO_SATELLITE_DATA_RECORDED`, `NO_CLEAR_SCENE`, `CREDENTIALS_MISSING`, etc. | Explanation if unavailable |
+| `source` | string | No | `"SENTINEL2_L2A_CDSE"` | Origin label for satellite data |
+| `scene_date` | string | Yes | ISO Date string (`YYYY-MM-DD`) | Acquisition date of satellite scene |
+| `age_days` | float | Yes | `>= 0.0` | Elapsed days since scene acquisition |
+| `ndvi_mean` | float | Yes | `-1.0` to `1.0` | Field polygon mean NDVI |
+| `ndvi_std` | float | Yes | `>= 0.0` | Field polygon standard deviation |
+| `valid_pixel_count` | integer | Yes | `>= 0` | Cloud-free valid 10m pixels evaluated |
+| `cloud_masked_fraction` | float | Yes | `0.0` to `1.0` | Fractional cloud/shadow mask coverage |
+| `pixel_size_m` | integer | No | `10` | Ground sample distance (10 meters) |
+| `reliability_note` | string | Yes | `"UNRELIABLE_SMALL_FIELD (<9 pixels / ~30x30m footprint)"` or `null` | Small field warning |
+
+#### FAO-56 Irrigation Block (`irrigation`)
+| Field | Type | Nullable | Description |
+|---|---|---|---|
+| `available` | boolean | No | True when ground mast temperature history is sufficient |
+| `method` | string | Yes | `"fao56_hargreaves_samani"` |
+| `t_min_24h_c` | float | Yes | Minimum diurnal air temp (°C) |
+| `t_max_24h_c` | float | Yes | Maximum diurnal air temp (°C) |
+| `t_mean_24h_c` | float | Yes | Mean diurnal air temp (°C) |
+| `ra_mj_m2_day` | float | Yes | Dynamic FAO-56 Eq. 21 extraterrestrial radiation (MJ/m²/day) |
+| `ra_mm_day` | float | Yes | $R_a \times 0.408$ equivalent depth (mm/day) |
+| `ra_source` | string | Yes | `"GPS"`, `"CONFIG_LATITUDE"` |
+| `ra_latitude_deg` | float | Yes | Latitude used for $R_a$ computation |
+| `day_of_year` | integer | Yes | Day of year ($J$) |
+| `et0_mm_day` | float | Yes | Reference evapotranspiration |
+| `kc` | float | Yes | Crop coefficient |
+| `crop_et_mm_day` | float | Yes | Crop ET ($ET_c = ET_0 \times K_c$) |
+| `samples_24h` | integer | Yes | Readings in 24h window |
 
 ### 2.6 Trap Pest Block (`pest[]`)
 | Field | Type | Nullable | Allowed Values | Description |

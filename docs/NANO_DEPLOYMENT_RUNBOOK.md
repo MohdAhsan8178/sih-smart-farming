@@ -666,41 +666,107 @@ Ensure $4.7\text{ k}\Omega$ pull-up resistors to 3.3V are populated on both SDA 
 
 ---
 
-## 13. Systemd Services & Timer Management (L7.1, L7.2)
+## 13. Systemd Services & Collector Trigger Policy (L7.1, M3.1–M3.4)
 
 Production deployment on the Jetson Nano utilizes systemd unit files installed by `scripts/setup_nano_services.sh`:
 
-### 13.1 Service Inventory
+### 13.1 Service Inventory & Trigger Hierarchy
 
-| Unit Name | Type | Purpose | Dependencies & Constraints |
+| Unit Name | Type | Purpose | Policy & Dependencies |
 | :--- | :--- | :--- | :--- |
 | `sih-gateway.service` | `simple` | Offline HTTP API Gateway (`0.0.0.0:8080`) | `After=network-online.target` |
 | `sih-pipeline.service` | `simple` | Model A Edge Video Inference Daemon | `After=sih-gateway.service`, `Requires=sih-gateway.service` |
+| `sih-collector-boot.service` | `oneshot` | Initial single sync after gateway boots | `After=sih-gateway.service`, `Requires=sih-gateway.service` |
 | `sih-collector.service`| `oneshot` | Ground Mast Pull Collector | Mutex guarded via `/usr/bin/flock -n /run/lock/sih-collector.lock` |
-| `sih-collector.timer`  | `timer` | Triggers collection every 30 minutes | `OnBootSec=2min`, `OnUnitActiveSec=30min` |
+| `sih-collector.timer`  | `timer` | Background collector polling (Disabled by default) | Configurable interval (min 60m), `Persistent=true`. Skips if client connected. |
 
-### 13.2 Installation & Startup
+### 13.2 Collector Trigger Hierarchy
+1. **Primary Trigger:** Farmer mobile app requests on-demand sync via `POST /api/v1/sync/trigger`.
+2. **Boot Trigger:** `sih-collector-boot.service` runs once automatically after system boot and gateway startup.
+3. **Background Periodic Timer:** `sih-collector.timer` is **DISABLED by default**. If enabled by operator, it enforces a minimum interval of 60 minutes and automatically skips execution if any mobile client is connected to `SIH-FIELD` AP (detected via `iw dev wlan0 station dump`).
+
+### 13.3 Installation & Startup
 ```bash
 # Run installer as root
 sudo ./scripts/setup_nano_services.sh
 
-# Enable and start services
+# Enable and start essential production services
 sudo systemctl enable --now sih-gateway.service
-sudo systemctl enable --now sih-collector.timer
+sudo systemctl enable --now sih-collector-boot.service
 sudo systemctl enable sih-pipeline.service
+
+# Optional: Enable 60-min background collector timer
+sudo systemctl enable --now sih-collector.timer
 ```
 
-### 13.3 Manual Execution & Diagnostics
+---
+
+## 14. Copernicus CDSE Sentinel-2 Satellite NDVI Fallback (M4.1–M4.8)
+
+When on-pod NoIR hardware is absent or uncalibrated, the Nano can report Sentinel-2 L2A satellite NDVI for the configured field polygon.
+
+### 14.1 CDSE Account & OAuth2 Client Setup
+1. Register an account on the [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu).
+2. Open the [Copernicus Dashboard](https://shapps.dataspace.copernicus.eu/dashboard/#/).
+3. Navigate to **OAuth Clients** -> **Create New OAuth Client**.
+4. Set Grant Types to `Client Credentials`. Copy the generated `Client ID` and `Client Secret`.
+
+### 14.2 Credentials Storage
+Save the credentials to `/etc/sih/cdse.json` on the Jetson Nano with restrictive 600 permissions:
 ```bash
-# Manually trigger immediate mast collection
-sudo systemctl start sih-collector.service
-
-# View live service logs
-journalctl -u sih-gateway.service -f
-journalctl -u sih-collector.service -n 50 --no-pager
-journalctl -u sih-pipeline.service -f
-
-# Check timer status and next scheduled run
-systemctl list-timers sih-collector.timer
+sudo mkdir -p /etc/sih
+sudo cat << EOF > /etc/sih/cdse.json
+{
+  "client_id": "<YOUR_CLIENT_ID>",
+  "client_secret": "<YOUR_CLIENT_SECRET>"
+}
+EOF
+sudo chmod 600 /etc/sih/cdse.json
 ```
+
+### 14.3 Field Geometry Configuration
+Enter the field boundary polygon in `configs/field.json` as GeoJSON coordinates `[ [lon, lat], [lon, lat], ... ]`:
+```json
+{
+  "status": "MEASURED",
+  "field_id": "F01",
+  "polygon_coordinates": [
+    [
+      [77.5850, 28.5200],
+      [77.5870, 28.5200],
+      [77.5870, 28.5220],
+      [77.5850, 28.5220],
+      [77.5850, 28.5200]
+    ]
+  ],
+  "last_updated_utc": "2026-09-20T10:00:00Z"
+}
+```
+
+### 14.4 Running Manual Satellite Fetch
+Whenever the Jetson Nano is connected to the internet (via Ethernet or uplink):
+```bash
+python3 scripts/fetch_satellite_ndvi.py --credentials /etc/sih/cdse.json --field-config configs/field.json
+```
+The script performs a quick connectivity check, authenticates via CDSE token endpoint, executes the SCL-masked Statistical API call, and caches the result into `edge.db`.
+
+---
+
+## 15. Thermal Reference Surface Setup & Calibration (M2.1–M2.3)
+
+Crop Water Stress Index (CWSI) is calculated via direct physical reference surfaces:
+$$\text{CWSI} = \frac{T_c - T_{\text{wet}}}{T_{\text{dry}} - T_{\text{wet}}}$$
+
+### 15.1 Step-by-Step Setup Procedure
+1. Position physical wet (saturated water pad) and dry (sunlit non-transpiring pad) reference surfaces in the fixed view of the MLX90640.
+2. Capture a calibration frame and generate the labelled 480x640 pixel grid:
+   ```bash
+   python3 scripts/thermal_ref_setup.py --capture
+   ```
+3. Open the resulting PNG image in `data/thermal_calibration/`. Identify the row ranges (0–23) and column ranges (0–31) covering the wet pad and dry pad.
+4. Save the calibrated boxes into `configs/thermal_refs.json`:
+   ```bash
+   python3 scripts/thermal_ref_setup.py --wet-box 2,6,2,6 --dry-box 2,6,26,30
+   ```
+5. If `configs/thermal_refs.json` has `status: "NOT_CONFIGURED"`, CWSI is safely marked `"available": false` in emitted advisories.
 

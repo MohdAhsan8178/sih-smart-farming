@@ -85,11 +85,40 @@ class WiFiSwitch(object):
         cmd = ["nmcli", "connection", "up", self.field_ap_name]
         return self._run_cmd(cmd)
 
-    def run_with_mast_connection(self, task_fn):
+    def has_associated_clients(self, iface="wlan0"):
+        # type: (str) -> bool
+        """
+        Checks if any client stations are connected to local AP via `iw dev <iface> station dump`.
+        STATUS: UNVERIFIED ON HARDWARE.
+        Returns True if at least one station MAC is listed in output.
+        """
+        if self.dry_run:
+            return False
+        try:
+            res = subprocess.run(
+                ["iw", "dev", str(iface), "station", "dump"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                timeout=5,
+            )
+            if res.returncode == 0:
+                lines = [l.strip() for l in res.stdout.splitlines() if l.strip().startswith("Station ")]
+                return len(lines) > 0
+        except Exception:
+            pass
+        return False
+
+    def run_with_mast_connection(self, task_fn, skip_if_client_connected=False, iface="wlan0"):
         """
         Context wrapper that stops AP, connects to mast, runs task_fn,
         and ALWAYS restores the field AP in a finally block.
+        If skip_if_client_connected=True, checks for active AP clients first.
         """
+        if skip_if_client_connected and self.has_associated_clients(iface=iface):
+            logger.info("Client connected to AP '%s'; skipping scheduled mast sync.", self.field_ap_name)
+            return {"status": "skipped", "result_code": "SKIPPED_CLIENT_CONNECTED"}
+
         t_total_0 = time.time()
         logger.info("Beginning WiFi mode switch to Mast AP '%s'...", self.mast_ssid)
         try:

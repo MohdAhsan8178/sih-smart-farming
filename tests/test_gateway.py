@@ -334,7 +334,7 @@ def test_l4_2_mock_advisory_guard_production_mode():
 
 def test_l7_3_sync_endpoints():
     """
-    L7.3: Verify GET /api/v1/sync/status and POST /api/v1/sync/trigger endpoints.
+    L7.3, M3.3: Verify GET /api/v1/sync/status and POST /api/v1/sync/trigger endpoints.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "sync_test.db"
@@ -350,14 +350,21 @@ def test_l7_3_sync_endpoints():
             assert status == 200
             assert "sync_in_progress" in body
             assert body["sync_in_progress"] is False
+            assert "last_success_utc" in body
+            assert "last_attempt_utc" in body
+            assert "last_result" in body
+            assert "mast_data_age_s" in body
+            assert "records_pulled" in body
+            assert "trap_images_pulled" in body
 
-            # Trigger sync -> 202 Accepted
+            # Trigger sync -> 202 Accepted with expected_ap_downtime_s
             status, body, _ = http_post_json(f"{base_url}/api/v1/sync/trigger", {})
             assert status == 202
-            assert body["status"] == "started"
+            assert body["status"] == "accepted"
+            assert body["expected_ap_downtime_s"] == 30
             assert "timestamp" in body
 
-            # If triggered again while running -> 409 Conflict (simulated by setting sync_in_progress)
+            # If triggered again while running -> 409 Conflict
             gateway.server.sync_in_progress = True
             status, body, _ = http_post_json(f"{base_url}/api/v1/sync/trigger", {})
             assert status == 409
@@ -365,4 +372,38 @@ def test_l7_3_sync_endpoints():
             gateway.server.sync_in_progress = False
         finally:
             gateway.stop()
+
+
+def test_m3_2_wifi_switch_skip_if_client_connected():
+    """
+    M3.2: Verify WiFiSwitch skip logic when clients are connected to AP.
+    """
+    from edge.wifi_switch import WiFiSwitch
+    from unittest.mock import patch
+
+    switcher = WiFiSwitch(dry_run=True)
+
+    # 1. No clients connected -> runs task
+    task_ran = [False]
+    def dummy_task():
+        task_ran[0] = True
+        return {"status": "ok"}
+
+    with patch.object(switcher, "has_associated_clients", return_value=False):
+        res = switcher.run_with_mast_connection(dummy_task, skip_if_client_connected=True)
+        assert task_ran[0] is True
+        assert res["status"] == "ok"
+
+    # 2. Client connected -> skips task and returns SKIPPED_CLIENT_CONNECTED
+    task_ran_2 = [False]
+    def dummy_task_2():
+        task_ran_2[0] = True
+        return {"status": "ok"}
+
+    with patch.object(switcher, "has_associated_clients", return_value=True):
+        res_skip = switcher.run_with_mast_connection(dummy_task_2, skip_if_client_connected=True)
+        assert task_ran_2[0] is False
+        assert res_skip["status"] == "skipped"
+        assert res_skip["result_code"] == "SKIPPED_CLIENT_CONNECTED"
+
 

@@ -6,6 +6,11 @@ __pycache__/
 *.engine
 *.onnx
 kaggle.json
+cdse.json
+*cdse*.json
+/etc/sih/cdse.json
+credentials.json
+*.secret
 .env
 *.pt
 .venv/

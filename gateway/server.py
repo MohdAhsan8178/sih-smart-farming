@@ -71,7 +71,11 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
         self.sync_state = "IDLE"
         self.sync_in_progress = False
         self.last_sync_utc = None
-        self.last_sync_result = None
+        self.last_success_utc = None
+        self.last_attempt_utc = None
+        self.last_result = None  # "OK", "MAST_NOT_FOUND", "PARTIAL", "ERROR", "SKIPPED_CLIENT_CONNECTED"
+        self.last_records_pulled = 0
+        self.last_trap_images_pulled = 0
         self._sync_lock = threading.Lock()
 
     def set_sync_state(self, syncing: bool, state_name: str = "IDLE") -> None:
@@ -90,22 +94,35 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
 
     def trigger_sync(self) -> bool:
         """
-        Triggers an asynchronous mast synchronization pull cycle.
+        Triggers an asynchronous mast synchronization pull cycle (M3.1, M3.3).
         Returns True if started, False if a sync is already running.
         """
         with self._sync_lock:
             if self.sync_in_progress:
                 return False
             self.sync_in_progress = True
+            self.last_attempt_utc = get_utc_iso_now()
 
         def _worker():
             try:
                 from edge.mast_collector import MastCollector
                 collector = MastCollector(storage=self.storage)
                 res = collector.collect()
-                self.last_sync_result = res
+                if isinstance(res, dict) and res.get("status") == "ok":
+                    self.last_result = "OK"
+                    self.last_success_utc = get_utc_iso_now()
+                    self.last_records_pulled = int(res.get("records_pulled", 0))
+                    self.last_trap_images_pulled = int(res.get("traps_processed", 0))
+                else:
+                    self.last_result = res.get("result_code", "PARTIAL") if isinstance(res, dict) else "PARTIAL"
+                    self.last_records_pulled = int(res.get("records_pulled", 0)) if isinstance(res, dict) else 0
+                    self.last_trap_images_pulled = int(res.get("traps_processed", 0)) if isinstance(res, dict) else 0
             except Exception as ex:
-                self.last_sync_result = {"status": "error", "error": str(ex)}
+                err_str = str(ex).lower()
+                if "not found" in err_str or "unreachable" in err_str or "refused" in err_str or "timed out" in err_str or "no route" in err_str:
+                    self.last_result = "MAST_NOT_FOUND"
+                else:
+                    self.last_result = "ERROR"
             finally:
                 self.last_sync_utc = get_utc_iso_now()
                 with self._sync_lock:
@@ -166,12 +183,27 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 self._send_json_response(200, health)
                 return
 
-            # Route: GET /api/v1/sync/status (L7.3)
+            # Route: GET /api/v1/sync/status (L7.3, M3.3)
             if path == "/api/v1/sync/status":
+                conn = self.server.storage._get_connection()
+                latest_mast = conn.execute("SELECT received_at FROM mast_telemetry ORDER BY id DESC LIMIT 1;").fetchone()
+                mast_data_age_s = None
+                if latest_mast and latest_mast["received_at"]:
+                    try:
+                        m_dt = _parse_iso_timestamp(latest_mast["received_at"])
+                        if m_dt:
+                            mast_data_age_s = int(abs((datetime.datetime.now(datetime.timezone.utc) - m_dt).total_seconds()))
+                    except Exception:
+                        pass
+
                 status_payload = {
                     "sync_in_progress": getattr(self.server, "sync_in_progress", False),
-                    "last_sync_utc": getattr(self.server, "last_sync_utc", None),
-                    "last_sync_result": getattr(self.server, "last_sync_result", None),
+                    "last_success_utc": getattr(self.server, "last_success_utc", None),
+                    "last_attempt_utc": getattr(self.server, "last_attempt_utc", None),
+                    "last_result": getattr(self.server, "last_result", None),
+                    "mast_data_age_s": mast_data_age_s,
+                    "records_pulled": getattr(self.server, "last_records_pulled", 0),
+                    "trap_images_pulled": getattr(self.server, "last_trap_images_pulled", 0),
                 }
                 self._send_json_response(200, status_payload)
                 return
@@ -392,7 +424,7 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 self._send_json_response(200, resp)
                 return
 
-            # Route: POST /api/v1/sync/trigger (L7.3)
+            # Route: POST /api/v1/sync/trigger (L7.3, M3.3)
             if path == "/api/v1/sync/trigger":
                 started = self.server.trigger_sync()
                 if not started:
@@ -403,8 +435,9 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                     )
                     return
                 self._send_json_response(202, {
-                    "status": "started",
+                    "status": "accepted",
                     "timestamp": get_utc_iso_now(),
+                    "expected_ap_downtime_s": 30,
                 })
                 return
 

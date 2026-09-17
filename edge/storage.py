@@ -298,7 +298,26 @@ class EdgeStorage(object):
                     """
                 )
 
+                # 9. Sentinel-2 Satellite NDVI Cache (M4.5)
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS satellite_ndvi (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        field_id TEXT,
+                        fetched_utc TEXT NOT NULL,
+                        scene_date TEXT NOT NULL,
+                        ndvi_mean REAL,
+                        ndvi_std REAL,
+                        valid_pixel_count INTEGER,
+                        cloud_masked_fraction REAL,
+                        raw_response_json TEXT,
+                        source TEXT NOT NULL DEFAULT 'SENTINEL2_L2A_CDSE'
+                    );
+                    """
+                )
+
                 # Performance indexes
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_satellite_ndvi_date ON satellite_ndvi(scene_date);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_frame_events_scan ON frame_events(scan_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_frame_events_cell ON frame_events(cell_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_advisories_seq ON advisories(seq);")
@@ -585,6 +604,7 @@ class EdgeStorage(object):
         total_cycle_days: Optional[int] = None,
         pest_data: Optional[Dict[str, Any]] = None,
         inference_backend: str = "trt",
+        thermal_frame_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Synthesizes a complete frozen Advisory document (schema v1.0) from recorded
@@ -874,18 +894,52 @@ class EdgeStorage(object):
             total_cycle_days=total_cycle_days,
         )
 
-        # J5 / L4 Hardware-Gated Blocks: Thermal, NDVI, Irrigation
+        # J5 / L4 / M2 / M4 Hardware-Gated Blocks: Thermal, NDVI, Satellite NDVI, Irrigation
         from edge.sensors import MastTelemetryReader
         from edge.hardware_detect import detect_mlx90640, detect_noir_camera
         reader = MastTelemetryReader(self)
         mast_reading = reader.get_latest()
 
-        # 1. Thermal block (MLX90640 runtime I2C probe)
-        mlx_ok, mlx_reason = detect_mlx90640()
-        thermal_block = {
-            "available": mlx_ok,
-            "reason": mlx_reason,
-        }
+        # 1. Thermal block (MLX90640 runtime I2C probe + Reference CWSI M2.3/M2.5)
+        if thermal_frame_data and thermal_frame_data.get("available") and thermal_frame_data.get("temperature_array") is not None:
+            from edge.thermal_capture import load_thermal_refs
+            from core.thermal import evaluate_reference_cwsi_from_frame
+            refs_cfg = load_thermal_refs()
+            cwsi_eval = evaluate_reference_cwsi_from_frame(thermal_frame_data["temperature_array"], refs_cfg)
+            thermal_block = {
+                "available": cwsi_eval["available"],
+                "reason": cwsi_eval["reason"],
+                "tc_c": cwsi_eval["tc_c"],
+                "twet_c": cwsi_eval["twet_c"],
+                "tdry_c": cwsi_eval["tdry_c"],
+                "cwsi": cwsi_eval["cwsi"],
+                "flag": cwsi_eval["flag"],
+                "thermal_source": str(thermal_frame_data.get("thermal_source", "hardware")),
+                "frame_utc": thermal_frame_data.get("timestamp_utc", scan_row["started_utc"]),
+            }
+        else:
+            mlx_ok, mlx_reason = detect_mlx90640()
+            if mlx_ok:
+                from edge.thermal_capture import load_thermal_refs
+                refs_cfg = load_thermal_refs()
+                if refs_cfg.get("status") != "MEASURED":
+                    thermal_reason = "THERMAL_REFS_NOT_CONFIGURED"
+                else:
+                    thermal_reason = "NO_THERMAL_FRAME_IN_SCAN"
+            else:
+                thermal_reason = mlx_reason
+
+            thermal_block = {
+                "available": False,
+                "reason": thermal_reason,
+                "tc_c": None,
+                "twet_c": None,
+                "tdry_c": None,
+                "cwsi": None,
+                "flag": None,
+                "thermal_source": "hardware",
+                "frame_utc": None,
+            }
 
         # 2. NDVI block (IMX219-77IR NoIR camera CSI probe)
         noir_ok, noir_reason = detect_noir_camera()
@@ -893,6 +947,37 @@ class EdgeStorage(object):
             "available": noir_ok,
             "reason": noir_reason,
         }
+
+        # 3. Sentinel-2 Satellite NDVI block (M4.6)
+        sat_record = self.get_latest_satellite_ndvi(field_id=field_id)
+        if sat_record:
+            ndvi_satellite_block = {
+                "available": True,
+                "reason": None,
+                "source": "SENTINEL2_L2A_CDSE",
+                "scene_date": sat_record["scene_date"],
+                "age_days": sat_record.get("age_days"),
+                "ndvi_mean": sat_record["ndvi_mean"],
+                "ndvi_std": sat_record["ndvi_std"],
+                "valid_pixel_count": sat_record["valid_pixel_count"],
+                "cloud_masked_fraction": sat_record["cloud_masked_fraction"],
+                "pixel_size_m": 10,
+                "reliability_note": sat_record.get("reliability_note"),
+            }
+        else:
+            ndvi_satellite_block = {
+                "available": False,
+                "reason": "NO_SATELLITE_DATA_RECORDED",
+                "source": "SENTINEL2_L2A_CDSE",
+                "scene_date": None,
+                "age_days": None,
+                "ndvi_mean": None,
+                "ndvi_std": None,
+                "valid_pixel_count": None,
+                "cloud_masked_fraction": None,
+                "pixel_size_m": 10,
+                "reliability_note": None,
+            }
 
         # 3. Irrigation block (FAO-56 Hargreaves-Samani, Eq 52 & Dynamic Ra Eqs 21-25)
         history_24h = self.get_mast_readings_history(hours=24.0)
@@ -1028,6 +1113,7 @@ class EdgeStorage(object):
             "vegetation": vegetation,
             "thermal": thermal_block,
             "ndvi": ndvi_block,
+            "ndvi_satellite": ndvi_satellite_block,
             "irrigation": irrigation_block,
             "detections": detections,
             "gps": {
@@ -1547,6 +1633,83 @@ class EdgeStorage(object):
                 "received_at": row["received_at"],
             })
         return result
+
+    def record_satellite_ndvi(
+        self,
+        ndvi_data: Dict[str, Any],
+        field_id: Optional[str] = None,
+        raw_response: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """Records a Sentinel-2 satellite NDVI observation into SQLite (M4.5)."""
+        conn = self._get_connection()
+        now_utc = get_utc_iso_now()
+        raw_json = json.dumps(raw_response) if raw_response is not None else None
+
+        with conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO satellite_ndvi (
+                    field_id, fetched_utc, scene_date, ndvi_mean, ndvi_std,
+                    valid_pixel_count, cloud_masked_fraction, raw_response_json, source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    str(field_id) if field_id is not None else None,
+                    now_utc,
+                    str(ndvi_data["scene_date"]),
+                    float(ndvi_data["ndvi_mean"]) if ndvi_data.get("ndvi_mean") is not None else None,
+                    float(ndvi_data["ndvi_std"]) if ndvi_data.get("ndvi_std") is not None else None,
+                    int(ndvi_data["valid_pixel_count"]) if ndvi_data.get("valid_pixel_count") is not None else None,
+                    float(ndvi_data["cloud_masked_fraction"]) if ndvi_data.get("cloud_masked_fraction") is not None else None,
+                    raw_json,
+                    str(ndvi_data.get("source", "SENTINEL2_L2A_CDSE")),
+                ),
+            )
+            return cursor.lastrowid
+
+    def get_latest_satellite_ndvi(self, field_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Fetches the most recent cached satellite NDVI record."""
+        conn = self._get_connection()
+        if field_id:
+            row = conn.execute(
+                "SELECT * FROM satellite_ndvi WHERE field_id = ? ORDER BY scene_date DESC, id DESC LIMIT 1;",
+                (str(field_id),),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM satellite_ndvi ORDER BY scene_date DESC, id DESC LIMIT 1;"
+            ).fetchone()
+
+        if not row:
+            return None
+
+        # Compute age in days
+        now_dt = datetime.datetime.now(datetime.timezone.utc)
+        age_days = None
+        try:
+            s_dt = datetime.datetime.strptime(row["scene_date"], "%Y-%m-%d").replace(tzinfo=datetime.timezone.utc)
+            age_days = round(abs((now_dt - s_dt).total_seconds()) / 86400.0, 1)
+        except Exception:
+            pass
+
+        valid_count = row["valid_pixel_count"]
+        reliability_note = None
+        if valid_count is not None and valid_count < 9:
+            reliability_note = "UNRELIABLE_SMALL_FIELD (<9 pixels / ~30x30m footprint)"
+
+        return {
+            "id": row["id"],
+            "field_id": row["field_id"],
+            "fetched_utc": row["fetched_utc"],
+            "scene_date": row["scene_date"],
+            "age_days": age_days,
+            "ndvi_mean": row["ndvi_mean"],
+            "ndvi_std": row["ndvi_std"],
+            "valid_pixel_count": valid_count,
+            "cloud_masked_fraction": row["cloud_masked_fraction"],
+            "source": row["source"],
+            "reliability_note": reliability_note,
+        }
 
     def close(self) -> None:
         """Closes the current thread's connection."""

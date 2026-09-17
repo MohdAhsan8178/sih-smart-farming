@@ -134,14 +134,35 @@ StandardError=journal
 EOF
 echo "[+] Wrote /etc/systemd/system/sih-collector.service"
 
-# 4.4 Mast Collector Timer (every 30 minutes)
+# 4.4 Mast Collector Boot Service (M3.1 oneshot after gateway is up)
+cat << EOF > /etc/systemd/system/sih-collector-boot.service
+[Unit]
+Description=SIH Smart Farming Initial Post-Boot Mast Collection
+After=sih-gateway.service
+Requires=sih-gateway.service
+
+[Service]
+Type=oneshot
+User=nvidia
+WorkingDirectory=/home/nvidia/sih-smart-farming
+ExecStart=/usr/bin/flock -n /run/lock/sih-collector.lock /usr/bin/python3 edge/mast_collector.py --db-path data/edge.db
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+echo "[+] Wrote /etc/systemd/system/sih-collector-boot.service"
+
+# 4.5 Mast Collector Periodic Timer (M3.1, M3.2: DISABLED by default, minimum 60min interval)
+TIMER_INTERVAL="${SIH_COLLECTOR_INTERVAL_MIN:-60min}"
 cat << EOF > /etc/systemd/system/sih-collector.timer
 [Unit]
-Description=Trigger SIH Ground Mast Collection Every 30 Minutes
+Description=Trigger SIH Ground Mast Collection Periodically (Default 60 min, Disabled by default)
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=30min
+OnBootSec=10min
+OnUnitActiveSec=${TIMER_INTERVAL}
 Persistent=true
 
 [Install]
@@ -153,10 +174,12 @@ echo "[+] Wrote /etc/systemd/system/sih-collector.timer"
 if command -v systemctl &> /dev/null; then
     systemctl daemon-reload
     echo "[+] Systemd daemon reloaded."
-    echo "[*] To enable and start services on the Nano:"
+    echo "[*] To enable and start active production services on the Nano:"
     echo "      sudo systemctl enable --now sih-gateway.service"
-    echo "      sudo systemctl enable --now sih-collector.timer"
+    echo "      sudo systemctl enable --now sih-collector-boot.service"
     echo "      sudo systemctl enable sih-pipeline.service"
+    echo "      # Note: sih-collector.timer is DISABLED by default (app trigger is primary)."
+    echo "      # To enable 60-min background polling: sudo systemctl enable --now sih-collector.timer"
 fi
 
 echo "========================================================================"

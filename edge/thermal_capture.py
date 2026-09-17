@@ -43,21 +43,22 @@ class MLX90640(object):
         self.mock = bool(mock)
         self.emissivity = 0.95  # Standard agricultural crop canopy emissivity
         self.params = {}        # type: Dict[str, Any]
+        self._init_error = None  # type: Optional[str]
 
-        if not self.mock:
+        if self.mock:
+            self._bus = None
+            print("[THERMAL] Explicit MOCK thermal source requested (--thermal-source mock).")
+            self._init_mock_params()
+        else:
             try:
                 import smbus2
                 self.smbus2 = smbus2
                 self._bus = smbus2.SMBus(self.bus_num)
                 self._load_eeprom()
             except Exception as e:
-                # Fallback to mock mode if hardware bus is absent
-                self.mock = True
+                # No silent fallback! Record error; hardware requested must fail clearly if absent.
                 self._bus = None
-                self._init_mock_params()
-        else:
-            self._bus = None
-            self._init_mock_params()
+                self._init_error = str(e)
 
     def _read_words(self, start_addr, num_words):
         # type: (int, int) -> List[int]
@@ -179,7 +180,7 @@ class MLX90640(object):
 
             return {
                 "available": True,
-                "mock": True,
+                "thermal_source": "mock",
                 "temperature_array": thermal,
                 "ambient_temp_c": round(float(target_ambient_c), 2),
                 "mean_temp_c": round(float(np.mean(thermal)), 2),
@@ -189,6 +190,16 @@ class MLX90640(object):
                 "rows": 24,
                 "cols": 32,
                 "emissivity": self.emissivity,
+            }
+
+        # Real hardware path check
+        if self._init_error is not None:
+            return {
+                "available": False,
+                "thermal_source": "hardware",
+                "reason": "HARDWARE_NOT_CONNECTED: %s" % self._init_error,
+                "timestamp_utc": now_utc,
+                "temperature_array": None,
             }
 
         # Real hardware capture path
@@ -212,7 +223,7 @@ class MLX90640(object):
 
             return {
                 "available": True,
-                "mock": False,
+                "thermal_source": "hardware",
                 "temperature_array": thermal,
                 "ambient_temp_c": round(float(ta), 2),
                 "mean_temp_c": round(float(np.mean(thermal)), 2),
@@ -226,39 +237,28 @@ class MLX90640(object):
         except Exception as ex:
             return {
                 "available": False,
-                "mock": False,
+                "thermal_source": "hardware",
                 "reason": "HARDWARE_CAPTURE_FAILED: %s" % ex,
                 "timestamp_utc": now_utc,
+                "temperature_array": None,
             }
 
 
-def calculate_cwsi_reference_based(tc, t_wet, t_dry):
-    # type: (float, Optional[float], Optional[float]) -> Tuple[Optional[float], str]
-    """
-    Computes Crop Water Stress Index (CWSI) using physical wet and dry reference surfaces (L6.3).
-
-    Formula (Jones, 1999; Idso et al., 1981):
-      CWSI = (Tc - T_wet) / (T_dry - T_wet)
-
-    Constraints:
-      1. T_wet and T_dry MUST be explicitly configured / measured.
-      2. If missing or invalid, NEVER guess or use uncalibrated defaults.
-      3. Returns (None, "WET_DRY_REFERENCES_NOT_CONFIGURED") on missing references.
-    """
-    if t_wet is None or t_dry is None:
-        return None, "WET_DRY_REFERENCES_NOT_CONFIGURED"
-
+def load_thermal_refs(config_path="configs/thermal_refs.json"):
+    # type: (str) -> Dict[str, Any]
+    """Loads and returns the thermal reference regions configuration."""
+    import json
+    if not os.path.exists(config_path):
+        return {"status": "NOT_CONFIGURED", "wet_ref": None, "dry_ref": None}
     try:
-        t_wet_val = float(t_wet)
-        t_dry_val = float(t_dry)
-        tc_val = float(tc)
-    except (ValueError, TypeError):
-        return None, "INVALID_REFERENCE_TEMPERATURES"
+        with open(config_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"status": "NOT_CONFIGURED", "wet_ref": None, "dry_ref": None}
 
-    denom = t_dry_val - t_wet_val
-    if denom <= 0.5:  # Require at least 0.5°C dynamic range between wet and dry references
-        return None, "INSUFFICIENT_REFERENCE_TEMPERATURE_GAP (T_dry - T_wet <= 0.5C)"
 
-    cwsi_raw = (tc_val - t_wet_val) / denom
-    cwsi_clamped = max(0.0, min(1.0, cwsi_raw))
-    return float(round(cwsi_clamped, 4)), "OK"
+def calculate_cwsi_reference_based(tc, t_wet, t_dry, allow_unclamped=False):
+    # type: (float, Optional[float], Optional[float], bool) -> Any
+    """Delegates to core/thermal.py reference implementation."""
+    from core.thermal import calculate_cwsi_reference_based as core_calc
+    return core_calc(tc, t_wet, t_dry, allow_unclamped=allow_unclamped)

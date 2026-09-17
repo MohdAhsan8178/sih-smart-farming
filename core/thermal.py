@@ -180,9 +180,14 @@ def cwsi(tc, ta, vpd_kpa, ll_slope, ll_intercept, ul_offset):
     return float(np.clip((d - ll) / (ul - ll), 0.0, 1.0))
 
 
-def calculate_cwsi_reference_based(tc, t_wet, t_dry):
+# Provisional reference CWSI constants (Jones 1999) - UNMEASURED defaults requiring field verification
+PROVISIONAL_MIN_REF_GAP_C = 1.5  # degC minimum (Tdry - Twet) required to compute CWSI
+PROVISIONAL_MAX_REF_STD_C = 1.5  # degC maximum standard deviation within wet/dry reference box
+
+
+def calculate_cwsi_reference_based(tc, t_wet, t_dry, allow_unclamped=False):
     """
-    Computes Crop Water Stress Index (CWSI) using physical wet and dry reference surfaces (L6.3).
+    Computes Crop Water Stress Index (CWSI) using physical wet and dry reference surfaces (L6.3, M2.3).
 
     Formula (Jones, 1999; Idso et al., 1981):
       CWSI = (Tc - T_wet) / (T_dry - T_wet)
@@ -191,6 +196,7 @@ def calculate_cwsi_reference_based(tc, t_wet, t_dry):
       1. T_wet and T_dry MUST be explicitly configured / measured.
       2. If missing or invalid, NEVER guess or use uncalibrated defaults.
       3. Returns (None, "WET_DRY_REFERENCES_NOT_CONFIGURED") on missing references.
+      4. If allow_unclamped=True, returns (raw_cwsi, flag, "OK").
     """
     if t_wet is None or t_dry is None:
         return None, "WET_DRY_REFERENCES_NOT_CONFIGURED"
@@ -203,12 +209,197 @@ def calculate_cwsi_reference_based(tc, t_wet, t_dry):
         return None, "INVALID_REFERENCE_TEMPERATURES"
 
     denom = t_dry_val - t_wet_val
-    if denom <= 0.5:
-        return None, "INSUFFICIENT_REFERENCE_TEMPERATURE_GAP (T_dry - T_wet <= 0.5C)"
+    if denom < PROVISIONAL_MIN_REF_GAP_C:
+        return None, "INSUFFICIENT_REFERENCE_TEMPERATURE_GAP (T_dry - T_wet < %.1fC)" % PROVISIONAL_MIN_REF_GAP_C
 
     cwsi_raw = (tc_val - t_wet_val) / denom
+    if allow_unclamped:
+        if cwsi_raw < 0.0:
+            flag = "CWSI_BELOW_ZERO"
+        elif cwsi_raw > 1.0:
+            flag = "CWSI_ABOVE_ONE"
+        else:
+            flag = "NORMAL"
+        return float(round(cwsi_raw, 4)), flag, "OK"
+
     cwsi_clamped = max(0.0, min(1.0, cwsi_raw))
     return float(round(cwsi_clamped, 4)), "OK"
+
+
+def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=None):
+    """
+    Evaluates per-scan reference CWSI on a 24x32 thermal array using reference region config (M2.3).
+
+    Excludes wet_ref and dry_ref boxes from canopy pixel pool.
+    Twet and Tdry are medians of their respective pixel boxes.
+    Evaluates PROVISIONAL_MIN_REF_GAP_C and PROVISIONAL_MAX_REF_STD_C.
+    Returns dictionary conforming to M2.5 advisory thermal block schema.
+    """
+    arr = np.asarray(thermal_array, dtype=np.float32)
+    if arr.shape != (24, 32):
+        return {
+            "available": False,
+            "reason": "INVALID_FRAME_DIMENSIONS (expected 24x32, got %s)" % str(arr.shape),
+            "tc_c": None,
+            "twet_c": None,
+            "tdry_c": None,
+            "cwsi": None,
+            "flag": None,
+        }
+
+    if not isinstance(refs_config, dict) or refs_config.get("status") != "MEASURED":
+        return {
+            "available": False,
+            "reason": "THERMAL_REFS_NOT_CONFIGURED",
+            "tc_c": None,
+            "twet_c": None,
+            "tdry_c": None,
+            "cwsi": None,
+            "flag": None,
+        }
+
+    wet_box = refs_config.get("wet_ref")
+    dry_box = refs_config.get("dry_ref")
+    if not isinstance(wet_box, dict) or not isinstance(dry_box, dict):
+        return {
+            "available": False,
+            "reason": "THERMAL_REFS_NOT_CONFIGURED",
+            "tc_c": None,
+            "twet_c": None,
+            "tdry_c": None,
+            "cwsi": None,
+            "flag": None,
+        }
+
+    try:
+        rw0, rw1 = int(wet_box["row_min"]), int(wet_box["row_max"])
+        cw0, cw1 = int(wet_box["col_min"]), int(wet_box["col_max"])
+        rd0, rd1 = int(dry_box["row_min"]), int(dry_box["row_max"])
+        cd0, cd1 = int(dry_box["col_min"]), int(dry_box["col_max"])
+    except (KeyError, ValueError, TypeError):
+        return {
+            "available": False,
+            "reason": "INVALID_REFERENCE_BOX_COORDINATES",
+            "tc_c": None,
+            "twet_c": None,
+            "tdry_c": None,
+            "cwsi": None,
+            "flag": None,
+        }
+
+    # Validate bounds
+    if not (0 <= rw0 <= rw1 < 24 and 0 <= cw0 <= cw1 < 32):
+        return {
+            "available": False,
+            "reason": "WET_REF_OUT_OF_BOUNDS",
+            "tc_c": None,
+            "twet_c": None,
+            "tdry_c": None,
+            "cwsi": None,
+            "flag": None,
+        }
+    if not (0 <= rd0 <= rd1 < 24 and 0 <= cd0 <= cd1 < 32):
+        return {
+            "available": False,
+            "reason": "DRY_REF_OUT_OF_BOUNDS",
+            "tc_c": None,
+            "twet_c": None,
+            "tdry_c": None,
+            "cwsi": None,
+            "flag": None,
+        }
+
+    wet_pixels = arr[rw0 : rw1 + 1, cw0 : cw1 + 1]
+    dry_pixels = arr[rd0 : rd1 + 1, cd0 : cd1 + 1]
+
+    if wet_pixels.size == 0 or dry_pixels.size == 0:
+        return {
+            "available": False,
+            "reason": "EMPTY_REFERENCE_REGION",
+            "tc_c": None,
+            "twet_c": None,
+            "tdry_c": None,
+            "cwsi": None,
+            "flag": None,
+        }
+
+    t_wet = float(np.median(wet_pixels))
+    t_dry = float(np.median(dry_pixels))
+    std_wet = float(np.std(wet_pixels))
+    std_dry = float(np.std(dry_pixels))
+
+    # Spread checks
+    if std_wet > PROVISIONAL_MAX_REF_STD_C:
+        return {
+            "available": False,
+            "reason": "WET_REF_SPREAD_EXCEEDED (std=%.2fC > %.1fC)" % (std_wet, PROVISIONAL_MAX_REF_STD_C),
+            "tc_c": None,
+            "twet_c": round(t_wet, 2),
+            "tdry_c": round(t_dry, 2),
+            "cwsi": None,
+            "flag": None,
+        }
+    if std_dry > PROVISIONAL_MAX_REF_STD_C:
+        return {
+            "available": False,
+            "reason": "DRY_REF_SPREAD_EXCEEDED (std=%.2fC > %.1fC)" % (std_dry, PROVISIONAL_MAX_REF_STD_C),
+            "tc_c": None,
+            "twet_c": round(t_wet, 2),
+            "tdry_c": round(t_dry, 2),
+            "cwsi": None,
+            "flag": None,
+        }
+
+    # Minimum gap check
+    gap = t_dry - t_wet
+    if gap < PROVISIONAL_MIN_REF_GAP_C:
+        return {
+            "available": False,
+            "reason": "INSUFFICIENT_REFERENCE_GAP (Tdry - Twet = %.2fC < %.1fC)" % (gap, PROVISIONAL_MIN_REF_GAP_C),
+            "tc_c": None,
+            "twet_c": round(t_wet, 2),
+            "tdry_c": round(t_dry, 2),
+            "cwsi": None,
+            "flag": None,
+        }
+
+    # Canopy mask: exclude wet and dry reference boxes
+    canopy_mask = np.ones((24, 32), dtype=bool)
+    canopy_mask[rw0 : rw1 + 1, cw0 : cw1 + 1] = False
+    canopy_mask[rd0 : rd1 + 1, cd0 : cd1 + 1] = False
+
+    canopy_pixels = arr[canopy_mask]
+    if canopy_pixels.size < 10:
+        return {
+            "available": False,
+            "reason": "INSUFFICIENT_CANOPY_PIXELS",
+            "tc_c": None,
+            "twet_c": round(t_wet, 2),
+            "tdry_c": round(t_dry, 2),
+            "cwsi": None,
+            "flag": None,
+        }
+
+    t_c = float(np.median(canopy_pixels))
+
+    # Raw CWSI calculation (unclamped)
+    cwsi_raw = (t_c - t_wet) / gap
+    if cwsi_raw < 0.0:
+        flag = "CWSI_BELOW_ZERO"
+    elif cwsi_raw > 1.0:
+        flag = "CWSI_ABOVE_ONE"
+    else:
+        flag = "NORMAL"
+
+    return {
+        "available": True,
+        "reason": None,
+        "tc_c": round(t_c, 2),
+        "twet_c": round(t_wet, 2),
+        "tdry_c": round(t_dry, 2),
+        "cwsi": round(float(cwsi_raw), 4),
+        "flag": flag,
+    }
 
 
 def compute_vpd(air_temp_c, relative_humidity_pct):
