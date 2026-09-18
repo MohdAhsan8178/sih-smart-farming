@@ -1132,9 +1132,25 @@ class EdgeStorage(object):
             ],
             "pest": resolved_pest,
             "inputs": [
-                {"name": "pod_camera_rgb", "source_node": "POD", "status": "OK"},
-                {"name": "pod_gps", "source_node": "POD", "status": "OK" if gps_points > 0 else "ABSENT"},
-                {"name": "pod_thermal", "source_node": "POD", "status": "MOCK_PROVISIONAL"},
+                {
+                    "name": "pod_camera_rgb",
+                    "source_node": "POD",
+                    "status": "OK" if int(scan_row["frames_captured"] or len(events)) > 0 else "ABSENT",
+                },
+                {
+                    "name": "pod_gps",
+                    "source_node": "POD",
+                    "status": "OK" if gps_points > 0 else "ABSENT",
+                },
+                {
+                    "name": "pod_thermal",
+                    "source_node": "POD",
+                    "status": (
+                        "MOCK_PROVISIONAL"
+                        if thermal_block.get("thermal_source") == "mock"
+                        else ("OK" if thermal_block.get("available") else "ABSENT")
+                    ),
+                },
             ],
             "actions": actions,
         }

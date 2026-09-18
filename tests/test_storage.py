@@ -553,5 +553,113 @@ def test_cross_source_reliability_in_detections():
         storage.close()
 
 
+def test_inputs_sensor_status_consistency():
+    """Verify inputs[].status dynamically reflects hardware availability and mock provenance."""
+    import numpy as np
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage = EdgeStorage(db_path=Path(tmpdir) / "test.db")
+
+        # Scenario 1: Real hardware scan where MLX90640 is physically disconnected (thermal absent)
+        storage.record_scan_start("scan_hw_no_thermal")
+        storage.record_frame_event(
+            scan_id="scan_hw_no_thermal",
+            frame_idx=0,
+            timestamp_utc="2026-09-18T17:14:17Z",
+            cell_id="cell_0",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="HEALTHY",
+            class_id=0,
+            confidence=0.95,
+            tile_decisions=[],
+        )
+        storage.record_scan_end("scan_hw_no_thermal", frames_captured=1, frames_evaluated=1, tiles_classified=9)
+        adv_no_therm = storage.create_advisory("scan_hw_no_thermal", inference_backend="trt")
+
+        # Thermal block should be unavailable with hardware reason
+        assert adv_no_therm["thermal"]["available"] is False
+        assert adv_no_therm["thermal"]["thermal_source"] == "hardware"
+
+        # inputs array must report ABSENT, NEVER MOCK_PROVISIONAL
+        inputs_map = {inp["name"]: inp for inp in adv_no_therm["inputs"]}
+        assert inputs_map["pod_camera_rgb"]["status"] == "OK"
+        assert inputs_map["pod_gps"]["status"] == "ABSENT"
+        assert inputs_map["pod_thermal"]["status"] == "ABSENT"
+
+        # Scenario 2: Explicit mock thermal frame provisioned
+        mock_array = np.full((24, 32), 28.0, dtype=np.float32)
+        mock_frame_data = {
+            "available": True,
+            "temperature_array": mock_array,
+            "thermal_source": "mock",
+            "timestamp_utc": "2026-09-18T17:15:00Z",
+        }
+        storage.record_scan_start("scan_mock_thermal")
+        storage.record_frame_event(
+            scan_id="scan_mock_thermal",
+            frame_idx=0,
+            timestamp_utc="2026-09-18T17:15:00Z",
+            cell_id="cell_0",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="HEALTHY",
+            class_id=0,
+            confidence=0.95,
+            tile_decisions=[],
+            gps={"latitude": 28.5, "longitude": 77.2, "fix_quality": 1, "hdop": 1.2},
+        )
+        storage.record_scan_end("scan_mock_thermal", frames_captured=1, frames_evaluated=1, tiles_classified=9)
+        adv_mock_therm = storage.create_advisory("scan_mock_thermal", thermal_frame_data=mock_frame_data)
+
+        inputs_map_mock = {inp["name"]: inp for inp in adv_mock_therm["inputs"]}
+        assert inputs_map_mock["pod_camera_rgb"]["status"] == "OK"
+        assert inputs_map_mock["pod_gps"]["status"] == "OK"
+        assert inputs_map_mock["pod_thermal"]["status"] == "MOCK_PROVISIONAL"
+
+        # Scenario 3: Real hardware thermal frame captured with valid references
+        import unittest.mock
+        hw_array = np.ones((24, 32), dtype=np.float32) * 24.0
+        hw_array[2:6, 26:30] = 34.0  # dry pad
+        hw_frame_data = {
+            "available": True,
+            "temperature_array": hw_array,
+            "thermal_source": "hardware",
+            "timestamp_utc": "2026-09-18T17:16:00Z",
+        }
+        mock_refs_cfg = {
+            "status": "MEASURED",
+            "wet_ref": {"row_min": 2, "row_max": 5, "col_min": 2, "col_max": 5},
+            "dry_ref": {"row_min": 2, "row_max": 5, "col_min": 26, "col_max": 29},
+        }
+        with unittest.mock.patch("edge.thermal_capture.load_thermal_refs", return_value=mock_refs_cfg):
+            storage.record_scan_start("scan_hw_thermal")
+            storage.record_frame_event(
+                scan_id="scan_hw_thermal",
+                frame_idx=0,
+                timestamp_utc="2026-09-18T17:16:00Z",
+                cell_id="cell_0",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="HEALTHY",
+                class_id=0,
+                confidence=0.95,
+                tile_decisions=[],
+            )
+            storage.record_scan_end("scan_hw_thermal", frames_captured=1, frames_evaluated=1, tiles_classified=9)
+            adv_hw_therm = storage.create_advisory("scan_hw_thermal", thermal_frame_data=hw_frame_data)
+
+            assert adv_hw_therm["thermal"]["available"] is True
+            assert adv_hw_therm["thermal"]["thermal_source"] == "hardware"
+            inputs_map_hw = {inp["name"]: inp for inp in adv_hw_therm["inputs"]}
+            assert inputs_map_hw["pod_thermal"]["status"] == "OK"
+
+        storage.close()
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
+

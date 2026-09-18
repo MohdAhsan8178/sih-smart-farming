@@ -116,6 +116,10 @@ class DropOldestQueue(object):
         self.not_empty = threading.Condition(self.lock)
         self.dropped_count = 0
         self.closed = False
+        self.items_pushed = 0
+        self.items_popped = 0
+        self.timeout_count = 0
+        self.wait_time_s = 0.0
 
     def put(self, item: Any) -> bool:
         """Pushes an item without blocking. Drops oldest non-sentinel item if full."""
@@ -133,18 +137,35 @@ class DropOldestQueue(object):
                     self.dropped_count += 1
 
             self.queue.append(item)
+            self.items_pushed += 1
             self.not_empty.notify()
             return True
 
     def get(self, timeout: Optional[float] = 0.5) -> Any:
         """Pops the oldest item, blocking up to timeout seconds. Returns _QUEUE_TIMEOUT on timeout."""
+        t0 = time.time()
         with self.not_empty:
             while len(self.queue) == 0:
                 if self.closed:
                     return None
                 if not self.not_empty.wait(timeout=timeout):
+                    self.timeout_count += 1
+                    self.wait_time_s += (time.time() - t0)
                     return _QUEUE_TIMEOUT
-            return self.queue.popleft()
+            item = self.queue.popleft()
+            self.items_popped += 1
+            self.wait_time_s += (time.time() - t0)
+            return item
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Returns diagnostic throughput and wait time statistics."""
+        return {
+            "items_pushed": self.items_pushed,
+            "items_popped": self.items_popped,
+            "items_dropped": self.dropped_count,
+            "timeout_count": self.timeout_count,
+            "total_wait_s": round(self.wait_time_s, 3),
+        }
 
     def close(self) -> None:
         """Closes the queue and unblocks any waiting consumers."""
@@ -230,16 +251,26 @@ class CaptureThread(threading.Thread):
             except Exception:
                 self.gps = None
 
+        self.t_open_s = 0.0
+        self.t_read_s = 0.0
+        self.t_pacing_s = 0.0
+        self.t_total_s = 0.0
+
     def run(self) -> None:
+        t_start = time.time()
         source_arg = self.source
         # If source is an integer string, convert to int for OpenCV camera index
         if isinstance(source_arg, str) and source_arg.isdigit():
             source_arg = int(source_arg)
 
+        t_op0 = time.time()
         cap = cv2.VideoCapture(source_arg)
+        self.t_open_s = time.time() - t_op0
+
         if not cap.isOpened():
             print("[CaptureThread] ERROR: Could not open video source: %s" % str(self.source))
             self.out_queue.put(None)
+            self.t_total_s = time.time() - t_start
             return
 
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -251,7 +282,9 @@ class CaptureThread(threading.Thread):
                 if self.max_frames is not None and frame_idx >= self.max_frames:
                     break
 
+                t_rd0 = time.time()
                 ret, frame = cap.read()
+                self.t_read_s += (time.time() - t_rd0)
                 if not ret or frame is None:
                     break
 
@@ -294,11 +327,23 @@ class CaptureThread(threading.Thread):
 
                 # Pace playback to video/camera framerate to simulate live streaming
                 if self.realtime and frame_interval > 0:
+                    t_pc0 = time.time()
                     time.sleep(frame_interval)
+                    self.t_pacing_s += (time.time() - t_pc0)
 
         finally:
             cap.release()
             self.out_queue.put(None)
+            self.t_total_s = time.time() - t_start
+
+    def get_timings(self) -> Dict[str, float]:
+        """Returns execution wall-clock time breakdown."""
+        return {
+            "total_s": round(self.t_total_s, 3),
+            "open_s": round(self.t_open_s, 3),
+            "read_s": round(self.t_read_s, 3),
+            "pacing_s": round(self.t_pacing_s, 3),
+        }
 
 
 class GateTileThread(threading.Thread):
@@ -324,56 +369,85 @@ class GateTileThread(threading.Thread):
         self.frames_passed = 0
         self.rejections_by_reason = collections.defaultdict(int)
 
+        self.t_queue_wait_s = 0.0
+        self.t_gate_eval_s = 0.0
+        self.t_tiling_s = 0.0
+        self.t_indices_s = 0.0
+        self.t_total_s = 0.0
+
     def run(self) -> None:
-        while True:
-            item = self.in_queue.get(timeout=0.1)
-            if item is _QUEUE_TIMEOUT:
-                continue
-            if item is None:
-                # Sentinel check: push downstream and terminate
-                self.out_queue.put(None)
-                break
+        t_start = time.time()
+        try:
+            while True:
+                t_q0 = time.time()
+                item = self.in_queue.get(timeout=0.1)
+                self.t_queue_wait_s += (time.time() - t_q0)
 
-            frame_idx, frame, metadata = item
-            self.frames_evaluated += 1
+                if item is _QUEUE_TIMEOUT:
+                    continue
+                if item is None:
+                    # Sentinel check: push downstream and terminate
+                    self.out_queue.put(None)
+                    break
 
-            # On handheld pod: telemetry is None (or GPS only, no altitude/roll/pitch)
-            passed, reason, metrics = self.frame_gate.evaluate(frame, telemetry=None)
+                frame_idx, frame, metadata = item
+                self.frames_evaluated += 1
 
-            if not passed:
-                self.rejections_by_reason[reason] += 1
-                continue
+                # On handheld pod: telemetry is None (or GPS only, no altitude/roll/pitch)
+                t_g0 = time.time()
+                passed, reason, metrics = self.frame_gate.evaluate(frame, telemetry=None)
+                self.t_gate_eval_s += (time.time() - t_g0)
 
-            self.frames_passed += 1
+                if not passed:
+                    self.rejections_by_reason[reason] += 1
+                    continue
 
-            # Extract 3x3 tiles resized directly to IMAGE_SIZE (224) for engine input
-            tile_batch = self.tiler.extract(frame, target_size=IMAGE_SIZE)
+                self.frames_passed += 1
 
-            # Compute full-frame vegetation indices & canopy coverage (core.indices)
-            bands = bgr_to_bandmap(frame)
-            veg_mask_arr, veg_frac = vegetation_mask(bands, thresh=PROVISIONAL_EXG_VEG_THRESHOLD)
+                # Extract 3x3 tiles resized directly to IMAGE_SIZE (224) for engine input
+                t_tl0 = time.time()
+                tile_batch = self.tiler.extract(frame, target_size=IMAGE_SIZE)
+                self.t_tiling_s += (time.time() - t_tl0)
 
-            vari_map = vari(bands)
-            exg_map = exg(bands).astype(np.float32)
-            tgi_map = tgi(bands)
-            dgci_map, in_domain_mask = dgci(bands)
+                # Compute full-frame vegetation indices & canopy coverage (core.indices)
+                t_ind0 = time.time()
+                bands = bgr_to_bandmap(frame)
+                veg_mask_arr, veg_frac = vegetation_mask(bands, thresh=PROVISIONAL_EXG_VEG_THRESHOLD)
 
-            vari_stats = aggregate_index(vari_map, veg_mask_arr, min_fraction=PROVISIONAL_MIN_CANOPY_FRACTION)
-            exg_stats = aggregate_index(exg_map, veg_mask_arr, min_fraction=PROVISIONAL_MIN_CANOPY_FRACTION)
-            tgi_stats = aggregate_index(tgi_map, veg_mask_arr, min_fraction=PROVISIONAL_MIN_CANOPY_FRACTION)
-            dgci_stats = aggregate_index(dgci_map, veg_mask_arr, min_fraction=PROVISIONAL_MIN_CANOPY_FRACTION, in_domain_mask=in_domain_mask)
+                vari_map = vari(bands)
+                exg_map = exg(bands).astype(np.float32)
+                tgi_map = tgi(bands)
+                dgci_map, in_domain_mask = dgci(bands)
 
-            frame_indices = {
-                "canopy_cover": float(veg_frac),
-                "vari": vari_stats["mean"],
-                "exg": exg_stats["mean"],
-                "tgi": tgi_stats["mean"],
-                "dgci": dgci_stats["mean"],
-                "dgci_ood_frac": dgci_stats.get("out_of_domain_fraction", 0.0),
-                "status": vari_stats["status"],
-            }
+                vari_stats = aggregate_index(vari_map, veg_mask_arr, min_fraction=PROVISIONAL_MIN_CANOPY_FRACTION)
+                exg_stats = aggregate_index(exg_map, veg_mask_arr, min_fraction=PROVISIONAL_MIN_CANOPY_FRACTION)
+                tgi_stats = aggregate_index(tgi_map, veg_mask_arr, min_fraction=PROVISIONAL_MIN_CANOPY_FRACTION)
+                dgci_stats = aggregate_index(dgci_map, veg_mask_arr, min_fraction=PROVISIONAL_MIN_CANOPY_FRACTION, in_domain_mask=in_domain_mask)
 
-            self.out_queue.put((frame_idx, frame, metadata, tile_batch, metrics, frame_indices))
+                frame_indices = {
+                    "canopy_cover": float(veg_frac),
+                    "vari": vari_stats["mean"],
+                    "exg": exg_stats["mean"],
+                    "tgi": tgi_stats["mean"],
+                    "dgci": dgci_stats["mean"],
+                    "dgci_ood_frac": dgci_stats.get("out_of_domain_fraction", 0.0),
+                    "status": vari_stats["status"],
+                }
+                self.t_indices_s += (time.time() - t_ind0)
+
+                self.out_queue.put((frame_idx, frame, metadata, tile_batch, metrics, frame_indices))
+        finally:
+            self.t_total_s = time.time() - t_start
+
+    def get_timings(self) -> Dict[str, float]:
+        """Returns execution wall-clock time breakdown."""
+        return {
+            "total_s": round(self.t_total_s, 3),
+            "queue_wait_s": round(self.t_queue_wait_s, 3),
+            "gate_eval_s": round(self.t_gate_eval_s, 3),
+            "tiling_s": round(self.t_tiling_s, 3),
+            "indices_s": round(self.t_indices_s, 3),
+        }
 
 class ONNXClassifier(object):
     """
@@ -436,12 +510,21 @@ class InferenceThread(threading.Thread):
         self.tiles_classified = 0
         self.total_inference_time_s = 0.0
 
+        self.t_init_s = 0.0
+        self.t_queue_wait_s = 0.0
+        self.t_infer_s = 0.0
+        self.t_teardown_s = 0.0
+        self.t_total_s = 0.0
+        self.infer_latencies_ms = []
+
     def run(self) -> None:
+        t_start = time.time()
         clf = self.classifier
         use_mock = (self.backend == "mock")
 
         try:
             if not use_mock and clf is None:
+                t_in0 = time.time()
                 if self.backend == "trt":
                     if not HAS_TRT:
                         raise RuntimeError(
@@ -474,9 +557,13 @@ class InferenceThread(threading.Thread):
                     )
                 else:
                     raise RuntimeError("Unknown inference backend requested: '%s'" % self.backend)
+                self.t_init_s = time.time() - t_in0
 
             while True:
+                t_q0 = time.time()
                 item = self.in_queue.get()
+                self.t_queue_wait_s += (time.time() - t_q0)
+
                 if item is _QUEUE_TIMEOUT:
                     continue
                 if item is None:
@@ -508,7 +595,9 @@ class InferenceThread(threading.Thread):
                         logits[:, target_col] += 5.0
 
                 dt = time.time() - t0
+                self.t_infer_s += dt
                 self.total_inference_time_s += dt
+                self.infer_latencies_ms.append(dt * 1000.0)
                 self.tiles_classified += len(tile_batch.tiles)
 
                 self.out_queue.put((frame_idx, metadata, tile_batch, gate_metrics, logits, frame_indices))
@@ -518,12 +607,31 @@ class InferenceThread(threading.Thread):
             # Unblock downstream thread and terminate
             self.out_queue.close()
         finally:
+            t_td0 = time.time()
             # Rule R9 teardown: close classifier before context pop/detach
             if clf is not None:
                 try:
                     clf.close()
                 except Exception:
                     pass
+            self.t_teardown_s = time.time() - t_td0
+            self.t_total_s = time.time() - t_start
+
+    def get_timings(self) -> Dict[str, Any]:
+        """Returns execution wall-clock time breakdown."""
+        mean_ms = float(np.mean(self.infer_latencies_ms)) if self.infer_latencies_ms else 0.0
+        min_ms = float(np.min(self.infer_latencies_ms)) if self.infer_latencies_ms else 0.0
+        max_ms = float(np.max(self.infer_latencies_ms)) if self.infer_latencies_ms else 0.0
+        return {
+            "total_s": round(self.t_total_s, 3),
+            "init_s": round(self.t_init_s, 3),
+            "queue_wait_s": round(self.t_queue_wait_s, 3),
+            "infer_total_s": round(self.t_infer_s, 3),
+            "infer_mean_ms": round(mean_ms, 2),
+            "infer_min_ms": round(min_ms, 2),
+            "infer_max_ms": round(max_ms, 2),
+            "teardown_s": round(self.t_teardown_s, 3),
+        }
 
 
 class DecisionAggregateStoreThread(threading.Thread):
@@ -568,7 +676,16 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.last_advisory = None
         self.aborted = False
 
+        self.t_queue_wait_s = 0.0
+        self.t_decide_s = 0.0
+        self.t_sqlite_event_s = 0.0
+        self.t_sqlite_cell_s = 0.0
+        self.t_jsonl_write_s = 0.0
+        self.t_advisory_s = 0.0
+        self.t_total_s = 0.0
+
     def run(self) -> None:
+        t_start = time.time()
         scan_meta = {}
         if self.days_since_planting is not None:
             scan_meta["days_since_planting"] = self.days_since_planting
@@ -587,7 +704,10 @@ class DecisionAggregateStoreThread(threading.Thread):
 
         try:
             while True:
+                t_q0 = time.time()
                 item = self.in_queue.get()
+                self.t_queue_wait_s += (time.time() - t_q0)
+
                 if item is _QUEUE_TIMEOUT:
                     continue
                 if item is None:
@@ -600,6 +720,7 @@ class DecisionAggregateStoreThread(threading.Thread):
                     frame_indices = None
 
                 # 1. Softmax probabilities and per-tile rejection decisions
+                t_dec0 = time.time()
                 tile_probs = softmax(logits, T=T_CAL)
                 tile_decisions = decide(
                     logits=logits,
@@ -648,11 +769,13 @@ class DecisionAggregateStoreThread(threading.Thread):
                 if frame_indices and frame_indices.get("canopy_cover") is not None:
                     self.cell_indices_history[cell_id].append(float(frame_indices["canopy_cover"]))
                     cell_mean_canopy = float(np.mean(self.cell_indices_history[cell_id]))
+                self.t_decide_s += (time.time() - t_dec0)
 
                 # 4. Storage — write to SQLite (Step 33)
                 timestamp_utc = metadata.get("timestamp_utc") or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                 source_image = metadata.get("source_image", "unknown")
 
+                t_fe0 = time.time()
                 self.storage.record_frame_event(
                     scan_id=self.scan_id,
                     frame_idx=frame_idx,
@@ -669,7 +792,9 @@ class DecisionAggregateStoreThread(threading.Thread):
                     gps=gps,
                     indices=frame_indices,
                 )
+                self.t_sqlite_event_s += (time.time() - t_fe0)
 
+                t_cv0 = time.time()
                 self.storage.record_cell_verdict(
                     scan_id=self.scan_id,
                     cell_id=cell_id,
@@ -680,10 +805,12 @@ class DecisionAggregateStoreThread(threading.Thread):
                     n_agree=int(cell_verdict.get("n_agree", 0)),
                     canopy_cover=cell_mean_canopy,
                 )
+                self.t_sqlite_cell_s += (time.time() - t_cv0)
 
                 self.events_written += 1
 
                 if jsonl_file is not None:
+                    t_jw0 = time.time()
                     event = {
                         "event_id": frame_idx,
                         "source_image": source_image,
@@ -710,9 +837,11 @@ class DecisionAggregateStoreThread(threading.Thread):
                     }
                     jsonl_file.write(json.dumps(event) + "\n")
                     jsonl_file.flush()
+                    self.t_jsonl_write_s += (time.time() - t_jw0)
 
             # End of scan: record completion and assemble Advisory JSON document only if not aborted
             if not self.aborted and self.events_written > 0:
+                t_adv0 = time.time()
                 self.storage.record_scan_end(
                     scan_id=self.scan_id,
                     frames_evaluated=self.events_written,
@@ -726,10 +855,24 @@ class DecisionAggregateStoreThread(threading.Thread):
                     inference_backend=self.inference_backend,
                 )
                 self.storage.prune_retained_data()
+                self.t_advisory_s = (time.time() - t_adv0)
 
         finally:
             if jsonl_file is not None:
                 jsonl_file.close()
+            self.t_total_s = time.time() - t_start
+
+    def get_timings(self) -> Dict[str, float]:
+        """Returns execution wall-clock time breakdown."""
+        return {
+            "total_s": round(self.t_total_s, 3),
+            "queue_wait_s": round(self.t_queue_wait_s, 3),
+            "decide_s": round(self.t_decide_s, 3),
+            "sqlite_event_s": round(self.t_sqlite_event_s, 3),
+            "sqlite_cell_s": round(self.t_sqlite_cell_s, 3),
+            "jsonl_write_s": round(self.t_jsonl_write_s, 3),
+            "advisory_s": round(self.t_advisory_s, 3),
+        }
 
 
 class EdgePipeline(object):
@@ -862,6 +1005,17 @@ class EdgePipeline(object):
                 "tile_queue": self.tile_queue.dropped_count,
                 "result_queue": self.result_queue.dropped_count,
             },
+            "queue_stats": {
+                "raw_queue": self.raw_queue.get_stats(),
+                "tile_queue": self.tile_queue.get_stats(),
+                "result_queue": self.result_queue.get_stats(),
+            },
+            "stage_timings": {
+                "capture": self.t1_capture.get_timings(),
+                "gate_tile": self.t2_gate_tile.get_timings(),
+                "inference": self.t3_inference.get_timings(),
+                "decision_store": self.t4_decision.get_timings(),
+            },
             "scenes_per_second": scenes_per_sec,
             "fps_read": fps_read,
             "frame_verdicts": dict(self.t4_decision.frame_verdicts_count),
@@ -893,6 +1047,40 @@ class EdgePipeline(object):
         if metrics.get("output_file"):
             print("  JSONL Mirror      : %s (%d events)" % (metrics["output_file"], metrics["events_written"]))
         print("-" * 70)
+        print("STAGE-BY-STAGE TIMING BREAKDOWN:")
+        st = metrics.get("stage_timings", {})
+        cap_t = st.get("capture", {})
+        gt_t = st.get("gate_tile", {})
+        inf_t = st.get("inference", {})
+        ds_t = st.get("decision_store", {})
+        print("  1. Capture Thread (Total: %.2fs)" % cap_t.get("total_s", 0.0))
+        print("     - Source open           : %.3fs" % cap_t.get("open_s", 0.0))
+        print("     - Frame read (cap.read) : %.3fs (%d frames)" % (cap_t.get("read_s", 0.0), metrics["frames_seen"]))
+        print("     - Playback pacing sleep : %.3fs" % cap_t.get("pacing_s", 0.0))
+        print("  2. Gate & Tile Thread (Total: %.2fs)" % gt_t.get("total_s", 0.0))
+        print("     - Raw queue wait        : %.3fs" % gt_t.get("queue_wait_s", 0.0))
+        print("     - Frame gate evaluation : %.3fs (%d frames evaluated)" % (gt_t.get("gate_eval_s", 0.0), metrics["frames_seen"]))
+        print("     - Spatial 3x3 tiler     : %.3fs (%d scenes passed)" % (gt_t.get("tiling_s", 0.0), metrics["frames_passed"]))
+        print("     - Vegetation indices    : %.3fs (%d scenes passed)" % (gt_t.get("indices_s", 0.0), metrics["frames_passed"]))
+        print("  3. Inference Thread (Total: %.2fs)" % inf_t.get("total_s", 0.0))
+        print("     - Engine init & context : %.3fs" % inf_t.get("init_s", 0.0))
+        print("     - Tile queue wait       : %.3fs" % inf_t.get("queue_wait_s", 0.0))
+        print("     - Inference total       : %.3fs (mean: %.1fms/scene, min: %.1fms, max: %.1fms)" % (
+            inf_t.get("infer_total_s", 0.0),
+            inf_t.get("infer_mean_ms", 0.0),
+            inf_t.get("infer_min_ms", 0.0),
+            inf_t.get("infer_max_ms", 0.0),
+        ))
+        print("     - Context teardown      : %.3fs" % inf_t.get("teardown_s", 0.0))
+        print("  4. Decision & Store Thread (Total: %.2fs)" % ds_t.get("total_s", 0.0))
+        print("     - Result queue wait     : %.3fs" % ds_t.get("queue_wait_s", 0.0))
+        print("     - Rejection & aggregate : %.3fs" % ds_t.get("decide_s", 0.0))
+        print("     - SQLite frame events   : %.3fs" % ds_t.get("sqlite_event_s", 0.0))
+        print("     - SQLite cell verdicts  : %.3fs" % ds_t.get("sqlite_cell_s", 0.0))
+        if ds_t.get("jsonl_write_s", 0.0) > 0:
+            print("     - JSONL disk flush      : %.3fs" % ds_t.get("jsonl_write_s", 0.0))
+        print("     - Advisory synthesis    : %.3fs" % ds_t.get("advisory_s", 0.0))
+        print("-" * 70)
         print("FRAME GATE SUMMARY:")
         print("  Frames Seen       : %d" % metrics["frames_seen"])
         print("  Frames Passed     : %d (%.2f%%)" % (metrics["frames_passed"], metrics["gate_pass_rate_pct"]))
@@ -913,9 +1101,19 @@ class EdgePipeline(object):
         print("  Events Written    : %d events -> %s" % (metrics["events_written"], metrics["output_file"]))
         print("-" * 70)
         print("QUEUE INTEGRITY (Bounded Drop-Oldest):")
-        print("  Raw Queue Drops   : %d" % metrics["queue_drops"]["raw_queue"])
-        print("  Tile Queue Drops  : %d" % metrics["queue_drops"]["tile_queue"])
-        print("  Result Queue Drops: %d" % metrics["queue_drops"]["result_queue"])
+        qs = metrics.get("queue_stats", {})
+        raw_q = qs.get("raw_queue", {})
+        tile_q = qs.get("tile_queue", {})
+        res_q = qs.get("result_queue", {})
+        print("  Raw Queue Drops   : %d (pushed: %d, popped: %d, timeouts: %d, wait: %.2fs)" % (
+            raw_q.get("items_dropped", 0), raw_q.get("items_pushed", 0), raw_q.get("items_popped", 0), raw_q.get("timeout_count", 0), raw_q.get("total_wait_s", 0.0)
+        ))
+        print("  Tile Queue Drops  : %d (pushed: %d, popped: %d, timeouts: %d, wait: %.2fs)" % (
+            tile_q.get("items_dropped", 0), tile_q.get("items_pushed", 0), tile_q.get("items_popped", 0), tile_q.get("timeout_count", 0), tile_q.get("total_wait_s", 0.0)
+        ))
+        print("  Result Queue Drops: %d (pushed: %d, popped: %d, timeouts: %d, wait: %.2fs)" % (
+            res_q.get("items_dropped", 0), res_q.get("items_pushed", 0), res_q.get("items_popped", 0), res_q.get("timeout_count", 0), res_q.get("total_wait_s", 0.0)
+        ))
         print("=" * 70)
 
 
