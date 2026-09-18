@@ -130,10 +130,21 @@ def check_imports():
 
 
 def check_firmware():
-    fw_path = "/lib/firmware/ath9k_htc/htc_9271.fw"
-    exists = os.path.exists(fw_path)
-    detail = "Found at {}".format(fw_path) if exists else "Missing at {}".format(fw_path)
-    return print_check("Atheros AR9271-P Firmware", exists, detail)
+    fw_candidates = [
+        "/lib/firmware/ath9k_htc/htc_9271-1.4.0.fw",
+        "/lib/firmware/ath9k_htc/htc_9271.fw",
+        "/lib/firmware/htc_9271.fw"
+    ]
+    found_path = None
+    for p in fw_candidates:
+        if os.path.exists(p):
+            found_path = p
+            break
+
+    if found_path is not None:
+        return print_check("Atheros AR9271-P Firmware", True, "Found at {}".format(found_path))
+    else:
+        return print_check("Atheros AR9271-P Firmware", False, "Missing (checked /lib/firmware/ath9k_htc/htc_9271-1.4.0.fw, /lib/firmware/ath9k_htc/htc_9271.fw, /lib/firmware/htc_9271.fw)")
 
 
 def check_gps_uart(port="/dev/ttyTHS1", timeout_s=10.0):
@@ -185,6 +196,8 @@ def check_gps_uart(port="/dev/ttyTHS1", timeout_s=10.0):
 
 def check_model_a_engine():
     engine_candidates = [
+        os.path.join(REPO_ROOT, "artifacts", "engines", "model_a_fp16.engine"),
+        os.path.join(REPO_ROOT, "artifacts", "engines", "model_a.engine"),
         os.path.join(REPO_ROOT, "artifacts", "trt", "model_a.engine"),
         os.path.join(REPO_ROOT, "artifacts", "engine", "model_a_fused.engine"),
         os.path.join(REPO_ROOT, "artifacts", "engine", "model_a.engine")
@@ -196,7 +209,7 @@ def check_model_a_engine():
             break
 
     if engine_path is None:
-        return print_check("Model A TensorRT Engine Exists & Runs", False, "No engine found in artifacts/trt/ or artifacts/engine/")
+        return print_check("Model A TensorRT Engine Exists & Runs", False, "No engine found in artifacts/engines/, artifacts/trt/ or artifacts/engine/")
 
     try:
         import numpy as np
