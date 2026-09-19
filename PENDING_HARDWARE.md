@@ -5,7 +5,7 @@
 
 **SIH 2026 — Smart Farming Assistant**  
 **Repository**: `sih-smart-farming`  
-**Last Updated**: 15 September 2026  
+**Last Updated**: 19 September 2026  
 **Architecture Baseline**: Confirmed 12 September 2026 (`ans for vitthal.md §0`) — Two physical devices (Handheld Nano Pod + Fixed ESP32 Mast Node); Aerial Drone Dropped; LoRa Dropped in favor of WiFi.  
 **Scope**: Consolidated master tracking register of all physical hardware, uncalibrated provisional defaults, software exception guards (`RuntimeError`, `NotImplementedError`), and physical test data dependencies across the entire project.
 
@@ -17,16 +17,16 @@ The edge software architecture is rigorously defended with explicit software fai
 
 | Subsystem | Hardware Status | Software Guard Status | Primary Bottleneck / Risk |
 |---|---|---|---|
-| **1. Thermal / CWSI** | MLX90640 (Pod) & MLX90614 (Mast) pending purchase | `canopy_temperature()` & `fit_baseline()` guarded | Pod uses Jones (1999) direct wet/dry references; 14-day solar-noon NWSB baseline remains fallback path |
+| **1. Thermal / CWSI** | MLX90640 wired & verified on Pod (I2C-1, 0x33); wet/dry pad calibration & absolute scale validation pending; MLX90614 (Mast) pending purchase | `canopy_temperature()` live `tc_c` populated (29.81 °C); CWSI guarded by `THERMAL_REFS_NOT_CONFIGURED` (`pod_thermal: PENDING_CALIBRATION`) | Absolute scale unvalidated against reference thermometer (~32 °C ceiling, −8.6 °C ice); wet/dry pad bounding box calibration in `configs/thermal_refs.json` needed for CWSI |
 | **2. Weather** | SHT31 & radiation shield pending purchase | `canopy_temperature(air_temp_c)` requires air data | Blocking gap: no air temp / VPD exists to drive CWSI or FAO-56 |
 | **3. Sticky Trap Node** | ESP32-CAM & sticky cards pending arrival | `MM_PER_PIXEL` & fiducials guarded by `RuntimeError` | Cannot classify pest density without metric scale calibration |
-| **4. Cameras & NDVI** | Pod CSI-0 RGB & CSI-1 NoIR pending; DB660/850 pending import | `calib_matrix` guarded by `NotImplementedError`; panel reflectances guarded by `RuntimeError` | MidOpt DB660/850 filter import lead time (2–4 weeks); bench unmixing matrix $K^{-1}$ unmeasured |
-| **5. GPS / Telemetry / IMU** | Physical GPS for Pod pending; Drone attitude/altitude streams descoped | `edge/sensors.py` GPS simulate-only; Gate 1 attitude/altitude is legacy drone spec | Geotagging for manual pod walk scan cells (`aggregate_cell`) |
+| **4. Cameras & NDVI** | Pod CSI-0 RGB (IMX219) wired & verified; CSI-1 NoIR & DB660/850 filter pending import | `calib_matrix` guarded by `NotImplementedError`; panel reflectances guarded by `RuntimeError` | MidOpt DB660/850 filter import lead time (2–4 weeks); bench unmixing matrix $K^{-1}$ unmeasured |
+| **5. GPS / Telemetry / IMU** | NEO-6M GPS UART wired to `/dev/ttyTHS1` & verified on background thread; Drone attitude/altitude streams descoped | Pure Python NMEA-0183 parsed on background thread (missing fix costs 0.001 s vs 2.5 s); Gate 1 attitude/altitude is legacy drone spec | Outdoor open-sky walking fix for geotagging manual pod walk scan cells (`aggregate_cell`) |
 | **6. Irrigation Sensing** | JSN-SR04T & soil probes pending purchase | `WATER_LEVEL_SENSOR_PRESENT = False` guarded by `RuntimeError` | Autonomous actuation dropped (7 Sep 2026); closed-loop paddy advisory blocked until ultrasonic gauge installed |
-| **7. Networking / WiFi** | Atheros AR9271 WiFi dongle pending; LoRa SX1278 descoped | Sequential AP/STA mode-switching architecture decided | Gateway mode-switching state management and `/lib/firmware/ath9k_htc/htc_9271.fw` verification |
+| **7. Networking / WiFi** | Atheros AR9271 WiFi dongle pending receipt; LoRa SX1278 descoped | Sequential AP/STA mode-switching architecture decided | `SIH-FIELD` hotspot hosting, gateway over WiFi, and `setup_nano_services.sh` pending AR9271 dongle arrival |
 | **8. Mast Infrastructure** | 3 m pole, 1.5 m boom arm, IP65 box pending build | Field geometry constraints documented | Need 1.2–1.5 m horizontal offset to keep sticky card out of MLX90614 FOV |
-| **9. Compute & Storage** | Jetson Nano functional; eMMC at ~85% capacity | `model_a_fp16.engine` compiled (~117 ms latency) | ~2 GB free space limits local dataset storage |
-| **10. Video Test Data** | Zero field walk video files exist in repo | `edge/frame_gate.py` selftest qualified on synthetic | Gate rejection rate (92–97% target) unverified on real field walk video |
+| **9. Compute & Storage** | Jetson Nano verified (TRT FP16 pipeline: 30 frames in 10.6 s, 12 scenes, 108 tiles, ~126 ms latency, soak 60 runs @ ~16 s, 14 MB drift, swap 0, 24–28 °C); eMMC at ~85% capacity | `model_a_fp16.engine` fully verified on hardware (10/10 smoke test) | ~2 GB free space limits local dataset storage |
+| **10. Video Test Data** | Validation clip verified (12 passed, 18 rejected balancing exactly); field walk video pending | `edge/frame_gate.py` qualified on synthetic and validation video | Gate rejection rate (92–97% target) to be re-verified on extended live field walk footage |
 
 ---
 
@@ -40,7 +40,7 @@ The edge software architecture is rigorously defended with explicit software fai
 
 | Item / Parameter | Current State | Code Guard & Failure Mode If Left As-Is | Blocks | Unblocked By | Price Tag / Lead Time | Priority |
 |---|---|---|---|---|---|---|
-| **MLX90640 Thermal Array (32×24, 55°×35° FOV)** | Not purchased / arrived | Software runs in mock/test mode only. | Real canopy temperature extraction, spatial soil rejection, and handheld Jones CWSI computation. | Procurement and mounting on handheld pod rod with wet/dry cotton reference arms pointing nadir (−90°). | ₹7,250 (ThinkRobotics, **CHECKED 07-SEP-2026**) / ₹10,079 (Waveshare, **CHECKED 07-SEP-2026**) / ₹6,000–8,000 (7Semi, **ESTIMATED**) | **CRITICAL** |
+| **MLX90640 Thermal Array (32×24, 55°×35° FOV)** | **WIRED & VERIFIED ON JETSON NANO** (7Semi breakout, I²C bus 1, 0x33). Driver operational after register and EEPROM decoding fixes. | Emits live `tc_c` (29.81 °C) with `reason: THERMAL_REFS_NOT_CONFIGURED` and `inputs` status `pod_thermal: PENDING_CALIBRATION`. | Handheld Jones CWSI computation (canopy temperature extraction and spatial response verified). | Absolute scale validation against reference thermometer (currently reads ceiling ~32 °C, ice −8.6 °C; appears stretched at both ends, while relative spatial response is correct); wet/dry reference surface mounting on pod arms and bounding box calibration in `configs/thermal_refs.json`. | Completed (Wired & Verified on Nano) | **VERIFIED (Calibration Pending)** |
 | **MLX90614ESF-BAA Single-Point IR Sensor** | Not purchased / arrived | Tested with mock values in `tests/test_edge.py`. `test_section_a_mlx90614_cannot_report_cwsi_without_array` asserts single-point sensor cannot compute CWSI. | Continuous mast canopy temperature tracking and MLX90640 cross-sensor drift trace. | Procurement and mounting on fixed mast station pointing at canopy. | ₹1,200–1,800 (Robu/Robocraze, **ESTIMATED**) | **HIGH** |
 | **`MIN_BASELINE_OBSERVATIONS = 14`** (`core/thermal.py:44, 203`) | Value: `14` solar-noon observations. 0 observations recorded. | `fit_non_water_stressed_baseline()` returns `(None, "baseline_insufficient")`. Idso empirical CWSI returns `None`. *(Note: Fallback path; primary path is Jones direct method on pod)*. | Empirical Idso CWSI baseline fitting. Live demos unblocked by Jones direct wet/dry method on pod. | Conducting at least 14 clear-sky solar noon (11:30–14:00) observation sessions with mast station over fully watered healthy crop. | Human protocol (agronomic trial) | **MEDIUM** |
 | **`PROVISIONAL_BIMODAL_GAP_C = 4.0`** (`core/thermal.py:48`) | Value: `4.0` °C (uncalibrated default). | When thermal span `hi - lo < 4.0` °C, `canopy_temperature()` short-circuits directly to `cool = t, frac = 1.0` without evaluating Otsu thresholding or the $\eta$ test. Hot soil pixels are included in `cool`, pulling $T_c = \text{np.median}(cool)$ upward. | Accurate soil rejection when canopy-soil temperature delta is narrow (<4 °C). | Field thermal sweep over paired canopy and soil at solar noon across 3 clear sunny days to find minimum observed soil-canopy delta. | Empirical calibration | **MEDIUM** |
@@ -80,8 +80,9 @@ Consolidated smart sticky trap node at canopy top (10–30 cm above crop canopy,
 
 | Item / Parameter | Current State | Code Guard & Failure Mode If Left As-Is | Blocks | Unblocked By | Price Tag / Lead Time | Priority |
 |---|---|---|---|---|---|---|
-| **MidOpt DB660/850 Dual-Bandpass Filter** | Not ordered / arrived | Inverted Bayer mapping (Blue=NIR, Red=660nm) cannot separate spectra without filter. | Multispectral NDVI field scanning pass. **NDVI pipeline completely dead without this optical filter.** | Urgent ordering and importing (2–4 week lead time). Mounting filter over IMX219-77 NoIR lens on pod. | ₹8,000–18,000 (**ESTIMATED**, import) | **CRITICAL (Highest Lead-Time Risk)** |
-| **IMX219-77 RGB & IMX219-77IR NoIR Camera Modules** | Not arrived / connected | `edge/camera.py` DualCameraPipeline implemented but unverified against physical sensors on Jetson Nano CSI port J13. | Real camera capture on pod, hardware GStreamer pipeline verification, fixed-exposure lock testing. | Procurement, connecting to Jetson Nano dual CSI port J13, running `edge/camera.py` self-test. | ₹1,200–2,000 (RGB) + ₹1,500–2,500 (NoIR) (**ESTIMATED**) | **HIGH** |
+| **Raspberry Pi Camera Module V2 (IMX219 RGB)** | **WIRED & VERIFIED ON JETSON NANO** (CSI-0). Stills and 1080p30 H.264 video capture both working. | Operational on `/dev/video0`. | High-resolution disease leaf inspection and live Model A pipeline video stream. | Completed (Wired & Verified on Nano). | Completed | **VERIFIED** |
+| **MidOpt DB660/850 Dual-Bandpass Filter** | Not ordered / arrived | Inverted Bayer mapping (Blue=NIR, Red=660nm) cannot separate spectra without filter. | Multispectral NDVI field scanning pass. **On-pod NDVI pipeline completely blocked without this optical filter.** | Urgent ordering and importing (2–4 week lead time). Mounting filter over IMX219-77 NoIR lens on pod. | ₹8,000–18,000 (**ESTIMATED**, import) | **CRITICAL (Highest Lead-Time Risk)** |
+| **IMX219-77IR NoIR Camera Module** | Not arrived / connected | `edge/camera.py` DualCameraPipeline implemented; NoIR port CSI-1 unverified against physical sensor. | Dual-camera synchronized capture on pod. | Procurement, connecting to Jetson Nano CSI port 1, running `edge/camera.py` self-test. | ₹1,500–2,500 (NoIR) (**ESTIMATED**) | **HIGH** |
 | **`calib_matrix` (Bench cross-talk unmixing matrix $K^{-1}$)** (`core/ndvi.py:75, 101`) | Value: `None`. | `apply_channel_response_correction()` raises `NotImplementedError("Bench response calibration on assembled IMX219-77IR + MidOpt DB660/850...")`. If bypassed with identity matrix, NIR leakage into Red channel collapses NDVI dynamic range. | Radiometrically valid dual-bandpass NDVI computation. | Placing assembled camera before integrating sphere / monochromatic light sources at 660 nm and 850 nm; running `scripts/calibrate_dual_bandpass.py` to generate `configs/db660_850_calibration.json`. | Optical bench calibration step | **CRITICAL** |
 | **`PROVISIONAL_PANEL_REFLECTANCES = (0.05, 0.50, 0.84)`, `PANEL_REFLECTANCES_CONFIRMED = False`** (`core/ndvi.py:67-68`) | Values: `(0.05, 0.50, 0.84)`; flag: `False`. | `apply_empirical_line_calibration()` raises `RuntimeError("Panel reflectances have not been confirmed...")` on production data unless `allow_provisional=True`. | Empirical Line Method (ELM) radiometric calibration across walk sessions. | Procuring calibrated diffuse reflectance panels with manufacturer certificates; entering certified values in config and setting flag `True`. | ₹3,000–12,000 (**ESTIMATED**) | **HIGH** |
 | **`PROVISIONAL_EXPOSURE_NS = 10000000` (10 ms), `PROVISIONAL_GAIN = 1.0`** (`edge/camera.py:47-49`) | Values: 10 ms, 1.0x analog gain (untested defaults). | Under bright Indian midday sun (~80,000–100,000 lux), 10 ms at gain 1.0 severely saturates the Red channel. Saturation invalidates division-based indices (NDVI, VARI). | Radiometrically non-saturating handheld pod capture. | Field exposure calibration over 18% gray card at solar noon; setting non-saturating exposure time in config. | Field optical calibration | **HIGH** |
@@ -98,7 +99,7 @@ Consolidated smart sticky trap node at canopy top (10–30 cm above crop canopy,
 
 | Item / Parameter | Current State | Code Guard & Failure Mode If Left As-Is | Blocks | Unblocked By | Price Tag / Lead Time | Priority |
 |---|---|---|---|---|---|---|
-| **GPS Module (e.g. NEO-6M / NEO-M8N UART)** | Not arrived / connected | `edge/sensors.py` GPS class is simulate-only. Telemetry tagging in `edge/pipeline.py` currently cannot log physical coordinates. | Spatial GPS cell indexing, repetitive walk pass aggregation (`aggregate_cell`), map coordinate tagging. | Procuring GPS module, wiring to UART, testing outdoors with real satellite fix. | ₹400–1,200 (**ESTIMATED**) | **MEDIUM** |
+| **NEO-6M GPS UART Module** | **WIRED & VERIFIED ON JETSON NANO** (Connected to `/dev/ttyTHS1` at 9600 baud). Emits valid NMEA sentences. Read on a dedicated background thread (`get_latest_fix()`); missing fix costs 0.001 s per frame instead of 2.5 s blocking delay. Records `gps: null`, `cell_id: "cell_walk_pod"` when no fix is available indoors. | Pure Python NMEA-0183 parser verified; non-blocking background reader active. | Spatial GPS cell indexing, repetitive walk pass aggregation (`aggregate_cell`), map coordinate tagging outdoors. | Outdoor walking test under open sky with real satellite lock. | Completed (Wired & Verified on Nano) | **VERIFIED (Outdoor Fix Pending)** |
 | **Flight IMU / Rangefinder Feed** | **LEGACY DRONE SPEC (DESCOPED)** | Not present on Handheld Pod BOM (`ans for vitthal.md §0`). Bypassed in `edge/frame_gate.py` when `telemetry=None`. | None on handheld pod. | Descoped with drone. Retained only if an IMU is optionally added to monitor severe rod tilt. | Out of scope | **DESCOPED** |
 | **`PROVISIONAL_GATE_MAX_ROLL_DEG = 15.0`, `PROVISIONAL_GATE_MAX_PITCH_DEG = 15.0`** (`configs/train_config.py:37-38`) | Values: `15.0` deg, `15.0` deg (uncalibrated defaults). | Legacy drone attitude limits. If an IMU is mounted on the pod rod, excessive tilt indicates non-nadir scanning. | Gating pod tilt (if IMU present); bypassed if `telemetry=None`. | Field walking trials measuring natural hand sway; calibrate or bypass for handheld mode. | Field calibration | **LOW (Legacy)** |
 | **`GATE_ALTITUDE_MIN_M = 1.5`, `GATE_ALTITUDE_MAX_M = 2.5`** (`configs/train_config.py:35-36`) | Values: `1.5` m, `2.5` m. | Legacy drone cruise altitude band. Handheld pod rod height varies by crop height ($1.0\text{–}1.8\text{ m}$). | Bypassed when `telemetry=None` or when `altitude_m` is omitted from pod telemetry. | Maintain omission of `altitude_m` on handheld scans to avoid false rejection. | Software convention | **LOW (Legacy)** |
@@ -133,14 +134,14 @@ Consolidated smart sticky trap node at canopy top (10–30 cm above crop canopy,
 >    * **Normal State**: AP mode hosting SSID `SIH-FIELD` (WPA2-PSK password *Ahsan123*, static IP `192.168.4.1:8080`, `dnsmasq` DHCP) for the farmer's smartphone app.
 >    * **Mast Sync State**: When brought near the mast station, the radio switches to STA mode, connects to mast SoftAP `SIH-NODE-01` (`192.168.9.1`), pulls stored sensor telemetry and ESP32-CAM trap JPEGs over HTTP, and switches back to AP mode.
 >    * **Accepted Drop**: A 20–30s connectivity drop for the phone occurs during sync. This is accepted system design, not a defect.
-> 4. **Gateway Software Architecture Requirement (Steps 30–33 design note — DO NOT IMPLEMENT NOW)**: The `gateway/` service must orchestrate this sequential mode transition and expose an explicit `"syncing"` state to the app rather than silently dropping the interface.
+> 4. **Gateway Software Architecture Requirement**: The `gateway/` service orchestrates this sequential mode transition and exposes an explicit `"syncing"` state to the app rather than silently dropping the interface.
 
 | Item / Parameter | Current State | Code Guard & Failure Mode If Left As-Is | Blocks | Unblocked By | Price Tag / Lead Time | Priority |
 |---|---|---|---|---|---|---|
-| **USB WiFi Dongle (Atheros AR9271, External Antenna)** | Selected/ordered, not yet arrived | Noted in dev session. Jetson Nano is currently on home WiFi (`nvidia@nvidia.local`); cannot host independent field AP. | Hosting `SIH-FIELD` AP on pod and executing sequential STA sync with mast node. | Delivery, plugging into Jetson USB port, verifying interface enumeration (`wlan0`). | ~₹600–1,200 (**ESTIMATED**) | **CRITICAL** |
+| **USB WiFi Dongle (Atheros AR9271, External Antenna)** | Selected/ordered, not yet arrived | Jetson Nano is currently on development network; cannot host standalone field AP. | Hosting `SIH-FIELD` AP on pod and executing sequential STA sync with mast node. | Delivery, plugging into Jetson USB port, verifying interface enumeration (`wlan0`). | ~₹600–1,200 (**ESTIMATED**) | **CRITICAL** |
 | **Driver Firmware (`/lib/firmware/ath9k_htc/htc_9271.fw`)** | Unverified on flashed L4T rootfs | If firmware blob is missing from rootfs, AR9271 will fail to initialize on USB plug (`dmesg: Failed to load firmware`). | Driver initialization for Atheros AR9271. | Run `ls /lib/firmware/ath9k_htc/htc_9271.fw` on Nano via SSH. If absent, copy from `github.com/qca/open-ath9k-htc-firmware`. | Checklist action (Zero cost) | **HIGH (Checklist)** |
-| **Gateway Sequential AP/STA Manager** | Design requirement noted; software not yet built | If unmanaged, mode switch crashes network daemon and disconnects phone app without recovery. | Smooth 20–30s mast sync without persistent phone disconnect errors. | Implement radio mode-switching state machine in `gateway/` exposing `"syncing"` status (Steps 30–33). | Software implementation | **HIGH (Steps 30–33)** |
-| **ESP32 Mast SoftAP (`SIH-NODE-01` at 192.168.9.1)** | Firmware unbuilt | Mast node cannot serve stored data to pod. | Pulling unattended mast data into pod. | Flashing ESP32 firmware with `WiFi.softAPConfig()` on subnet `192.168.9.0/24`. | Firmware implementation | **HIGH** |
+| **Gateway Sequential AP/STA Manager** | `edge/wifi_switch.py` implemented with safe finally cleanup | Mode switch tested in simulation; physical radio testing pending AR9271 arrival. | Smooth 20–30s mast sync without persistent phone disconnect errors. | Bench test switching between `SIH-FIELD` AP and `SIH-NODE-01` STA once dongle arrives. | Hardware test | **HIGH** |
+| **ESP32 Mast SoftAP (`SIH-NODE-01` at 192.168.9.1)** | Firmware ready in `firmware/node_n01` | Mast node cannot serve stored data until flashed. | Pulling unattended mast data into pod. | Flashing ESP32 firmware with `WiFi.softAPConfig()` on subnet `192.168.9.0/24`. | Firmware flashing | **HIGH** |
 | **SX1278 Ra-02 433 MHz LoRa Transceiver** | **DESCOPED (12 Sep 2026)** | `edge/lora.py` tested in software; physical SPI transmission unverified and excluded from runtime pipeline. | None. Radio link dropped in favor of WiFi AP/STA sync. | Hardware eliminated from scope. | None (Descoped) | **DESCOPED** |
 
 ---
@@ -151,55 +152,51 @@ Consolidated ground station: 3 m pole, 1.5 m horizontal boom arm, solar power sy
 
 | Item / Parameter | Current State | Code Guard & Failure Mode If Left As-Is | Blocks | Unblocked By | Price Tag / Lead Time | Priority |
 |---|---|---|---|---|---|---|
-| **Mast Pole & Horizontal Boom Arm (3 m pole, 1.5 m boom)** | Not built / constructed | Noted in dev session. | Field mounting of MLX90614, SHT31, sticky trap, and solar panel; maintaining horizontal standoff so sticky card stays out of thermal FOV. | Procuring 3 m GI pipe / treated timber, 1.5 m GI pipe boom arm, clamps, and erecting on farm test plot. | ₹900–2,200 total (**ESTIMATED**) | **HIGH** |
-| **Solar Power System (10–20 W panel, PWM controller, 12V 7Ah SLA / 3S battery)** | Not purchased | Noted in dev session. | Autonomous off-grid solar operation of field mast station. | Procurement, wiring through LM2596 buck converter to ESP32 node. | ₹1,680–3,750 total (**ESTIMATED**) | **HIGH** |
-| **IP65 Weatherproof Enclosure & Cable Glands** | Not purchased | Noted in dev session. | Weatherproofing mast electronics, battery, and radio against monsoon rain and dust. | Procuring IP65 ABS junction box (200×150×100 mm) and cable glands. | ₹700–1,500 total (**ESTIMATED**) | **HIGH** |
+| **Mast Pole & Horizontal Boom Arm (3 m pole, 1.5 m boom)** | Not built / constructed | Field geometry constraints documented. | Field mounting of MLX90614, SHT31, sticky trap, and solar panel; maintaining horizontal standoff so sticky card stays out of thermal FOV. | Procuring 3 m GI pipe / treated timber, 1.5 m GI pipe boom arm, clamps, and erecting on farm test plot. | ₹900–2,200 total (**ESTIMATED**) | **HIGH** |
+| **Solar Power System (10–20 W panel, PWM controller, 12V 7Ah SLA / 3S battery)** | Not purchased | Autonomous off-grid solar operation of field mast station. | Procurement, wiring through LM2596 buck converter to ESP32 node. | ₹1,680–3,750 total (**ESTIMATED**) | **HIGH** |
+| **IP65 Weatherproof Enclosure & Cable Glands** | Not purchased | Weatherproofing mast electronics, battery, and radio against monsoon rain and dust. | Procuring IP65 ABS junction box (200×150×100 mm) and cable glands. | ₹700–1,500 total (**ESTIMATED**) | **HIGH** |
 
 ---
 
 ## Subsystem 9 — Jetson Nano Edge Compute & Storage Constraints
 
-Edge compute hardware is flashed and operational, but local eMMC storage headroom is constrained.
+Edge compute hardware is flashed, benchmarked, and operational.
 
 | Item / Parameter | Current State | Code Guard & Failure Mode If Left As-Is | Blocks | Unblocked By | Price Tag / Lead Time | Priority |
 |---|---|---|---|---|---|---|
 | **Jetson Nano 4GB eMMC Storage (~85% full of 14 GB)** | Board flashed and reachable at `nvidia@nvidia.local`. ~2 GB free disk space. SQLite persistence (`edge/storage.py`) ceiling empirically measured at 121 MB (5.9% of free eMMC) for 50,000 retained frames; bounded by WAL checkpoint truncate with zero growth past high-water mark due to freelist page reuse. | If disk reaches 100%, OS crashes, TensorRT cache writes fail, and SQLite logging halts. | Downloading large video evaluation datasets; building heavy packages; multi-day sensor log storage. | Mounting high-speed USB 3.0 SSD / microSD card to `/mnt/storage`; moving logging and video datasets off root eMMC. | ~₹800–1,500 for 128GB USB 3.0 drive (**ESTIMATED**) | **MEDIUM** |
-| **TensorRT FP16 Engine (`artifacts/engines/model_a_fp16.engine`)** | **BUILT & BENCHMARKED** on physical Jetson Nano. Mean latency: **~117 ms** for 9 tiles. Verified by `trtexec` and `edge/trt_classifier.py --selftest`. | Engine is hardware-locked to TensorRT 8.2 and Maxwell GPU. Runs successfully. | Completed (unblocks Step 21 inference thread). | Already completed on-device. | None | Complete |
+| **TensorRT FP16 Engine (`artifacts/engines/model_a_fp16.engine`)** | **VERIFIED ON JETSON NANO**. Pipeline processes 30 frames in 10.6 s with 12 scenes passed and 108 tiles classified; warm TRT inference ~126 ms per 9-tile scene (~14 ms/tile), ~5 s one-time engine init; smoke test 10/10; soak of 60 consecutive runs at ~16 s each with 14 MB memory drift, swap 0, 24–28 °C, no thermal throttling; zero queue drops, rejections balancing exactly. | Verified with real FP16 engine on Maxwell GPU. | None (Pipeline inference fully operational). | Already completed and verified on-device. | None | **VERIFIED** |
 
 ---
 
 ## Subsystem 10 — Field Video Test Data
 
-Real-world evaluation data is missing from the repository.
+Validation test clip verified; extended real-world field video recommended for multi-hectare sweeps.
 
 | Item / Parameter | Current State | Code Guard & Failure Mode If Left As-Is | Blocks | Unblocked By | Price Tag / Lead Time | Priority |
 |---|---|---|---|---|---|---|
-| **Real Field Walk Video Footage (1080p nadir crop scanning)** | **ZERO video files exist in the repository.** (`find_by_name` returned 0 `.mp4`, `.avi`, `.mov`, `.mkv` files). | `edge/frame_gate.py --selftest` runs only on synthetic flight sequences. Step 21 `edge/pipeline.py` requires `--source test_video.mp4 --dry-run --report` for verification. | Real-world validation of the 92–97% frame rejection target; realistic verification of Step 21 threading pipeline under walking motion blur. | Recording 1080p nadir walk video (1–1.5 m/s walk speed with pod on rod at 1.0–1.8 m height) over real crop canopy; placing file at `data/video/test_video.mp4`. | Field video recording walk | **HIGH** |
+| **Real Field Walk Video Footage (1080p nadir crop scanning)** | Multi-class validation video clip (`test_video_from_dataset_images.mp4`) verified on Nano (30 frames, 12 scenes passed, 18 rejected balancing exactly). Extended field walk footage pending. | `edge/frame_gate.py` qualified on validation sequence; rejection accounting verified. | Long-duration field walk validation of the 92–97% frame rejection target under varied sun glint and operator walking pacing. | Recording 1080p nadir walk video (1–1.5 m/s walk speed with pod on rod at 1.0–1.8 m height) over real crop canopy; placing file at `data/video/test_video.mp4`. | Field video recording walk | **MEDIUM** |
 
 ---
 
 ## Critical Path Execution Priorities
 
 ```
-[SCHEDULE-CRITICAL: ORDER TODAY]
-  ├── MidOpt DB660/850 Filter (2–4 week import lead time; blocks multispectral NDVI completely)
-  ├── MLX90640 55° FOV Thermal Array (₹7,250; for Handheld Pod Jones CWSI references)
-  ├── SHT31-D I²C Sensor (₹700–1,100; blocks VPD, CWSI baseline fitting, and ET0)
-  ├── JSN-SR04T Waterproof Ultrasonic Sensor (₹232–500; blocks paddy AWD water level sensing)
-  └── Atheros AR9271 USB WiFi Dongle (~₹600–1,200; blocks standalone field AP & mast sync)
+[VERIFIED ON HARDWARE BENCH]
+  ├── Model A TensorRT FP16 Pipeline (30 frames in 10.6 s, 12 scenes, 108 tiles, ~126 ms latency, 60-run soak)
+  ├── Raspberry Pi Camera Module V2 (IMX219) on CSI-0 (stills and 1080p30 H.264 working)
+  ├── NEO-6M GPS UART on /dev/ttyTHS1 (background reader thread, 0.001 s non-blocking fix access)
+  └── MLX90640 Thermal Array on I2C-1 at 0x33 (driver verified, live tc_c 29.81 °C, PENDING_CALIBRATION)
 
-[IMMEDIATE PROTOCOL & BENCH CALIBRATIONS]
-  ├── Action 19: Verify /lib/firmware/ath9k_htc/htc_9271.fw exists on Jetson Nano L4T rootfs
-  ├── Action 7: Bench spectral unmixing matrix K^-1 for assembled camera (blocks NDVI computation)
-  ├── Action 1: Mount camera in trap enclosure and photograph ruler for MM_PER_PIXEL
-  ├── Action 2: Measure printed ArUco fiducials on yellow sticky cards with vernier calipers
-  └── Action 18: Calibrate PROVISIONAL_GATE_CLIPPING thresholds against midday solar irradiance
-
-[MECHANICAL & TEST DATA INFRASTRUCTURE]
-  ├── Record 1080p nadir handheld pod walk video over crops to provide real video for Step 21
-  ├── Construct Handheld Pod rod mount with forward arms for wet/dry cotton CWSI references
-  ├── Assemble 3 m mast pole + 1.5 m boom arm with IP65 enclosure
-  └── Mount external USB SSD / microSD on Jetson Nano to relieve 85% eMMC storage constraint
+[OUTSTANDING HARDWARE & BENCH CALIBRATIONS]
+  ├── Atheros AR9271 USB WiFi Dongle (not yet received; blocks standalone SIH-FIELD AP & mast sync)
+  ├── Gateway over WiFi & SIH-FIELD Hotspot validation with field mobile app
+  ├── Production Systemd Services installation (setup_nano_services.sh)
+  ├── Wet/Dry Thermal Reference Pad calibration (configs/thermal_refs.json) to unblock CWSI
+  ├── MLX90640 absolute temperature scale validation against reference thermometer (~32 °C ceiling, -8.6 °C ice)
+  ├── MidOpt DB660/850 Filter import (2–4 week lead time; blocks on-pod multispectral NDVI)
+  ├── Raspberry Pi NoIR Camera Module V2 (IMX219) unmixing matrix K^-1 calibration (calibrate_dual_bandpass.py)
+  └── Ground Mast Node ESP32 + ESP32-CAM firmware flashing and bench test
 ```
 
 ---
@@ -210,5 +207,5 @@ Before any future developer or agent claims a hardware-gated item is resolved:
 1. Verify physical hardware is present, wired, and communicating (`i2cdetect -y -r 1`, `v4l2-ctl --list-devices`, `lsusb`).
 2. Verify empirical calibration data is checked into `configs/` or logged in the repository.
 3. Remove the corresponding `RuntimeError` / `NotImplementedError` guard or update `PROVISIONAL_` parameter to calibrated value.
-4. Run full unit test regression suite (`pytest -v`) to confirm zero regressions.
+4. Run full unit test regression suite (`pytest -v`) to confirm zero regressions (331 tests passing).
 5. Update this register (`PENDING_HARDWARE.md`) reflecting the resolved status.

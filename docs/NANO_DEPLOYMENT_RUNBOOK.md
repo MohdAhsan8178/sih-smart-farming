@@ -17,6 +17,7 @@
 
 ### Physical & Power Configuration
 - **Power Supply:** 5V / 4A DC barrel jack (J41 jumper capped). **DO NOT** run TensorRT inference using Micro-USB power (2A limit triggers brownout resets under GPU load).
+- **PD Trigger Board Cooling:** When powering via a USB-C PD trigger board (such as PDC004 / 5V 4A trigger), the board runs warm under sustained load. Position the trigger board directly in the Jetson Nano fan's exhaust path for active heat dissipation.
 - **Power Mode:** Max performance 10W mode (MAXN):
   ```bash
   sudo nvpmodel -m 0
@@ -260,9 +261,12 @@ df -h /
 
 ## 5. Configuring the 40-Pin Header UART for NEO-6M GPS (`/dev/ttyTHS1`)
 
-**Status:** UNVERIFIED ON HARDWARE (Bench verified in simulation; hardware validation pending dongle/wiring test on physical Nano).
+**Status:** `VERIFIED ON JETSON NANO` (Connected to `/dev/ttyTHS1` at 9600 baud).
 
 The NEO-6M GPS receiver connects directly to the Jetson Nano 40-pin expansion header UART (Pin 8 = UART2 TXD -> GPS RX, Pin 10 = UART2 RXD -> GPS TX, Pin 2 = 5V VCC, Pin 6 = GND). The serial device node is `/dev/ttyTHS1` operating at 9600 baud.
+
+> [!NOTE]
+> **Background Reader Architecture:** GPS UART ingestion runs on a dedicated background daemon thread (`get_latest_fix()`). When GPS has no satellite lock (e.g. indoors or under dense crop canopy), reading the latest fix costs **0.001 s** (instant variable read) instead of causing a **2.5 s** blocking delay on the frame capture loop. When no fix is available, the pipeline attaches `gps: null` and `cell_id: "cell_walk_pod"`.
 
 > [!WARNING]
 > On default JetPack 4.6 installations, `/dev/ttyTHS1` is bound to the `nvgetty.service` system serial console. If `nvgetty` is running, it competes for incoming serial bytes, causing NMEA sentence fragmentation and framing errors.
@@ -350,28 +354,38 @@ python3 edge/pipeline.py \
   --report
 ```
 
-### 6.4 Revised Pipeline Throughput & Latency Profile
+### 6.4 Verified Pipeline Throughput & Latency Profile
 
-Adding the full band-addressed vegetation indices suite ([`core/indices.py`](file:///Users/mohdahsan/Downloads/SIH/sih-smart-farming/core/indices.py)) into Thread 2 (`GateTileThread`) added ~5–12 ms of CPU processing per accepted frame on the Cortex-A57 CPU cores.
+The Model A pipeline was benchmarked directly on the physical Jetson Nano under MAXN power mode with the FP16 TensorRT engine (`artifacts/engines/model_a_fp16.engine`).
+
+#### Verified On-Device Benchmarks (Real Nano Hardware Runs):
+- **30-Frame Validation Run:** Completed in **10.6 s** total, passing 12 scenes and classifying 108 tiles with zero queue drops.
+- **Frame Gate Balance:** Exact accounting on 30 frames: 12 passed + 18 rejected (12 `scene_not_novel` + 2 `frame_blurry` + 4 `exposure_overexposed`).
+- **Inference Latency:** Warm TensorRT inference: **~126 ms** per 9-tile scene (~14 ms/tile), with a **~5 s** one-time engine initialization at pipeline startup.
+- **Smoke Test:** Passed **10/10** tests ("Deployment ready").
+- **Soak Stress Test:** **60 consecutive pipeline runs** at **~16 s** each with only **14 MB** memory drift, swap **0 MB**, temperatures stable at **24–28 °C**, and zero thermal throttling.
 
 #### Detailed Stage Breakdown per Scene (9 Tiles):
 | Thread / Stage | Hardware | Time per Scene | Notes |
 | :--- | :--- | :--- | :--- |
-| **Thread 1: Capture** | Hardware V4L2 / Video | ~33 ms | Paced at 30 FPS camera capture |
-| **Thread 2: Gate + Indices + Tile** | 4x ARM Cortex-A57 CPU | **~16–27 ms** | • FrameGate blur & clipping: ~3 ms<br>• Indices (ExG mask, VARI, TGI, DGCI): **~5–12 ms**<br>• Tiler 3x3 slicing & resize to 224x224: ~8–12 ms |
-| **Thread 3: Inference** | **NVIDIA Maxwell GPU** | **~117 ms** | Batch 9 FP16 EfficientNet-Lite0 (~13 ms/tile) |
-| **Thread 4: Decide + Aggregate + Store** | ARM Cortex-A57 CPU | ~2–4 ms | Logit scaling, temporal consensus, phenology lookup, SQLite WAL insert |
+| **Thread 1: Capture** | Hardware V4L2 / Video | ~33 ms (live) / 0.41 s for 30 frames | Non-blocking capture; background GPS read costs 0.001 s |
+| **Thread 2: Gate + Indices + Tile** | 4x ARM Cortex-A57 CPU | **~16–27 ms** | • Gate eval: ~0.9 ms<br>• Indices (ExG mask, VARI, TGI, DGCI): **~3.6–12 ms**<br>• Tiler 3x3 slicing & resize to 224x224: ~0.5–12 ms |
+| **Thread 3: Inference** | **NVIDIA Maxwell GPU** | **~126 ms** | Warm Batch 9 FP16 TensorRT (~14 ms/tile) |
+| **Thread 4: Decide + Aggregate + Store** | ARM Cortex-A57 CPU | ~2–4 ms | Logit scaling, temporal consensus, phenology lookup, SQLite WAL insert (~20 ms) |
 
-#### Concurrency & Throughput Analysis:
-1. **Parallel Producer-Consumer Decoupling:**
-   - Thread 2 (CPU) and Thread 3 (GPU) run concurrently in pipelined stages separated by bounded `DropOldestQueue(maxsize=8)`.
-   - Because Thread 2's total execution time (**~16–27 ms**) is significantly less than Thread 3's GPU execution time (**~117 ms**), Thread 2 finishes its work well before the GPU completes inference.
-2. **GPU Remains the Rate-Limiting Bottleneck:**
-   - The ~5–12 ms CPU indices computation is completely masked behind the ~117 ms GPU inference window.
-   - **Throughput is NOT degraded by indices computation:** Peak sustained GPU throughput remains **~7.0 to 7.5 scenes/sec** (governed by the ~117 ms GPU batch inference).
-3. **Single-Frame Transit Latency:**
-   - The end-to-end transit latency for a single scene traversing from camera capture to final advisory storage increases by ~10 ms (from **~132 ms** to **~142–147 ms** total transit latency).
-4. **Operational Scene Rate:**
+#### Concurrency & Queue Policy Analysis:
+1. **Offline vs. Live Queue Policy:**
+   - **Offline Mode (`--source video.mp4`):** Uses **blocking queues** across all pipeline stages (`raw_queue`, `tile_queue`, `result_queue`). This enforces backpressure, prevents dropped frames, and ensures 100% deterministic evaluation across repeated offline runs.
+   - **Live Camera Mode (`--source 0` / `/dev/video0`):** Uses bounded **`DropOldestQueue(maxsize=8)`** to shed stale frames under transient CPU/GPU load and preserve real-time capture pacing.
+2. **Parallel Producer-Consumer Decoupling:**
+   - Thread 2 (CPU) and Thread 3 (GPU) run concurrently in pipelined stages.
+   - Because Thread 2's total execution time (**~16–27 ms**) is significantly less than Thread 3's GPU execution time (**~126 ms**), Thread 2 finishes its work well before the GPU completes inference.
+3. **GPU Remains the Rate-Limiting Bottleneck:**
+   - The CPU indices computation is completely masked behind the ~126 ms GPU inference window.
+   - **Throughput is NOT degraded by indices computation:** Peak sustained GPU throughput remains **~7.0 to 7.5 scenes/sec** (governed by the ~126 ms GPU batch inference).
+4. **Single-Frame Transit Latency:**
+   - The end-to-end transit latency for a single scene traversing from camera capture to final advisory storage is **~145–155 ms** total transit latency.
+5. **Operational Scene Rate:**
    - At normal field walking speed (1.0–1.5 m/s) with the 60% scene displacement novelty filter active, only 3–8% of captured camera frames pass gating. The operational compute load is **2.0 to 4.0 scenes/sec**, operating well inside the 10W thermal budget.
 
 ---
@@ -648,8 +662,8 @@ If `rtc_valid` is `true` and $\left| t_{\text{mast}} - t_{\text{GPS}} \right| \l
 ## 12. MLX90640 I2C 400 kHz Bus Configuration (L6.2)
 
 > [!NOTE]
-> **Status:** `UNVERIFIED ON EAGLE-101`  
-> Physical I2C timing must be validated with an oscilloscope or logic analyzer on the bench before production field flight.
+> **Status:** `VERIFIED ON JETSON NANO` (Address 0x33 on `/dev/i2c-1`).  
+> Driver verified after register and EEPROM decoding fixes. Live `tc_c` is extracted (29.81 °C) with `pod_thermal: PENDING_CALIBRATION`. Absolute scale is unvalidated against a reference thermometer (reads room ceiling at ~32 °C and ice at −8.6 °C; relative spatial response is correct). Wet/dry thermal pad bounding boxes must be saved to `configs/thermal_refs.json` for CWSI.
 
 The Melexis MLX90640 32x24 thermal sensor requires I2C Fast Mode (400 kHz) to sustain 2–4 Hz frame refresh rates without bus choking (each full subpage transfer reads 832 16-bit words = 1664 bytes).
 
