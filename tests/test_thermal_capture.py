@@ -169,3 +169,70 @@ def test_m2_3_thermal_frame_rejection_paths():
     res_oob = evaluate_reference_cwsi_from_frame(narrow_frame, bad_cfg)
     assert res_oob["available"] is False
     assert "OUT_OF_BOUNDS" in res_oob["reason"]
+
+
+def test_mlx90640_eeprom_decoding_and_temperature_calculation():
+    """
+    Verify full MLX90640 EEPROM parsing, Ta quadratic calculation, and pixel To derivation.
+    """
+    sensor = MLX90640(mock=True)
+
+    # Construct realistic synthetic 832-word EEPROM
+    eeprom = [0] * 832
+    # kVdd = -3200 (EEPROM[51] high byte = -100 -> 156), vdd25 = -13000 (EEPROM[51] low byte = -150 -> 106)
+    eeprom[51] = (0x9C << 8) | 0x6A
+    # vPTAT25 = 12200 (EEPROM[49])
+    eeprom[49] = 12200
+    # kvPTAT = 0.005 -> ~20 (EEPROM[50] bits 15:10), ktPTAT = 25.0 -> 200 (EEPROM[50] bits 9:0)
+    eeprom[50] = (20 << 10) | 200
+    # alphaPTAT = 9.0 (EEPROM[48] bits 15:12 = 4), gain = 6000 (EEPROM[48] bits 11:0)
+    eeprom[48] = (4 << 12) | 6000
+    # resEE = 2 (EEPROM[56] bits 13:12 = 2), scales
+    eeprom[56] = (2 << 12) | (4 << 8) | (4 << 4) | 4
+    # offset_ref = -200 (EEPROM[33])
+    eeprom[33] = 0xFF38
+    # alpha_scale = 32 (EEPROM[32] bits 3:0 = 2)
+    eeprom[32] = 0x0002
+
+    # Populate 768 pixel words with alpha and offset
+    for i in range(768):
+        # offset_rem = 0, alpha_rem = 10, kta_rem = 0
+        eeprom[64 + i] = (0 << 10) | (10 << 4) | (0 << 1)
+
+    params = sensor._decode_eeprom(eeprom)
+    assert params["kVdd"] != 0.0
+    assert params["pixels_alpha"].shape == (24, 32)
+    assert params["pixels_offset"].shape == (24, 32)
+    assert np.all(params["pixels_alpha"] > 0)
+
+    # Construct RAM buffer with Ta near 25C and hot/cool objects
+    ram = [0] * 832
+    # PTAT reading near vPTAT25
+    ram[800] = 12200
+    # Gain RAM near 6000
+    ram[776] = 6000
+    # Vdd RAM
+    ram[810] = 0
+    # CP RAM
+    ram[768] = 0
+    ram[808] = 0
+
+    # Set pixel readings with temperature variation (e.g. hand reading vs room background)
+    for i in range(768):
+        r = i // 32
+        c = i % 32
+        if 8 <= r <= 16 and 10 <= c <= 22:
+            ram[i] = 1500  # Warm hand
+        else:
+            ram[i] = 0     # Room background
+
+    sensor.params = params
+    to_array, ta = sensor._calculate_temperatures(ram, subpage=0)
+
+    assert 20.0 < ta < 30.0  # Realistic ambient temperature
+    assert to_array.shape == (24, 32)
+    # Hand region should be hotter than background (verifying dynamic range)
+    hand_temp = np.mean(to_array[8:16, 10:22])
+    bg_temp = np.mean(to_array[0:6, 0:8])
+    assert hand_temp > bg_temp + 3.0, f"Expected hand ({hand_temp}) to be > background ({bg_temp}) + 3C"
+

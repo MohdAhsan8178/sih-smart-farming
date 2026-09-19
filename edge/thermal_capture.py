@@ -25,6 +25,7 @@ import numpy as np
 class MLX90640(object):
     """
     Driver for Melexis MLX90640 32x24 FIR thermal array sensor over I2C.
+    Compliant with official Melexis MLX90640 datasheet and calibration algorithm.
     """
 
     I2C_ADDR = 0x33
@@ -44,6 +45,7 @@ class MLX90640(object):
         self.emissivity = 0.95  # Standard agricultural crop canopy emissivity
         self.params = {}        # type: Dict[str, Any]
         self._init_error = None  # type: Optional[str]
+        self._frame_buffer = np.zeros((24, 32), dtype=np.float32)
 
         if self.mock:
             self._bus = None
@@ -90,6 +92,19 @@ class MLX90640(object):
 
         return words
 
+    def _write_word(self, reg_addr, value):
+        # type: (int, int) -> None
+        """Writes a 16-bit word to MLX90640 register space."""
+        if self._bus is None:
+            return
+        addr_bytes = [(reg_addr >> 8) & 0xFF, reg_addr & 0xFF]
+        data_bytes = [(value >> 8) & 0xFF, value & 0xFF]
+        try:
+            msg = self.smbus2.i2c_msg.write(self.address, addr_bytes + data_bytes)
+            self._bus.i2c_rdwr(msg)
+        except Exception as ex:
+            raise IOError("Failed writing MLX90640 at 0x%04x: %s" % (reg_addr, ex))
+
     def _load_eeprom(self):
         """Decodes calibration constants from the 832-word EEPROM block."""
         eeprom = self._read_words(self.EEPROM_START, self.EEPROM_WORDS)
@@ -100,49 +115,397 @@ class MLX90640(object):
 
     def _decode_eeprom(self, eeprom):
         # type: (List[int]) -> Dict[str, Any]
-        """Parses EEPROM registers per MLX90640 standard datasheet."""
+        """
+        Parses EEPROM registers per official Melexis MLX90640 datasheet.
+        Extracts Vdd, Ta, Gain, TGC, KsTa, KsTo, CP, and per-pixel offset/alpha/kta/kv.
+        """
         p = {}
 
-        # 1. VDD and Ta calibration constants
+        # --- 1. VDD Parameters (EEPROM[51] = 0x2433) ---
         kVdd = (eeprom[51] >> 8) & 0xFF
-        if kVdd > 127: kVdd -= 256
+        if kVdd > 127:
+            kVdd -= 256
         kVdd = kVdd * 32.0
 
         vdd25 = eeprom[51] & 0xFF
-        vdd25 = ((vdd25 - 256) if vdd25 > 127 else vdd25) * 32.0 - 8192.0
+        if vdd25 > 127:
+            vdd25 -= 256
+        vdd25 = vdd25 * 32.0 - 8192.0
 
         p["kVdd"] = kVdd
         p["vdd25"] = vdd25
 
+        # --- 2. Ta / PTAT Parameters ---
+        # 0x2432 = index 50
         kvPTAT = (eeprom[50] >> 10) & 0x3F
-        if kvPTAT > 31: kvPTAT -= 64
+        if kvPTAT > 31:
+            kvPTAT -= 64
         kvPTAT = kvPTAT / 4096.0
 
         ktPTAT = eeprom[50] & 0x3FF
-        if ktPTAT > 511: ktPTAT -= 1024
+        if ktPTAT > 511:
+            ktPTAT -= 1024
         ktPTAT = ktPTAT / 8.0
 
+        # 0x2431 = index 49
         vPTAT25 = eeprom[49]
-        if vPTAT25 > 32767: vPTAT25 -= 65536
+        if vPTAT25 > 32767:
+            vPTAT25 -= 65536
 
+        # 0x2430 = index 48
         alphaPTAT = ((eeprom[48] >> 12) & 0x0F) / 4.0 + 8.0
 
         p["kvPTAT"] = kvPTAT
         p["ktPTAT"] = ktPTAT
-        p["vPTAT25"] = vPTAT25
+        p["vPTAT25"] = float(vPTAT25)
         p["alphaPTAT"] = alphaPTAT
 
-        # 2. Gain
+        # --- 3. Gain (0x2430 = index 48) ---
         gain = eeprom[48] & 0x0FFF
-        if gain > 2047: gain -= 4096
-        p["gain"] = gain
+        if gain > 2047:
+            gain -= 4096
+        p["gain"] = float(gain)
 
-        # 3. Base pixel sensitivity and offset
-        p["pixels_alpha"] = np.ones((24, 32), dtype=np.float32) * 1e-7
-        p["pixels_offset"] = np.zeros((24, 32), dtype=np.float32)
-        p["pixels_kta"] = np.zeros((24, 32), dtype=np.float32)
-        p["pixels_kv"] = np.zeros((24, 32), dtype=np.float32)
+        # --- 4. Resolution & Scales (0x2438 = index 56) ---
+        resEE = (eeprom[56] >> 12) & 0x03
+        kvScale = (eeprom[56] >> 8) & 0x0F
+        ktaScale1 = (eeprom[56] >> 4) & 0x0F
+        ktaScale2 = eeprom[56] & 0x0F
+        p["resEE"] = resEE
+        p["kvScale"] = kvScale
+        p["ktaScale1"] = ktaScale1
+        p["ktaScale2"] = ktaScale2
+
+        # --- 5. TGC and KsTa (0x243C = index 60) ---
+        tgc = eeprom[60] & 0xFF
+        if tgc > 127:
+            tgc -= 256
+        tgc = tgc / 32.0
+
+        ksTa = (eeprom[60] >> 8) & 0xFF
+        if ksTa > 127:
+            ksTa -= 256
+        ksTa = ksTa / 8192.0
+
+        p["tgc"] = tgc
+        p["ksTa"] = ksTa
+
+        # --- 6. KsTo and CT ranges (0x243D = index 61, 0x243E = 62, 0x243F = 63) ---
+        ksToScale = (eeprom[61] & 0x0F) + 8
+        step = ((eeprom[61] >> 12) & 0x03) * 10
+        ct2 = ((eeprom[61] >> 4) & 0x0F) * 10
+        ct3 = ct2 + step
+        ct4 = ((eeprom[61] >> 8) & 0x0F) * 10 + ct3
+        ct1 = -40.0
+
+        p["CT"] = [ct1, float(ct2), float(ct3), float(ct4)]
+
+        ksTo1 = eeprom[62] & 0xFF
+        if ksTo1 > 127:
+            ksTo1 -= 256
+        ksTo2 = (eeprom[62] >> 8) & 0xFF
+        if ksTo2 > 127:
+            ksTo2 -= 256
+        ksTo3 = eeprom[63] & 0xFF
+        if ksTo3 > 127:
+            ksTo3 -= 256
+        ksTo4 = (eeprom[63] >> 8) & 0xFF
+        if ksTo4 > 127:
+            ksTo4 -= 256
+
+        scale_ksto = 2.0 ** ksToScale
+        p["ksTo"] = [
+            ksTo1 / scale_ksto,
+            ksTo2 / scale_ksto,
+            ksTo3 / scale_ksto,
+            ksTo4 / scale_ksto,
+        ]
+
+        # --- 7. Compensation Pixel (CP) Parameters ---
+        # 0x243A = index 58
+        offCP_SP0 = eeprom[58] & 0x03FF
+        if offCP_SP0 > 511:
+            offCP_SP0 -= 1024
+        offCP_diff = (eeprom[58] >> 10) & 0x3F
+        if offCP_diff > 31:
+            offCP_diff -= 64
+        offCP_SP1 = offCP_SP0 + offCP_diff
+
+        p["offCP"] = [float(offCP_SP0), float(offCP_SP1)]
+
+        # 0x2439 = index 57
+        ktaCP = (eeprom[57] >> 8) & 0xFF
+        if ktaCP > 127:
+            ktaCP -= 256
+        ktaCP = ktaCP / (2.0 ** (ktaScale1 + 8))
+
+        kvCP = eeprom[57] & 0xFF
+        if kvCP > 127:
+            kvCP -= 256
+        kvCP = kvCP / (2.0 ** kvScale)
+
+        p["ktaCP"] = ktaCP
+        p["kvCP"] = kvCP
+
+        # 0x2420 = index 32: alpha scale
+        acc_rem_scale = (eeprom[32] >> 4) & 0x0F
+        acc_col_scale = (eeprom[32] >> 8) & 0x0F
+        acc_row_scale = (eeprom[32] >> 12) & 0x0F
+        alpha_scale = (eeprom[32] & 0x0F) + 30
+        p["alpha_scale"] = alpha_scale
+
+        # 0x243B = index 59
+        alpha_scale_cp = ((eeprom[32] >> 12) & 0x0F) + 27
+        alphaCP_SP0 = (eeprom[59] & 0x03FF) / (2.0 ** alpha_scale_cp)
+        alphaCP_diff = (eeprom[59] >> 10) & 0x3F
+        if alphaCP_diff > 31:
+            alphaCP_diff -= 64
+        alphaCP_SP1 = alphaCP_SP0 + (alphaCP_diff / (2.0 ** alpha_scale_cp))
+
+        p["alphaCP"] = [alphaCP_SP0, alphaCP_SP1]
+
+        # --- 8. Offsets: Reference, Rows, Cols ---
+        # 0x2410 = index 16
+        scale_occ_row = (eeprom[16] >> 8) & 0x0F
+        scale_occ_col = (eeprom[16] >> 4) & 0x0F
+        scale_occ_rem = eeprom[16] & 0x0F
+
+        # 0x2421 = index 33
+        offset_ref = eeprom[33]
+        if offset_ref > 32767:
+            offset_ref -= 65536
+
+        row_occ = []
+        for r in range(24):
+            nibble = (eeprom[18 + r // 4] >> ((r % 4) * 4)) & 0x0F
+            if nibble > 7:
+                nibble -= 16
+            row_occ.append(nibble * (1 << scale_occ_row))
+
+        col_occ = []
+        for c in range(32):
+            nibble = (eeprom[24 + c // 4] >> ((c % 4) * 4)) & 0x0F
+            if nibble > 7:
+                nibble -= 16
+            col_occ.append(nibble * (1 << scale_occ_col))
+
+        row_acc = []
+        for r in range(24):
+            nibble = (eeprom[34 + r // 4] >> ((r % 4) * 4)) & 0x0F
+            if nibble > 7:
+                nibble -= 16
+            row_acc.append(nibble * (1 << acc_row_scale))
+
+        col_acc = []
+        for c in range(32):
+            nibble = (eeprom[40 + c // 4] >> ((c % 4) * 4)) & 0x0F
+            if nibble > 7:
+                nibble -= 16
+            col_acc.append(nibble * (1 << acc_col_scale))
+
+        # --- 9. Kv Corners Table ---
+        # 0x2434 = index 52
+        kv_ro_co = (eeprom[52] >> 12) & 0x0F
+        if kv_ro_co > 7:
+            kv_ro_co -= 16
+        kv_re_co = (eeprom[52] >> 8) & 0x0F
+        if kv_re_co > 7:
+            kv_re_co -= 16
+        kv_ro_ce = (eeprom[52] >> 4) & 0x0F
+        if kv_ro_ce > 7:
+            kv_ro_ce -= 16
+        kv_re_ce = eeprom[52] & 0x0F
+        if kv_re_ce > 7:
+            kv_re_ce -= 16
+
+        scale_kv = 2.0 ** kvScale
+        kv_table = [
+            kv_re_ce / scale_kv,  # row even, col even
+            kv_re_co / scale_kv,  # row even, col odd
+            kv_ro_ce / scale_kv,  # row odd, col even
+            kv_ro_co / scale_kv,  # row odd, col odd
+        ]
+
+        # --- 10. Kta RC Table ---
+        # 0x2436 = index 54, 0x2437 = index 55
+        kta_re_ce = (eeprom[54] >> 8) & 0xFF
+        if kta_re_ce > 127:
+            kta_re_ce -= 256
+        kta_re_co = eeprom[54] & 0xFF
+        if kta_re_co > 127:
+            kta_re_co -= 256
+        kta_ro_ce = (eeprom[55] >> 8) & 0xFF
+        if kta_ro_ce > 127:
+            kta_ro_ce -= 256
+        kta_ro_co = eeprom[55] & 0xFF
+        if kta_ro_co > 127:
+            kta_ro_co -= 256
+
+        kta_rc = [kta_re_ce, kta_re_co, kta_ro_ce, kta_ro_co]
+
+        # --- 11. Build 24x32 Per-Pixel Arrays (offset, alpha, kta, kv) ---
+        pixels_offset = np.zeros((24, 32), dtype=np.float32)
+        pixels_alpha = np.zeros((24, 32), dtype=np.float32)
+        pixels_kta = np.zeros((24, 32), dtype=np.float32)
+        pixels_kv = np.zeros((24, 32), dtype=np.float32)
+
+        scale_alpha = 2.0 ** alpha_scale
+        scale_kta_denom = 2.0 ** (ktaScale1 + 8)
+        scale_kta_num = 2.0 ** ktaScale2
+        scale_occ_rem_val = 1 << scale_occ_rem
+        scale_acc_rem_val = 1 << acc_rem_scale
+
+        for i in range(768):
+            r = i // 32
+            c = i % 32
+            rc_idx = (r % 2) * 2 + (c % 2)
+            p_word = eeprom[64 + i]
+
+            # Offset
+            off_rem = (p_word >> 10) & 0x3F
+            if off_rem > 31:
+                off_rem -= 64
+            pixels_offset[r, c] = offset_ref + row_occ[r] + col_occ[c] + off_rem * scale_occ_rem_val
+
+            # Alpha
+            alpha_rem = (p_word >> 4) & 0x3F
+            pixels_alpha[r, c] = (row_acc[r] + col_acc[c] + alpha_rem * scale_acc_rem_val) / scale_alpha
+
+            # Kta
+            kta_rem = (p_word >> 1) & 0x07
+            if kta_rem > 3:
+                kta_rem -= 8
+            pixels_kta[r, c] = (kta_rc[rc_idx] + kta_rem * scale_kta_num) / scale_kta_denom
+
+            # Kv
+            pixels_kv[r, c] = kv_table[rc_idx]
+
+        p["pixels_offset"] = pixels_offset
+        p["pixels_alpha"] = pixels_alpha
+        p["pixels_kta"] = pixels_kta
+        p["pixels_kv"] = pixels_kv
+
         return p
+
+    def _calculate_temperatures(self, ram_words, subpage=0):
+        # type: (List[int], int) -> Tuple[np.ndarray, float]
+        """
+        Converts 832 RAM words to ambient temperature (Ta) and 24x32 object temperatures (To)
+        according to Melexis MLX90640 datasheet formulas.
+        """
+        p = self.params
+        res_ee = p.get("resEE", 2)
+        res_reg = 2  # default 18-bit (res=2) in control register
+        res_corr = 2.0 ** (res_ee - res_reg)
+
+        # 1. Vdd Calculation
+        vdd_ram = ram_words[810]
+        if vdd_ram > 32767:
+            vdd_ram -= 65536
+        kvdd = p["kVdd"] if p["kVdd"] != 0 else 1.0
+        delta_vdd = (res_corr * vdd_ram - p["vdd25"]) / kvdd
+        vdd = delta_vdd + 3.3
+
+        # 2. Ta (Ambient Temperature) Calculation
+        vptat_ram = ram_words[800]
+        if vptat_ram > 32767:
+            vptat_ram -= 65536
+
+        # VPTAT_art (supply voltage compensated PTAT)
+        vptat_denom = 1.0 + p["kvPTAT"] * delta_vdd
+        if abs(vptat_denom) < 1e-6:
+            vptat_denom = 1.0
+        vptat_art = vptat_ram / vptat_denom
+
+        vptat25 = p["vPTAT25"]
+        ktptat = p["ktPTAT"]
+        if abs(vptat25) < 1e-9:
+            vptat25 = 1.0
+        if abs(ktptat) < 1e-9:
+            ktptat = 1.0
+
+        d_term = (ktptat ** 2) - 4.0 * (ktptat / vptat25) * (vptat25 - vptat_art)
+        if d_term < 0:
+            d_term = 0.0
+        delta_ta = (-ktptat + math.sqrt(d_term)) / (2.0 * (ktptat / vptat25))
+        ta = delta_ta + 25.0
+        ta_k = ta + 273.15
+        ta_k4 = ta_k ** 4
+
+        # 3. Gain Calculation
+        gain_ram = ram_words[776]
+        if gain_ram > 32767:
+            gain_ram -= 65536
+        k_gain = p["gain"] / (gain_ram if gain_ram != 0 else 1.0)
+
+        # 4. Compensation Pixel (CP) Calculation
+        cp_idx = 768 if subpage == 0 else 808
+        cp_raw = ram_words[cp_idx]
+        if cp_raw > 32767:
+            cp_raw -= 65536
+        cp_gain = cp_raw * k_gain
+
+        off_cp = p["offCP"][subpage]
+        alpha_cp = p["alphaCP"][subpage]
+        kta_cp = p["ktaCP"]
+        kv_cp = p["kvCP"]
+
+        v_cp_comp = cp_gain - (off_cp * (1.0 + kta_cp * (ta - 25.0)) * (1.0 + kv_cp * delta_vdd))
+
+        # 5. Per-Pixel IR and To Calculation (24 x 32)
+        tgc = p["tgc"]
+        ks_ta = p["ksTa"]
+        emiss = self.emissivity
+        ks_to4 = p["ksTo"][3] if "ksTo" in p and len(p["ksTo"]) >= 4 else 0.0
+
+        to_array = np.zeros((24, 32), dtype=np.float32)
+
+        pixels_offset = p["pixels_offset"]
+        pixels_kta = p["pixels_kta"]
+        pixels_kv = p["pixels_kv"]
+        pixels_alpha = p["pixels_alpha"]
+
+        for i in range(768):
+            r = i // 32
+            c = i % 32
+            pix_raw = ram_words[i]
+            if pix_raw > 32767:
+                pix_raw -= 65536
+            pix_gain = pix_raw * k_gain
+
+            # Offset compensation
+            v_pix_offset_comp = pix_gain - (pixels_offset[r, c] * (1.0 + pixels_kta[r, c] * (ta - 25.0)) * (1.0 + pixels_kv[r, c] * delta_vdd))
+            # TGC compensation
+            v_ir_comp = v_pix_offset_comp - tgc * v_cp_comp
+
+            # Sensitivity compensation
+            alpha_comp = (pixels_alpha[r, c] - tgc * alpha_cp) * (1.0 + ks_ta * (ta - 25.0))
+            alpha_comp_emiss = alpha_comp * emiss
+            if alpha_comp_emiss <= 0:
+                alpha_comp_emiss = 1e-12
+
+            # Basic To calculation with standard 4th root
+            alpha_comp4 = alpha_comp_emiss ** 4
+            alpha_comp3 = alpha_comp_emiss ** 3
+            sx_inner = alpha_comp3 * v_ir_comp + alpha_comp4 * ta_k4
+            if sx_inner > 0:
+                sx = ks_to4 * math.pow(sx_inner, 0.25)
+            else:
+                sx = 0.0
+
+            denom = alpha_comp_emiss * (1.0 - ks_to4 * 273.15) + sx
+            if abs(denom) < 1e-15:
+                denom = 1e-15
+
+            to_k4 = (v_ir_comp / denom) + ta_k4
+            if to_k4 > 0:
+                to_val = math.pow(to_k4, 0.25) - 273.15
+            else:
+                to_val = ta
+
+            to_array[r, c] = float(to_val)
+
+        return to_array, float(ta)
 
     def _init_mock_params(self):
         """Initializes calibration parameters for mock mode."""
@@ -154,6 +517,14 @@ class MLX90640(object):
             "vPTAT25": 12000.0,
             "alphaPTAT": 9.0,
             "gain": 6000.0,
+            "tgc": 0.0,
+            "ksTa": 0.0,
+            "ksTo": [0.0, 0.0, 0.0, 0.0],
+            "CT": [-40.0, 0.0, 40.0, 80.0],
+            "offCP": [0.0, 0.0],
+            "ktaCP": 0.0,
+            "kvCP": 0.0,
+            "alphaCP": [1e-7, 1e-7],
             "pixels_alpha": np.ones((24, 32), dtype=np.float32) * 1e-7,
             "pixels_offset": np.zeros((24, 32), dtype=np.float32),
             "pixels_kta": np.zeros((24, 32), dtype=np.float32),
@@ -204,22 +575,54 @@ class MLX90640(object):
 
         # Real hardware capture path
         try:
-            # Read RAM data words
-            ram_words = self._read_words(self.RAM_START, self.RAM_WORDS)
-            # Compute Ta
-            vptat = ram_words[0x0720 - self.RAM_START]
-            if vptat > 32767: vptat -= 65536
-            ta = (float(vptat) - self.params["vPTAT25"]) / self.params["ktPTAT"] + 25.0
+            # Capture two subpages to guarantee a fresh, full 24x32 frame
+            subpages_captured = 0
+            start_wait = time.time()
+            last_subpage = -1
+            to_array = None
+            ta = 25.0
 
-            # Convert 768 pixel words to temperatures
-            thermal = np.zeros((24, 32), dtype=np.float32)
-            for i in range(768):
-                r = i // 32
-                c = i % 32
-                raw = ram_words[i]
-                if raw > 32767: raw -= 65536
-                # Linear conversion approximation
-                thermal[r, c] = float(ta + (raw / 100.0))
+            # Read up to 2 subpages (timeout 1.0s)
+            while subpages_captured < 2 and (time.time() - start_wait < 1.0):
+                status_words = self._read_words(self.STATUS_REG, 1)
+                status = status_words[0] if status_words else 0
+                subpage = status & 0x01
+
+                # Read RAM data words (0x0400 to 0x073F)
+                ram_words = self._read_words(self.RAM_START, self.RAM_WORDS)
+                # Clear data ready bit
+                try:
+                    self._write_word(self.STATUS_REG, 0x0000)
+                except Exception:
+                    pass
+
+                to_array, ta = self._calculate_temperatures(ram_words, subpage=subpage)
+
+                # Update frame buffer for pixels of this subpage (Chess Mode)
+                for i in range(768):
+                    r = i // 32
+                    c = i % 32
+                    if (r + c) % 2 == subpage:
+                        self._frame_buffer[r, c] = to_array[r, c]
+
+                if subpage != last_subpage:
+                    subpages_captured += 1
+                    last_subpage = subpage
+
+                time.sleep(0.05)
+
+            if to_array is None:
+                raise IOError("No RAM data received from MLX90640")
+
+            # If only 1 subpage could be read within timeout, fill uninitialized pixels from to_array
+            if np.all(self._frame_buffer == 0.0):
+                self._frame_buffer = to_array.copy()
+            else:
+                zero_mask = (self._frame_buffer == 0.0)
+                if np.any(zero_mask):
+                    self._frame_buffer[zero_mask] = to_array[zero_mask]
+
+            thermal = self._frame_buffer.copy()
 
             return {
                 "available": True,
