@@ -104,16 +104,21 @@ _QUEUE_TIMEOUT = object()
 
 class DropOldestQueue(object):
     """
-    Thread-safe bounded FIFO queue with DROP-OLDEST policy.
-    Never blocks a producer on put(). Drops the oldest item when full.
+    Thread-safe bounded FIFO queue.
+    When drop_oldest=True (realtime streaming mode):
+      Never blocks a producer on put(). Drops the oldest non-sentinel item when full.
+    When drop_oldest=False (offline video file / no-realtime processing):
+      Blocks producer on put() when full until consumer pops an item (backpressure).
     Guarantees that a termination sentinel (None) is never dropped.
     """
 
-    def __init__(self, maxsize: int = 8):
+    def __init__(self, maxsize: int = 8, drop_oldest: bool = True):
         self.maxsize = int(maxsize)
+        self.drop_oldest = bool(drop_oldest)
         self.queue = collections.deque()
         self.lock = threading.Lock()
         self.not_empty = threading.Condition(self.lock)
+        self.not_full = threading.Condition(self.lock)
         self.dropped_count = 0
         self.closed = False
         self.items_pushed = 0
@@ -121,20 +126,28 @@ class DropOldestQueue(object):
         self.timeout_count = 0
         self.wait_time_s = 0.0
 
-    def put(self, item: Any) -> bool:
-        """Pushes an item without blocking. Drops oldest non-sentinel item if full."""
+    def put(self, item: Any, timeout: Optional[float] = None) -> bool:
+        """Pushes an item. If drop_oldest=True, drops oldest non-sentinel item if full. If drop_oldest=False, blocks until space is available."""
         with self.lock:
             if self.closed:
                 return False
-            if len(self.queue) >= self.maxsize:
-                # If full, drop the oldest non-sentinel item to make room
-                if len(self.queue) > 0 and self.queue[0] is not None:
-                    self.queue.popleft()
-                    self.dropped_count += 1
-                elif len(self.queue) > 1 and self.queue[1] is not None:
-                    # Don't drop sentinel at index 0
-                    del self.queue[1]
-                    self.dropped_count += 1
+
+            if self.drop_oldest:
+                if len(self.queue) >= self.maxsize:
+                    # If full, drop the oldest non-sentinel item to make room
+                    if len(self.queue) > 0 and self.queue[0] is not None:
+                        self.queue.popleft()
+                        self.dropped_count += 1
+                    elif len(self.queue) > 1 and self.queue[1] is not None:
+                        # Don't drop sentinel at index 0
+                        del self.queue[1]
+                        self.dropped_count += 1
+            else:
+                # Blocking put for offline processing (backpressure)
+                while len(self.queue) >= self.maxsize:
+                    if self.closed:
+                        return False
+                    self.not_full.wait(timeout=timeout or 0.1)
 
             self.queue.append(item)
             self.items_pushed += 1
@@ -144,7 +157,7 @@ class DropOldestQueue(object):
     def get(self, timeout: Optional[float] = 0.5) -> Any:
         """Pops the oldest item, blocking up to timeout seconds. Returns _QUEUE_TIMEOUT on timeout."""
         t0 = time.time()
-        with self.not_empty:
+        with self.lock:
             while len(self.queue) == 0:
                 if self.closed:
                     return None
@@ -155,23 +168,26 @@ class DropOldestQueue(object):
             item = self.queue.popleft()
             self.items_popped += 1
             self.wait_time_s += (time.time() - t0)
+            self.not_full.notify()
             return item
 
     def get_stats(self) -> Dict[str, Any]:
         """Returns diagnostic throughput and wait time statistics."""
-        return {
-            "items_pushed": self.items_pushed,
-            "items_popped": self.items_popped,
-            "items_dropped": self.dropped_count,
-            "timeout_count": self.timeout_count,
-            "total_wait_s": round(self.wait_time_s, 3),
-        }
+        with self.lock:
+            return {
+                "items_pushed": self.items_pushed,
+                "items_popped": self.items_popped,
+                "items_dropped": self.dropped_count,
+                "timeout_count": self.timeout_count,
+                "total_wait_s": round(self.wait_time_s, 3),
+            }
 
     def close(self) -> None:
-        """Closes the queue and unblocks any waiting consumers."""
+        """Closes the queue and unblocks any waiting consumers or producers."""
         with self.lock:
             self.closed = True
             self.not_empty.notify_all()
+            self.not_full.notify_all()
 
 
 def load_log_priors(repo_root: Path) -> np.ndarray:
@@ -950,10 +966,13 @@ class EdgePipeline(object):
         if isinstance(self.source, (str, Path)) and Path(str(self.source)).exists():
             self.manifest_lookup = load_video_manifest(Path(str(self.source)))
 
-        # Bounded drop-oldest queues between pipeline stages
-        self.raw_queue = DropOldestQueue(maxsize=self.queue_size)
-        self.tile_queue = DropOldestQueue(maxsize=self.queue_size)
-        self.result_queue = DropOldestQueue(maxsize=self.queue_size)
+        # Bounded queues between pipeline stages:
+        # If realtime=True (live camera streaming), drop-oldest policy prevents latency buildup.
+        # If realtime=False (offline video / --no-realtime), blocking backpressure guarantees zero frame drops.
+        drop_policy = self.realtime
+        self.raw_queue = DropOldestQueue(maxsize=self.queue_size, drop_oldest=drop_policy)
+        self.tile_queue = DropOldestQueue(maxsize=self.queue_size, drop_oldest=drop_policy)
+        self.result_queue = DropOldestQueue(maxsize=self.queue_size, drop_oldest=drop_policy)
 
         # Core edge instances
         self.frame_gate = FrameGate()
@@ -1013,18 +1032,26 @@ class EdgePipeline(object):
         t_elapsed = time.time() - t_start
 
         frames_seen = self.t1_capture.frames_read
+        frames_evaluated = self.t2_gate_tile.frames_evaluated
         frames_passed = self.t2_gate_tile.frames_passed
+        raw_drops = self.raw_queue.dropped_count
         pass_rate_pct = (float(frames_passed) / float(frames_seen) * 100.0) if frames_seen > 0 else 0.0
         scenes_per_sec = float(frames_passed) / t_elapsed if t_elapsed > 0 else 0.0
         fps_read = float(frames_seen) / t_elapsed if t_elapsed > 0 else 0.0
+
+        # Complete rejections accounting: gate rejections plus any queue overflow drops
+        rejections = dict(self.t2_gate_tile.rejections_by_reason)
+        if raw_drops > 0:
+            rejections["queue_overflow_drop"] = raw_drops
 
         metrics = {
             "elapsed_seconds": t_elapsed,
             "inference_backend": self.backend,
             "frames_seen": frames_seen,
+            "frames_evaluated": frames_evaluated,
             "frames_passed": frames_passed,
             "gate_pass_rate_pct": pass_rate_pct,
-            "rejections": dict(self.t2_gate_tile.rejections_by_reason),
+            "rejections": rejections,
             "tiles_classified": self.t3_inference.tiles_classified,
             "queue_drops": {
                 "raw_queue": self.raw_queue.dropped_count,
@@ -1112,12 +1139,14 @@ class EdgePipeline(object):
         print("-" * 70)
         print("FRAME GATE SUMMARY:")
         print("  Frames Seen       : %d" % metrics["frames_seen"])
+        print("  Frames Evaluated  : %d" % metrics.get("frames_evaluated", metrics["frames_seen"]))
         print("  Frames Passed     : %d (%.2f%%)" % (metrics["frames_passed"], metrics["gate_pass_rate_pct"]))
         if metrics["gate_pass_rate_pct"] > 15.0:
             print("  NOTE: Pass rate >15% is an artifact of synthetic/discrete test clips with few consecutive")
             print("        duplicates (each scene change has high displacement). Real continuous 30fps walking")
             print("        footage yields 3-8% pass rate (92-97% novelty/blur rejection).")
-        print("  Rejections Total  : %d" % (metrics["frames_seen"] - metrics["frames_passed"]))
+        rejections_total = metrics["frames_seen"] - metrics["frames_passed"]
+        print("  Rejections Total  : %d" % rejections_total)
         for reason, count in metrics["rejections"].items():
             print("    - %-26s : %d" % (reason, count))
         print("-" * 70)

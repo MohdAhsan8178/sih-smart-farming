@@ -90,6 +90,34 @@ def test_drop_oldest_queue_close():
     assert time.time() - t0 < 1.0
 
 
+def test_drop_oldest_queue_blocking_mode():
+    """Verify DropOldestQueue blocks producer on put() when drop_oldest=False."""
+    import threading
+    q = DropOldestQueue(maxsize=2, drop_oldest=False)
+    assert q.put("A")
+    assert q.put("B")
+    assert q.dropped_count == 0
+
+    # Pushing 3rd item blocks until item is popped
+    pushed = []
+
+    def background_put():
+        q.put("C")
+        pushed.append("C")
+
+    t = threading.Thread(target=background_put)
+    t.start()
+    time.sleep(0.05)
+    assert len(pushed) == 0  # Still waiting
+
+    assert q.get(timeout=0.1) == "A"
+    t.join(timeout=1.0)
+    assert len(pushed) == 1
+    assert q.get(timeout=0.1) == "B"
+    assert q.get(timeout=0.1) == "C"
+    assert q.dropped_count == 0
+
+
 def test_load_log_priors():
     """Verify load_log_priors returns valid shape and probabilities."""
     priors = load_log_priors(Path(__file__).resolve().parent.parent)
@@ -158,6 +186,41 @@ def test_end_to_end_pipeline_dryrun():
         assert "canopy_cover" in adv["vegetation"]
         assert "vari" in adv["vegetation"]
         assert adv["vegetation"]["canopy_cover"]["mean"] is not None
+
+
+def test_offline_pipeline_full_rejection_balance():
+    """Verify 30-frame offline execution (--no-realtime) processes all frames without queue drops and balances exactly."""
+    video_path = Path("test_video_from_dataset_images.mp4")
+    if not video_path.exists():
+        video_path = Path("data/video/test_video_from_dataset_images.mp4")
+
+    assert video_path.exists()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_jsonl = Path(tmpdir) / "pipeline_events_30.jsonl"
+        pipeline = EdgePipeline(
+            source=str(video_path),
+            dry_run=True,
+            max_frames=30,
+            output_jsonl=str(output_jsonl),
+            queue_size=8,
+            realtime=False,  # --no-realtime offline mode
+        )
+
+        metrics = pipeline.run()
+
+        # Frames Seen must equal Frames Evaluated in offline mode
+        assert metrics["frames_seen"] == 30
+        assert metrics["frames_evaluated"] == 30
+        assert metrics["frames_passed"] == 12
+        assert metrics["queue_drops"]["raw_queue"] == 0
+
+        # Exact rejections accounting
+        rejections = metrics["rejections"]
+        assert sum(rejections.values()) + metrics["frames_passed"] == metrics["frames_seen"]
+        assert rejections.get("scene_not_novel") == 12
+        assert rejections.get("frame_blurry") == 2
+        assert rejections.get("exposure_overexposed") == 4
 
 
 def test_g5_2_temperature_and_energy_single_application():

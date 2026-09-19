@@ -150,6 +150,7 @@ class FrameGate(object):
         self.frames_evaluated += 1
 
         if frame_bgr is None or frame_bgr.size == 0:
+            self.rejection_counts["empty_frame"] = self.rejection_counts.get("empty_frame", 0) + 1
             return False, "empty_frame", {"passed": False, "reason": "empty_frame"}
 
         # Prepare grayscale image
@@ -158,6 +159,7 @@ class FrameGate(object):
         elif frame_bgr.ndim == 2:
             gray = frame_bgr
         else:
+            self.rejection_counts["invalid_dimensions"] = self.rejection_counts.get("invalid_dimensions", 0) + 1
             return False, "invalid_dimensions", {"passed": False, "reason": "invalid_dimensions"}
 
         # Prepare downscaled thumbnail for novelty checking
