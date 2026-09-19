@@ -1,8 +1,9 @@
 # Payload Contract Specification (v1.0)
 
+**Last Updated:** 19 September 2026  
 **Document:** `docs/PAYLOAD_CONTRACT.md`  
-**Purpose:** Authoritative wire schema contract for all advisory JSON payloads emitted by `GET /api/v1/advisory/<id>` and telemetry endpoints.  
-**Generation:** Automatically generated and verified from code constants via `scripts/generate_payload_contract.py` and tested by `tests/test_payload_contract.py`.
+**Purpose:** Authoritative wire schema contract for all advisory JSON payloads emitted by `GET /api/v1/advisory/<id_or_seq>`, `GET /api/v1/advisory/latest`, and edge telemetry endpoints.  
+**Generation & Validation:** Synchronized with code constants and verified against real synthesized advisory payloads via `scripts/generate_payload_contract.py` and `tests/test_payload_contract.py`.
 
 ---
 
@@ -11,7 +12,7 @@
 | Field Path | Type | Nullable | Allowed Values / Range | Description |
 |---|---|---|---|---|
 | `schema_version` | string | No | `"1.0"` | Wire contract schema version |
-| `advisory_id` | string | No | String identifier (e.g. `2026-09-17T06:30:00Z_field1`) | Unique advisory document identifier |
+| `advisory_id` | string | No | String identifier (e.g. `2026-09-19T10:00:00Z_F01`) | Unique advisory document identifier |
 | `seq` | integer | No | `>= 1` | Monotonic sequential advisory sequence number assigned by SQLite rowid |
 | `generated_at_utc` | string | No | ISO-8601 UTC string (`YYYY-MM-DDTHH:MM:SSZ`) | Timestamp of advisory synthesis |
 | `inference_backend` | string | No | `"trt"`, `"onnx"`, `"mock"` | Explicit runtime inference engine backend |
@@ -42,16 +43,16 @@
 | `ended_utc` | string | No | Session scan end timestamp |
 | `mode` | string | No | Operating mode (`"handheld_pod"`) |
 | `frames_captured` | integer | No | Total video frames read from capture source |
-| `frames_evaluated` | integer | No | Frames passing quality gates 1-4 |
-| `tiles_classified` | integer | No | Total 320x320 tiles passed through inference (frames * 9) |
-| `distance_walked_m` | float | Yes | Distance traversed during pass (meters) |
-| `distance_reason` | string | Yes | Reason if distance is unavailable (`"GPS_TRACK_NOT_RECORDED"`) |
+| `frames_evaluated` | integer | No | Frames passing quality gates 1–4 |
+| `tiles_classified` | integer | No | Total 224x224 tiles passed through inference (`frames * 9`) |
+| `distance_walked_m` | float | Yes | Distance traversed during pass in meters (or `null`) |
+| `distance_reason` | string | Yes | Reason if distance is unavailable (`"GPS_TRACK_NOT_RECORDED"` or `null`) |
 
 ### 2.2 Crop Health Block (`crop_health`)
 | Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
 | `state` | string | No | `HEALTHY`, `DISEASE`, `UNCERTAIN`, `NOT_CROP`, `NO_DATA` | Consensus crop health verdict across cells |
-| `reason` | string | Yes | `HIGH_UNCERTAINTY`, `MULTIPLE_CROPS_DETECTED`, or `null` | Reason if state is non-definitive |
+| `reason` | string | Yes | `HIGH_UNCERTAINTY`, `MULTIPLE_CROPS_DETECTED`, `UNCONFIRMED_DETECTIONS`, or `null` | Reason if state is non-definitive |
 | `crop` | string | Yes | `"rice"`, `"wheat"`, `"sugarcane"`, or `null` | Dominant diagnosed crop species |
 | `frames_evaluated` | integer | No | `>= 0` | Total accepted frames analyzed |
 | `frames_agreeing` | integer | No | `>= 0` | Agreement count on top diagnosis |
@@ -63,27 +64,35 @@
 ### 2.3 Growth Stage Block (`growth_stage`)
 | Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
-| `crop` | string | Yes | `"rice"`, `"wheat"`, `"sugarcane"` | Crop evaluated |
+| `crop` | string | Yes | `"rice"`, `"wheat"`, `"sugarcane"`, or `null` | Crop evaluated |
 | `stage` | string | Yes | `initial`, `development`, `mid_season`, `late_season`, or `null` | Current phenological stage |
 | `stage_code` | string | Yes | `"INI"`, `"DEV"`, `"MID"`, `"LATE"`, or `null` | Short stage code |
-| `days_since_planting` | integer | Yes | `>= 0` | Days elapsed since planting / transplanting |
-| `total_cycle_days` | integer | Yes | Typical 120-280 days | Assumed total lifecycle duration |
-| `kc` | float | Yes | `0.20` to `1.35` | FAO-56 Table 12 crop coefficient |
-| `status` | string | No | `"OK"`, `"DAYS_SINCE_PLANTING_REQUIRED"`, `"UNSUPPORTED_CROP"` | Estimation validity status |
+| `days_since_planting` | integer | Yes | `>= 0` or `null` | Days elapsed since planting / transplanting |
+| `total_cycle_days` | integer | Yes | Typical 120–280 days | Assumed total lifecycle duration |
+| `cycle_source` | string | Yes | `"default_assumption"`, `"user_override"` | Source of variety cycle length |
+| `cycle_verification_status` | string | Yes | `"RECALLED_UNVERIFIED"` | Provenance of variety cycle length |
+| `stage_lengths_days` | object | Yes | Dictionary of stage durations | Durations of initial, development, mid_season, late_season |
+| `canopy_cover_measured` | float | Yes | `0.0` to `1.0` or `null` | Fractional canopy cover measured during scan |
+| `canopy_cover_expected_range` | array | Yes | Pair of floats `[min, max]` or `null` | Expected canopy cover range for stage |
+| `kc` | float | Yes | `0.20` to `1.35` or `null` | FAO-56 Table 12 crop coefficient |
+| `status` | string | No | `"OK"`, `"DAYS_SINCE_PLANTING_REQUIRED"`, `"AWAITING_PLANTING_DATE"`, `"UNSUPPORTED_CROP"` | Estimation validity status |
+| `reason` | string | Yes | `"DAYS_SINCE_PLANTING_REQUIRED"` or `null` | Reason if stage is unestimated |
 | `verification_status` | string | No | `VERIFIED`, `WEB_VERIFIED`, `RECALLED_UNVERIFIED`, `UNSOURCED` | Four-value frozen provenance status |
 | `source` | string | No | `"derived"` | Agronomic model origin |
+| `document_reference` | string | No | Text citation | Primary FAO-56 document reference |
 
 ### 2.4 Vegetation Block (`vegetation`)
 | Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
 | `interpretation_mode` | string | No | `"relative"` | Within-scan relative distribution mode |
-| `canopy_cover.mean` | float | Yes | `0.0` to `1.0` | Fractional green canopy coverage |
-| `vari.band` | string | Yes | `LOWER_TAIL`, `BELOW_TYPICAL`, `TYPICAL`, `ABOVE_TYPICAL` | Relative within-scan greenness band |
-| `exg.mean` | float | Yes | Numeric | Excess Green index mean |
-| `tgi.mean` | float | Yes | Numeric | Triangular Greenness Index mean |
-| `dgci.mean` | float | Yes | `0.0` to `1.0` | Dark Green Color Index mean |
+| `canopy_cover` | object | No | Dictionary | Green canopy coverage statistics (`mean`, `p10`, `p50`, `p90`, `status`, `source`) |
+| `vari` | object | No | Dictionary | Visible Atmospherically Resistant Index (`mean`, `band`, `status`, `source`) |
+| `exg` | object | No | Dictionary | Excess Green index statistics (`mean`, `source`) |
+| `tgi` | object | No | Dictionary | Triangular Greenness Index statistics (`mean`, `source`) |
+| `dgci` | object | No | Dictionary | Dark Green Color Index statistics (`mean`, `out_of_domain_fraction`, `source`) |
 | `ndvi` | float / null | Yes | `null` (hardware pending) | Dual-bandpass normalized difference vegetation index |
 | `ndvi_status` | string | No | `"GATED_HARDWARE_CALIBRATION"`, `"PENDING_HARDWARE_FINALIZATION"` | Hardware gating status |
+| `ndvi_reason` | string | Yes | Text explanation | Explanation of hardware reservation |
 
 ### 2.5 Hardware-Gated & Environmental Blocks (`thermal`, `ndvi`, `ndvi_satellite`, `irrigation`)
 
@@ -99,6 +108,12 @@
 | `flag` | string | Yes | `"NORMAL"`, `"CWSI_BELOW_ZERO"`, `"CWSI_ABOVE_ONE"` | Out-of-bounds flag (unclamped reporting) |
 | `thermal_source` | string | No | `"hardware"`, `"mock"` | Origin of thermal data |
 | `frame_utc` | string | Yes | ISO-8601 UTC string or `null` | Capture timestamp of thermal frame |
+
+#### NDVI Hardware Probe Block (`ndvi`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `available` | boolean | No | `true`, `false` | True when NoIR camera is detected on CSI port 1 |
+| `reason` | string | Yes | Text explanation or `null` | Status reason if camera absent or uncalibrated |
 
 #### Sentinel-2 Satellite NDVI Block (`ndvi_satellite`)
 | Field | Type | Nullable | Allowed Values | Description |
@@ -116,22 +131,29 @@
 | `reliability_note` | string | Yes | `"UNRELIABLE_SMALL_FIELD (<9 pixels / ~30x30m footprint)"` or `null` | Small field warning |
 
 #### FAO-56 Irrigation Block (`irrigation`)
-| Field | Type | Nullable | Description |
-|---|---|---|---|
-| `available` | boolean | No | True when ground mast temperature history is sufficient |
-| `method` | string | Yes | `"fao56_hargreaves_samani"` |
-| `t_min_24h_c` | float | Yes | Minimum diurnal air temp (°C) |
-| `t_max_24h_c` | float | Yes | Maximum diurnal air temp (°C) |
-| `t_mean_24h_c` | float | Yes | Mean diurnal air temp (°C) |
-| `ra_mj_m2_day` | float | Yes | Dynamic FAO-56 Eq. 21 extraterrestrial radiation (MJ/m²/day) |
-| `ra_mm_day` | float | Yes | $R_a \times 0.408$ equivalent depth (mm/day) |
-| `ra_source` | string | Yes | `"GPS"`, `"CONFIG_LATITUDE"` |
-| `ra_latitude_deg` | float | Yes | Latitude used for $R_a$ computation |
-| `day_of_year` | integer | Yes | Day of year ($J$) |
-| `et0_mm_day` | float | Yes | Reference evapotranspiration |
-| `kc` | float | Yes | Crop coefficient |
-| `crop_et_mm_day` | float | Yes | Crop ET ($ET_c = ET_0 \times K_c$) |
-| `samples_24h` | integer | Yes | Readings in 24h window |
+| Field | Type | Nullable | Allowed Values / Range | Description |
+|---|---|---|---|---|
+| `available` | boolean | No | `true`, `false` | True when ground mast temperature history is sufficient |
+| `reason` | string | Yes | Text reason | Explanation if irrigation computation unavailable |
+| `method` | string | Yes | `"fao56_hargreaves_samani"` | Irrigation calculation method |
+| `air_temp_c` | float | Yes | `-10.0` to `60.0` | Instantaneous air temperature (°C) |
+| `rh_pct` | float | Yes | `0.0` to `100.0` | Relative humidity (%) |
+| `t_min_24h_c` | float | Yes | Minimum diurnal air temp (°C) | 24-hour minimum air temperature |
+| `t_max_24h_c` | float | Yes | Maximum diurnal air temp (°C) | 24-hour maximum air temperature |
+| `t_mean_24h_c` | float | Yes | Mean diurnal air temp (°C) | 24-hour mean air temperature |
+| `ra_mj_m2_day` | float | Yes | Numeric | Dynamic FAO-56 Eq. 21 extraterrestrial radiation (MJ/m²/day) |
+| `ra_mm_day` | float | Yes | Numeric | $R_a \times 0.408$ equivalent depth (mm/day) |
+| `ra_source` | string | Yes | `"GPS"`, `"CONFIG_LATITUDE"` | Origin of latitude coordinate for $R_a$ |
+| `ra_latitude_deg` | float | Yes | `-90.0` to `90.0` | Latitude used for $R_a$ computation |
+| `day_of_year` | integer | Yes | `1` to `366` | Day of year ($J$) |
+| `et0_mm_day` | float | Yes | `0.0` to `15.0` | Reference evapotranspiration ($ET_0$) |
+| `kc` | float | Yes | `0.20` to `1.35` | Crop coefficient |
+| `crop_et_mm_day` | float | Yes | `>= 0.0` | Crop ET ($ET_c = ET_0 \times K_c$) |
+| `soil1_v` | float | Yes | `0.0` to `3.3` | Soil moisture sensor 1 voltage |
+| `soil2_v` | float | Yes | `0.0` to `3.3` | Soil moisture sensor 2 voltage |
+| `battery_v` | float | Yes | `0.0` to `5.0` | Mast node battery voltage |
+| `samples_24h` | integer | Yes | `>= 6` | Readings count in 24h window |
+| `source` | string | Yes | `"derived_fao56"` | Provenance label |
 
 ### 2.6 Trap Pest Block (`pest[]`)
 | Field | Type | Nullable | Allowed Values | Description |
@@ -153,28 +175,49 @@
 ### 2.7 Detections Block (`detections[]`)
 | Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
-| `cell_id` | string | No | String identifier (e.g. `"tile_r0_c0"`) | Spatial grid cell identifier |
-| `class_name` | string | No | 29 Model A classes | Diagnosed class label |
+| `class` | string | No | 29 Model A classes | Diagnosed class label (e.g. `"rice__blast"`) |
 | `confidence` | float | No | `0.0` to `1.0` | Softmax probability |
-| `energy` | float | No | Numeric | Open-set energy score |
-| `state` | string | No | `HEALTHY`, `DISEASE`, `UNCERTAIN`, `NOT_CROP` | Cell health classification |
 | `cross_source_reliability` | string | No | `TESTED_ROBUST`, `TESTED_WEAK`, `TESTED_FAILED`, `UNTESTED` | Cross-source evaluation tier |
-| `latitude` | float | Yes | Numeric coordinate or `null` | Detection GPS latitude |
-| `longitude` | float | Yes | Numeric coordinate or `null` | Detection GPS longitude |
+| `lat` | float | Yes | Numeric coordinate or `null` | Detection GPS latitude |
+| `lon` | float | Yes | Numeric coordinate or `null` | Detection GPS longitude |
+| `fix_quality` | integer | Yes | `0`, `1`, `2` or `null` | GPS fix quality (`0`=invalid, `1`=GPS, `2`=DGPS) |
+| `hdop` | float | Yes | `>= 0.0` or `null` | Horizontal Dilution of Precision |
+| `captured_utc` | string | No | ISO-8601 UTC string | Timestamp of frame capture |
+| `source` | string | No | `"measured"` | Provenance of detection |
 
-### 2.8 Actions Block (`actions[]`)
-| Field | Type | Allowed Values | Description |
-|---|---|---|---|
-| `rank` | integer | `>= 1` | Action priority rank |
-| `template_id` | string | `ACT_EXT_OFFICER_CONSULT`, `ACT_IRRIGATE_WATER_DEFICIT`, `ACT_MAINTAIN_ROUTINE`, `ACT_MULTICROP_INVESTIGATE`, `ACT_RESCAN_AMBIGUOUS`, `ACT_TREAT_RICE_BLAST`, `ACT_TREAT_RICE_BLIGHT`, `ACT_TREAT_RICE_BROWN_SPOT`, `ACT_TREAT_RICE_HISPA`, `ACT_TREAT_RICE_LEAF_ROLLER`, `ACT_TREAT_RICE_OTHER_DISEASE`, `ACT_TREAT_RICE_STEM_BORER`, `ACT_TREAT_RICE_TUNGRO`, `ACT_TREAT_SUGARCANE_POKKAH_BOENG`, `ACT_TREAT_SUGARCANE_RED_ROT`, `ACT_TREAT_SUGARCANE_RUST`, `ACT_TREAT_SUGARCANE_SMUT`, `ACT_TREAT_SUGARCANE_VIRAL_ABIOTIC`, `ACT_TREAT_WHEAT_BROWN_RUST`, `ACT_TREAT_WHEAT_POWDERY_MILDEW`, `ACT_TREAT_WHEAT_YELLOW_RUST` | Deterministic action template identifier |
-| `action` | string | <= 240 chars | English action directive |
-| `rationale` | string | <= 400 chars | Agronomic explanation and threshold comparison |
-| `params` | object | Dictionary | Parameters for deterministic offline translation |
-| `verification_status` | string | `VERIFIED`, `WEB_VERIFIED`, `RECALLED_UNVERIFIED`, `UNSOURCED` | Four-value citation verification status |
-| `offline_source_file` | string | Path | Local PDF archive citation |
-| `advisory_only` | boolean | `true` | Explicit disclaimer: advisory recommendation only |
+### 2.8 GPS Scan Summary Block (`gps`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `status` | string | No | `OK`, `ABSENT` | GPS overall coverage status during walk scan |
+| `point_count` | integer | No | `>= 0` | Number of geotagged frames recorded in scan |
+| `accuracy_note` | string | No | Text disclaimer | Position precision disclaimer ("Point tagging only, approximately 2.5 m CEP. Not a survey-grade position.") |
 
-### 2.9 Sensor Inputs Block (`inputs[]`)
+### 2.9 Disease Diagnoses Block (`disease[]`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `class` | string | No | Non-healthy Model A classes | Diagnosed disease class label (e.g. `"rice__blast"`) |
+| `confidence` | float | No | `0.0` to `1.0` | Softmax probability |
+| `media_ids` | array | No | Empty list `[]` | Associated image IDs (retained empty per media retention pruning policy) |
+| `source` | string | No | `"measured"` | Provenance of diagnosis |
+
+### 2.10 Actions Block (`actions[]`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `rank` | integer | No | `>= 1` | Action priority rank |
+| `template_id` | string | No | 21 template IDs | Deterministic action template identifier |
+| `action` | string | No | <= 240 chars | English action directive |
+| `rationale` | string | No | <= 400 chars | Agronomic explanation and threshold comparison |
+| `params` | object | No | Dictionary | Parameters for deterministic offline translation |
+| `verification_status` | string | No | `VERIFIED`, `WEB_VERIFIED`, `RECALLED_UNVERIFIED`, `UNSOURCED` | Four-value citation verification status |
+| `url` | string | Yes | URL string or `null` | Primary legal / agronomic regulatory source URL |
+| `document_reference` | string | Yes | Text string or `null` | Exact publication / bulletin reference citation |
+| `offline_source_file` | string | Yes | Path or `null` | Local PDF / Markdown archive citation in `docs/sources/` |
+| `confidence` | string | No | `"high"`, `"medium"`, `"low"` | Action confidence tier |
+| `advisory_only` | boolean | No | `true` | Explicit disclaimer: advisory recommendation only |
+| `generated_by` | string | No | `"template"` | Generator provenance tag (ALWAYS `"template"`) |
+| `source` | string | No | `"derived"` | Agronomic origin label |
+
+### 2.11 Sensor Inputs Block (`inputs[]`)
 | Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
 | `name` | string | No | `"pod_camera_rgb"`, `"pod_gps"`, `"pod_thermal"` | Sensor input stream identifier |
@@ -231,4 +274,3 @@ The ground mast ESP32 acts as an HTTP server (`GET /readings?since=&limit=`) pul
 
 ### 4.7 Sensor Input Status Enum (4 values)
 `OK`, `PENDING_CALIBRATION`, `MOCK_PROVISIONAL`, `ABSENT`
-

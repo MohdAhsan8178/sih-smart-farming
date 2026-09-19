@@ -1,6 +1,6 @@
 # App Team Handoff & Payload Changes Specification
 
-**Last Updated:** 17 September 2026  
+**Last Updated:** 19 September 2026  
 **Document:** `docs/APP_TEAM_CHANGES.md`  
 **Supersedes:** `data_flow_architecture.md` field definitions and `ans_for_vitthal.md` legacy draft items.  
 **Authoritative Reference:** `docs/PAYLOAD_CONTRACT.md` (validated by `tests/test_payload_contract.py`).
@@ -37,16 +37,16 @@ This document details all schema, telemetry, and contract changes between the in
 
 ---
 
-## 2. Complete Wire Contract Fields (`GET /api/v1/advisory/<id>`)
+## 2. Complete Wire Contract Fields (`GET /api/v1/advisory/<id_or_seq>`, `GET /api/v1/advisory/latest`)
 
-The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/advisory/latest` adheres to schema version `1.0`.
+The advisory document emitted by `GET /api/v1/advisory/<id_or_seq>` and `GET /api/v1/advisory/latest` adheres to schema version `1.0`.
 
 ### 2.1 Top-Level Fields
 
 | Field Path | Type | Nullable | Values / Format | Purpose |
 |---|---|---|---|---|
 | `schema_version` | string | No | `"1.0"` | Wire contract schema version |
-| `advisory_id` | string | No | String (e.g. `2026-09-21T08:00:00Z_field1`) | Unique advisory document identifier |
+| `advisory_id` | string | No | String (e.g. `2026-09-19T10:00:00Z_F01`) | Unique advisory document identifier |
 | `seq` | integer | No | `>= 1` | Monotonic sequential advisory sequence number assigned by SQLite rowid |
 | `generated_at_utc` | string | No | ISO-8601 UTC string (`YYYY-MM-DDTHH:MM:SSZ`) | Timestamp of advisory synthesis |
 | `inference_backend` | string | No | `"trt"`, `"onnx"`, `"mock"` | Explicit runtime inference engine backend. Guarantees no silent fallback occurred. |
@@ -76,13 +76,13 @@ The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/ad
 - `mode`: Operating mode (`"handheld_pod"`)
 - `frames_captured`: Total video frames read from capture source
 - `frames_evaluated`: Frames passing quality gates 1–4
-- `tiles_classified`: Total 320x320 tiles passed through inference (`frames * 9`)
+- `tiles_classified`: Total 224x224 tiles passed through inference (`frames * 9`)
 - `distance_walked_m`: Traversed distance in meters (float or `null`)
 - `distance_reason`: Reason if distance unavailable (`"GPS_TRACK_NOT_RECORDED"` or `null`)
 
 #### 2. Crop Health Block (`crop_health`)
 - `state`: Consensus health verdict across grid cells: `HEALTHY`, `DISEASE`, `UNCERTAIN`, `NOT_CROP`, `NO_DATA`
-- `reason`: Explanation if non-definitive: `HIGH_UNCERTAINTY`, `MULTIPLE_CROPS_DETECTED`, or `null`
+- `reason`: Explanation if non-definitive: `HIGH_UNCERTAINTY`, `MULTIPLE_CROPS_DETECTED`, `UNCONFIRMED_DETECTIONS`, or `null`
 - `crop`: Dominant diagnosed crop species: `"rice"`, `"wheat"`, `"sugarcane"`, or `null`
 - `frames_evaluated`: Total accepted frames analyzed
 - `frames_agreeing`: Agreement count on top diagnosis
@@ -97,20 +97,28 @@ The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/ad
 - `stage_code`: Short code: `"INI"`, `"DEV"`, `"MID"`, `"LATE"`, or `null`
 - `days_since_planting`: Days elapsed since planting / transplanting (integer or `null`)
 - `total_cycle_days`: Lifecycle duration (typical 120–280 days)
-- `kc`: FAO-56 Table 12 crop coefficient (`0.20` to `1.35`)
-- `status`: `"OK"`, `"DAYS_SINCE_PLANTING_REQUIRED"`, `"UNSUPPORTED_CROP"`
+- `cycle_source`: Origin of cycle length (`"default_assumption"`, `"user_override"`)
+- `cycle_verification_status`: Provenance status (`"RECALLED_UNVERIFIED"`)
+- `stage_lengths_days`: Dictionary of stage durations (`initial`, `development`, `mid_season`, `late_season`)
+- `canopy_cover_measured`: Fractional green canopy coverage measured during scan (float or `null`)
+- `canopy_cover_expected_range`: Expected canopy cover range for stage (`[min, max]` or `null`)
+- `kc`: FAO-56 Table 12 crop coefficient (`0.20` to `1.35` or `null`)
+- `status`: `"OK"`, `"DAYS_SINCE_PLANTING_REQUIRED"`, `"AWAITING_PLANTING_DATE"`, `"UNSUPPORTED_CROP"`
+- `reason`: Explanation if stage unestimated (`"DAYS_SINCE_PLANTING_REQUIRED"` or `null`)
 - `verification_status`: Four-value frozen provenance status: `VERIFIED`, `WEB_VERIFIED`, `RECALLED_UNVERIFIED`, `UNSOURCED`
 - `source`: Agronomic model origin (`"derived"`)
+- `document_reference`: Primary FAO-56 document reference citation
 
 #### 4. Vegetation Block (`vegetation`)
 - `interpretation_mode`: `"relative"` (within-scan relative distribution mode)
-- `canopy_cover.mean`: Fractional green canopy coverage (`0.0` to `1.0`)
-- `vari.band`: Relative greenness band: `LOWER_TAIL`, `BELOW_TYPICAL`, `TYPICAL`, `ABOVE_TYPICAL`
-- `exg.mean`: Excess Green index mean
-- `tgi.mean`: Triangular Greenness Index mean
-- `dgci.mean`: Dark Green Color Index mean (`0.0` to `1.0`)
+- `canopy_cover`: Fractional green canopy coverage statistics (`mean`, `p10`, `p50`, `p90`, `min_fraction_threshold`, `status`, `threshold_source`, `threshold_confirmed`, `source`)
+- `vari`: Visible Atmospherically Resistant Index statistics (`mean`, `p10`, `p50`, `p90`, `field_median`, `band`, `band_basis`, `status`, `source`)
+- `exg`: Excess Green index statistics (`mean`, `threshold_source`, `threshold_confirmed`, `source`)
+- `tgi`: Triangular Greenness Index statistics (`mean`, `threshold_source`, `threshold_confirmed`, `source`)
+- `dgci`: Dark Green Color Index statistics (`mean`, `out_of_domain_fraction`, `threshold_source`, `threshold_confirmed`, `source`)
 - `ndvi`: Dual-bandpass normalized difference vegetation index (`null` when hardware pending)
 - `ndvi_status`: `"GATED_HARDWARE_CALIBRATION"`, `"PENDING_HARDWARE_FINALIZATION"`
+- `ndvi_reason`: Text explanation of optical hardware reservation
 
 #### 5. Thermal & Reference CWSI Block (`thermal`)
 - `available`: `true` when MLX90640 frame is captured and reference surfaces are configured/valid; `false` otherwise
@@ -139,7 +147,10 @@ The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/ad
 
 #### 7. Irrigation Block (`irrigation`)
 - `available`: `true` when ground mast temperature history is sufficient; `false` otherwise
+- `reason`: Explanation if irrigation computation unavailable
 - `method`: `"fao56_hargreaves_samani"` (FAO-56 Eq 52)
+- `air_temp_c`: Instantaneous air temperature (°C)
+- `rh_pct`: Relative humidity (%)
 - `t_min_24h_c`: Minimum diurnal air temperature (°C)
 - `t_max_24h_c`: Maximum diurnal air temperature (°C)
 - `t_mean_24h_c`: Mean diurnal air temperature (°C)
@@ -151,7 +162,11 @@ The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/ad
 - `et0_mm_day`: Reference evapotranspiration $ET_0$
 - `kc`: Crop coefficient from phenology lookup
 - `crop_et_mm_day`: Crop evapotranspiration ($ET_c = ET_0 \times K_c$)
+- `soil1_v`: Soil moisture sensor 1 voltage (V)
+- `soil2_v`: Soil moisture sensor 2 voltage (V)
+- `battery_v`: Mast node battery voltage (V)
 - `samples_24h`: Number of ground mast readings in last 24h ($\ge 6$)
+- `source`: `"derived_fao56"`
 
 #### 8. Pest Block (`pest[]`)
 - `target_pest_context`: Evaluated pest species context (e.g. `aphid`, `whitefly`, `thrips`, `mirid_bug`)
@@ -173,31 +188,28 @@ The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/ad
 - `classification_source`: `"CROSS_DOMAIN_PRETRAINED"` (Model B)
 
 #### 9. Detections Block (`detections[]`)
-- `cell_id`: Spatial grid cell identifier (e.g. `"tile_r0_c0"`)
-- `class_name`: Model A diagnosed class (29 classes)
+- `class`: Model A diagnosed class (29 classes, e.g. `"rice__blast"`)
 - `confidence`: Softmax probability (`0.0` to `1.0`)
-- `energy`: Open-set energy score
-- `state`: `HEALTHY`, `DISEASE`, `UNCERTAIN`, `NOT_CROP`
-- `cross_source_reliability`: `TESTED_ROBUST`, `TESTED_WEAK`, `TESTED_FAILED`, `UNTESTED`
-- `latitude`: Detection GPS latitude (or `null`)
-- `longitude`: Detection GPS longitude (or `null`)
+- `cross_source_reliability`: Reliability tier (`TESTED_ROBUST`, `TESTED_WEAK`, `TESTED_FAILED`, `UNTESTED`)
+- `lat`: Detection GPS latitude coordinate (float or `null`)
+- `lon`: Detection GPS longitude coordinate (float or `null`)
+- `fix_quality`: GPS fix quality integer (`0`=invalid, `1`=GPS, `2`=DGPS) or `null`
+- `hdop`: Horizontal Dilution of Precision (float or `null`)
+- `captured_utc`: ISO-8601 UTC timestamp of frame capture
+- `source`: Provenance of detection (`"measured"`)
 
-#### 10. GPS Block (`gps`)
-- `fix_valid`: Boolean flag indicating GPS lock
-- `latitude`: WGS-84 latitude in decimal degrees (or `null`)
-- `longitude`: WGS-84 longitude in decimal degrees (or `null`)
-- `altitude_m`: Altitude above mean sea level in meters (or `null`)
-- `hdop`: Horizontal Dilution of Precision (or `null`)
-- `satellites_used`: Number of tracked satellites (or `null`)
-- `last_fix_utc`: ISO-8601 UTC timestamp of last valid GPS fix (or `null`)
+#### 10. GPS Scan Summary Block (`gps`)
+- `status`: GPS overall coverage status during walk scan (`"OK"`, `"ABSENT"`)
+- `point_count`: Total number of geotagged frames recorded in scan (`>= 0`)
+- `accuracy_note`: Sensor precision disclaimer (`"Point tagging only, approximately 2.5 m CEP. Not a survey-grade position."`)
 
-#### 11. Disease Block (`disease[]`)
-- `disease_name`: Standardized disease name (e.g. `"rice_blast"`, `"wheat_rust"`)
-- `crop`: Affected crop
-- `severity_score`: Diagnosed severity index (`0.0` to `1.0`)
-- `active`: Boolean flag indicating active disease state
+#### 11. Disease Diagnoses Block (`disease[]`)
+- `class`: Standardized disease class (e.g. `"rice__blast"`, `"sugarcane__red_rot"`, `"wheat__yellow_rust"`)
+- `confidence`: Softmax probability (`0.0` to `1.0`)
+- `media_ids`: Array of associated image IDs (empty list `[]` per media retention pruning policy)
+- `source`: Provenance of diagnosis (`"measured"`)
 
-#### 12. Inputs Status Block (`inputs[]`)
+#### 12. Sensor Inputs Block (`inputs[]`)
 - `name`: Sensor stream identifier (`"pod_camera_rgb"`, `"pod_gps"`, `"pod_thermal"`)
 - `source_node`: Node hosting the sensor (`"POD"`, `"MAST"`)
 - `status`: Operational hardware and calibration status (`"OK"`, `"PENDING_CALIBRATION"`, `"MOCK_PROVISIONAL"`, `"ABSENT"`)
@@ -213,8 +225,13 @@ The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/ad
 - `rationale`: Agronomic rationale (<= 400 chars)
 - `params`: Parameter dictionary for deterministic offline translation
 - `verification_status`: Four-value status: `VERIFIED`, `WEB_VERIFIED`, `RECALLED_UNVERIFIED`, `UNSOURCED`
-- `offline_source_file`: Path to local regulatory PDF citation
-- `advisory_only`: `true` (explicit non-liability disclaimer)
+- `url`: Primary legal / agronomic regulatory source URL (or `null`)
+- `document_reference`: Exact publication / bulletin reference citation (or `null`)
+- `offline_source_file`: Path to local archived source document in `docs/sources/` (or `null`)
+- `confidence`: Action confidence string (`"high"`, `"medium"`, `"low"`)
+- `advisory_only`: Boolean disclaimer (`true`)
+- `generated_by`: Generator provenance tag (ALWAYS `"template"`)
+- `source`: Agronomic origin label (`"derived"`)
 
 ---
 
@@ -269,7 +286,8 @@ The ground mast ESP32 acts strictly as an HTTP server (`192.168.9.1`, AP `SIH-NO
 |---|---|---|---|
 | `GET` | `/api/v1/health` | None | Device liveness, unacked count, storage free KB, sync state |
 | `GET` | `/api/v1/manifest?since=&limit=` | None | Monotonic advisory catalog pagination (mock advisories omitted in production) |
-| `GET` | `/api/v1/advisory/<id_or_seq>` | None | Complete frozen v1.0 advisory document (returns 403 Forbidden in production if mock) |
+| `GET` | `/api/v1/advisory/latest` | None | Retrieves the most recent synthesized advisory document (ordered by `seq DESC LIMIT 1`) |
+| `GET` | `/api/v1/advisory/<id_or_seq>` | None | Complete frozen v1.0 advisory document by UUID string or integer sequence number (returns 403 Forbidden in production if mock) |
 | `POST` | `/api/v1/ack` | `{"advisory_id": "<id>"}` | Advisory acknowledgement cursor advancement |
 | `POST` | `/api/v1/trap/upload?trap_id=&days=` | Multipart JPG image | Sticky trap card photo for Model B segmentation & classification |
 | `GET` | `/api/v1/media/<id>` | None | Returns `410 Gone` (media retention pruned per policy) |
