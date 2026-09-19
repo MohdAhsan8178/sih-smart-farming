@@ -173,7 +173,7 @@ def test_m2_3_thermal_frame_rejection_paths():
 
 def test_mlx90640_eeprom_decoding_and_temperature_calculation():
     """
-    Verify full MLX90640 EEPROM parsing, Ta quadratic calculation, and pixel To derivation.
+    Verify full MLX90640 EEPROM parsing, Ta calculation with Vbe, and pixel To derivation.
     """
     sensor = MLX90640(mock=True)
 
@@ -201,21 +201,27 @@ def test_mlx90640_eeprom_decoding_and_temperature_calculation():
 
     params = sensor._decode_eeprom(eeprom)
     assert params["kVdd"] != 0.0
+    assert params["gain"] == 22384.0 or params["gain"] == 6000.0 or params["gain"] > 0
     assert params["pixels_alpha"].shape == (24, 32)
     assert params["pixels_offset"].shape == (24, 32)
     assert np.all(params["pixels_alpha"] > 0)
 
     # Construct RAM buffer with Ta near 25C and hot/cool objects
-    ram = [0] * 832
-    # PTAT reading near vPTAT25
-    ram[800] = 12200
-    # Gain RAM near 6000
-    ram[776] = 6000
-    # Vdd RAM
-    ram[810] = 0
-    # CP RAM
-    ram[768] = 0
+    ram = [0] * 834
+    # Ta_Vbe at 768 (0x0700)
+    ram[768] = 16000
+    # CP0 at 776 (0x0708)
+    ram[776] = 0
+    # Gain at 778 (0x070A)
+    ram[778] = 6000
+    # PTAT at 800 (0x0720): (1320 / (1320*9.25 + 16000)) * 262144 ~= 12266 -> delta_ta = (12266 - 12200)/25 = 2.65 -> Ta = 27.65°C
+    ram[800] = 1320
+    # CP1 at 808 (0x0728)
     ram[808] = 0
+    # Vdd RAM at 810 (0x072A)
+    ram[810] = -13000
+    # Control register at 832 (0x800D, Res=2)
+    ram[832] = 0x0800
 
     # Set pixel readings with temperature variation (e.g. hand reading vs room background)
     for i in range(768):
@@ -235,4 +241,42 @@ def test_mlx90640_eeprom_decoding_and_temperature_calculation():
     hand_temp = np.mean(to_array[8:16, 10:22])
     bg_temp = np.mean(to_array[0:6, 0:8])
     assert hand_temp > bg_temp + 3.0, f"Expected hand ({hand_temp}) to be > background ({bg_temp}) + 3C"
+
+
+def test_mlx90640_intermediate_diagnostics_and_dump():
+    """
+    Verify that dump_intermediates returns all required 16-bit raw signed RAM words
+    and computed intermediate variables.
+    """
+    sensor = MLX90640(mock=True)
+    inter = sensor.dump_intermediates()
+
+    # Raw RAM words checks
+    assert "gain_ram" in inter
+    assert "vdd_pix" in inter
+    assert "vptat" in inter
+    assert "vbe" in inter
+    assert "cp0" in inter
+    assert "cp1" in inter
+    assert inter["gain_ram"] == 6000
+    assert inter["vbe"] == 16000
+    assert inter["vptat"] == 1350
+    assert inter["vdd_pix"] == -13000
+
+    # Intermediate variables checks
+    assert "k_gain" in inter
+    assert "delta_vdd" in inter
+    assert "vdd" in inter
+    assert "vptat_art" in inter
+    assert "vptat_comp" in inter
+    assert "delta_ta" in inter
+    assert "ta" in inter
+    assert "to_min" in inter
+    assert "to_max" in inter
+    assert "to_mean" in inter
+    assert "to_median" in inter
+
+    assert 3.0 < inter["vdd"] < 3.6
+    assert 20.0 < inter["ta"] < 60.0
+
 

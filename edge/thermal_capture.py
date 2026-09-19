@@ -161,9 +161,9 @@ class MLX90640(object):
         p["alphaPTAT"] = alphaPTAT
 
         # --- 3. Gain (0x2430 = index 48) ---
-        gain = eeprom[48] & 0x0FFF
-        if gain > 2047:
-            gain -= 4096
+        gain = eeprom[48]
+        if gain > 32767:
+            gain -= 65536
         p["gain"] = float(gain)
 
         # --- 4. Resolution & Scales (0x2438 = index 56) ---
@@ -233,13 +233,13 @@ class MLX90640(object):
 
         p["offCP"] = [float(offCP_SP0), float(offCP_SP1)]
 
-        # 0x2439 = index 57
-        ktaCP = (eeprom[57] >> 8) & 0xFF
+        # 0x2439 = index 57: ktaCP is low byte, kvCP is high byte
+        ktaCP = eeprom[57] & 0xFF
         if ktaCP > 127:
             ktaCP -= 256
         ktaCP = ktaCP / (2.0 ** (ktaScale1 + 8))
 
-        kvCP = eeprom[57] & 0xFF
+        kvCP = (eeprom[57] >> 8) & 0xFF
         if kvCP > 127:
             kvCP -= 256
         kvCP = kvCP / (2.0 ** kvScale)
@@ -255,12 +255,16 @@ class MLX90640(object):
         p["alpha_scale"] = alpha_scale
 
         # 0x243B = index 59
-        alpha_scale_cp = ((eeprom[32] >> 12) & 0x0F) + 27
-        alphaCP_SP0 = (eeprom[59] & 0x03FF) / (2.0 ** alpha_scale_cp)
+        alpha_scale_cp = (eeprom[32] & 0x0F) + 27
+        alphaCP_SP0 = (eeprom[59] & 0x03FF)
+        if alphaCP_SP0 > 511:
+            alphaCP_SP0 -= 1024
+        alphaCP_SP0 = alphaCP_SP0 / (2.0 ** alpha_scale_cp)
+
         alphaCP_diff = (eeprom[59] >> 10) & 0x3F
         if alphaCP_diff > 31:
             alphaCP_diff -= 64
-        alphaCP_SP1 = alphaCP_SP0 + (alphaCP_diff / (2.0 ** alpha_scale_cp))
+        alphaCP_SP1 = (1.0 + alphaCP_diff / 64.0) * alphaCP_SP0
 
         p["alphaCP"] = [alphaCP_SP0, alphaCP_SP1]
 
@@ -369,6 +373,8 @@ class MLX90640(object):
 
             # Alpha
             alpha_rem = (p_word >> 4) & 0x3F
+            if alpha_rem > 31:
+                alpha_rem -= 64
             pixels_alpha[r, c] = (row_acc[r] + col_acc[c] + alpha_rem * scale_acc_rem_val) / scale_alpha
 
             # Kta
@@ -387,18 +393,21 @@ class MLX90640(object):
 
         return p
 
-    def _calculate_temperatures(self, ram_words, subpage=0):
-        # type: (List[int], int) -> Tuple[np.ndarray, float]
+    def _calculate_temperatures(self, ram_words, subpage=0, return_intermediates=False):
+        # type: (List[int], int, bool) -> Union[Tuple[np.ndarray, float], Tuple[np.ndarray, float, Dict[str, Any]]]
         """
         Converts 832 RAM words to ambient temperature (Ta) and 24x32 object temperatures (To)
         according to Melexis MLX90640 datasheet formulas.
         """
         p = self.params
         res_ee = p.get("resEE", 2)
-        res_reg = 2  # default 18-bit (res=2) in control register
-        res_corr = 2.0 ** (res_ee - res_reg)
+        res_ram = 2
+        if len(ram_words) > 832 and ram_words[832] != 0:
+            res_ram = (ram_words[832] & 0x0C00) >> 10
 
-        # 1. Vdd Calculation
+        res_corr = 2.0 ** (res_ee - res_ram)
+
+        # 1. Vdd Calculation (RAM[810] = 0x072A)
         vdd_ram = ram_words[810]
         if vdd_ram > 32767:
             vdd_ram -= 65536
@@ -407,42 +416,42 @@ class MLX90640(object):
         vdd = delta_vdd + 3.3
 
         # 2. Ta (Ambient Temperature) Calculation
+        # RAM[800] = 0x0720 (Ta_PTAT)
         vptat_ram = ram_words[800]
         if vptat_ram > 32767:
             vptat_ram -= 65536
 
-        # VPTAT_art (supply voltage compensated PTAT)
-        vptat_denom = 1.0 + p["kvPTAT"] * delta_vdd
-        if abs(vptat_denom) < 1e-6:
+        # RAM[768] = 0x0700 (Ta_Vbe)
+        vbe_ram = ram_words[768]
+        if vbe_ram > 32767:
+            vbe_ram -= 65536
+
+        alpha_ptat = p.get("alphaPTAT", 9.0)
+        vptat_denom = vptat_ram * alpha_ptat + vbe_ram
+        if abs(vptat_denom) < 1e-9:
             vptat_denom = 1.0
-        vptat_art = vptat_ram / vptat_denom
+        vptat_art = (vptat_ram / vptat_denom) * (2.0 ** 18)
 
-        vptat25 = p["vPTAT25"]
-        ktptat = p["ktPTAT"]
-        if abs(vptat25) < 1e-9:
-            vptat25 = 1.0
-        if abs(ktptat) < 1e-9:
-            ktptat = 1.0
-
-        d_term = (ktptat ** 2) - 4.0 * (ktptat / vptat25) * (vptat25 - vptat_art)
-        if d_term < 0:
-            d_term = 0.0
-        delta_ta = (-ktptat + math.sqrt(d_term)) / (2.0 * (ktptat / vptat25))
+        vptat_comp = vptat_art / (1.0 + p["kvPTAT"] * delta_vdd)
+        ktptat = p["ktPTAT"] if abs(p["ktPTAT"]) > 1e-9 else 1.0
+        delta_ta = (vptat_comp - p["vPTAT25"]) / ktptat
         ta = delta_ta + 25.0
-        ta_k = ta + 273.15
-        ta_k4 = ta_k ** 4
 
-        # 3. Gain Calculation
-        gain_ram = ram_words[776]
+        # 3. Gain Calculation (RAM[778] = 0x070A)
+        gain_ram = ram_words[778]
         if gain_ram > 32767:
             gain_ram -= 65536
         k_gain = p["gain"] / (gain_ram if gain_ram != 0 else 1.0)
 
-        # 4. Compensation Pixel (CP) Calculation
-        cp_idx = 768 if subpage == 0 else 808
-        cp_raw = ram_words[cp_idx]
-        if cp_raw > 32767:
-            cp_raw -= 65536
+        # 4. Compensation Pixel (CP) Calculation (CP0=RAM[776] / 0x0708, CP1=RAM[808] / 0x0728)
+        cp0_ram = ram_words[776]
+        if cp0_ram > 32767:
+            cp0_ram -= 65536
+        cp1_ram = ram_words[808]
+        if cp1_ram > 32767:
+            cp1_ram -= 65536
+
+        cp_raw = cp0_ram if subpage == 0 else cp1_ram
         cp_gain = cp_raw * k_gain
 
         off_cp = p["offCP"][subpage]
@@ -456,7 +465,14 @@ class MLX90640(object):
         tgc = p["tgc"]
         ks_ta = p["ksTa"]
         emiss = self.emissivity
-        ks_to4 = p["ksTo"][3] if "ksTo" in p and len(p["ksTo"]) >= 4 else 0.0
+        ks_to2 = p["ksTo"][1] if len(p.get("ksTo", [])) > 1 else 0.0
+
+        tr = ta - 8.0  # Open-air standard reflected shift (-8 degC)
+        ta_k = ta + 273.15
+        tr_k = tr + 273.15
+        ta_k4 = ta_k ** 4
+        tr_k4 = tr_k ** 4
+        ta_tr = tr_k4 - (tr_k4 - ta_k4) / (emiss if emiss > 0 else 0.95)
 
         to_array = np.zeros((24, 32), dtype=np.float32)
 
@@ -485,25 +501,45 @@ class MLX90640(object):
                 alpha_comp_emiss = 1e-12
 
             # Basic To calculation with standard 4th root
-            alpha_comp4 = alpha_comp_emiss ** 4
-            alpha_comp3 = alpha_comp_emiss ** 3
-            sx_inner = alpha_comp3 * v_ir_comp + alpha_comp4 * ta_k4
+            sx_inner = (alpha_comp_emiss ** 3) * (v_ir_comp + alpha_comp_emiss * ta_tr)
             if sx_inner > 0:
-                sx = ks_to4 * math.pow(sx_inner, 0.25)
+                sx = ks_to2 * math.pow(sx_inner, 0.25)
             else:
                 sx = 0.0
 
-            denom = alpha_comp_emiss * (1.0 - ks_to4 * 273.15) + sx
+            denom = alpha_comp_emiss * (1.0 - ks_to2 * 273.15) + sx
             if abs(denom) < 1e-15:
                 denom = 1e-15
 
-            to_k4 = (v_ir_comp / denom) + ta_k4
+            to_k4 = (v_ir_comp / denom) + ta_tr
             if to_k4 > 0:
                 to_val = math.pow(to_k4, 0.25) - 273.15
             else:
                 to_val = ta
 
             to_array[r, c] = float(to_val)
+
+        if return_intermediates:
+            intermediates = {
+                "gain_ram": int(gain_ram),
+                "vdd_pix": int(vdd_ram),
+                "vptat": int(vptat_ram),
+                "vbe": int(vbe_ram),
+                "cp0": int(cp0_ram),
+                "cp1": int(cp1_ram),
+                "k_gain": float(k_gain),
+                "delta_vdd": float(delta_vdd),
+                "vdd": float(vdd),
+                "vptat_art": float(vptat_art),
+                "vptat_comp": float(vptat_comp),
+                "delta_ta": float(delta_ta),
+                "ta": float(ta),
+                "to_min": float(np.min(to_array)),
+                "to_max": float(np.max(to_array)),
+                "to_mean": float(np.mean(to_array)),
+                "to_median": float(np.median(to_array)),
+            }
+            return to_array, float(ta), intermediates
 
         return to_array, float(ta)
 
@@ -645,6 +681,38 @@ class MLX90640(object):
                 "timestamp_utc": now_utc,
                 "temperature_array": None,
             }
+
+    def dump_intermediates(self, ram_words=None, subpage=0):
+        # type: (Optional[List[int]], int) -> Dict[str, Any]
+        """
+        Dumps all raw 16-bit registers and computed intermediate variables
+        from a live sensor read or provided RAM words.
+        """
+        if self.mock or (ram_words is None and self._bus is None):
+            if ram_words is None:
+                # Synthetic realistic RAM buffer
+                ram_words = [0] * 834
+                ram_words[768] = 16000  # Vbe
+                ram_words[776] = 0      # CP0
+                ram_words[778] = 6000   # Gain
+                ram_words[800] = 1350   # PTAT
+                ram_words[808] = 0      # CP1
+                ram_words[810] = -13000 # Vdd
+                ram_words[832] = 0x0800 # Res=2
+            res = self._calculate_temperatures(ram_words, subpage=subpage, return_intermediates=True)
+            return res[2]  # type: ignore
+
+        if ram_words is None:
+            ram_words = self._read_words(self.RAM_START, self.RAM_WORDS)
+            status_words = self._read_words(self.STATUS_REG, 1)
+            ctrl_words = self._read_words(self.CTRL_REG, 1)
+            if ctrl_words:
+                ram_words.append(ctrl_words[0])
+            if status_words:
+                subpage = status_words[0] & 0x01
+
+        res = self._calculate_temperatures(ram_words, subpage=subpage, return_intermediates=True)
+        return res[2]  # type: ignore
 
 
 def load_thermal_refs(config_path="configs/thermal_refs.json"):
