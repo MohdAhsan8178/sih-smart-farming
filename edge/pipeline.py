@@ -248,6 +248,7 @@ class CaptureThread(threading.Thread):
         if GPS is not None:
             try:
                 self.gps = GPS()
+                self.gps.start()
             except Exception:
                 self.gps = None
 
@@ -272,6 +273,11 @@ class CaptureThread(threading.Thread):
 
         if not cap.isOpened():
             print("[CaptureThread] ERROR: Could not open video source: %s" % str(self.source))
+            if self.gps is not None:
+                try:
+                    self.gps.stop()
+                except Exception:
+                    pass
             self.out_queue.put(None)
             self.t_total_s = time.time() - t_start
             return
@@ -298,13 +304,13 @@ class CaptureThread(threading.Thread):
                 except ImportError:
                     ts = datetime.datetime.utcnow().isoformat() + "Z"
 
-                # Pull GPS coordinates if available (no altitude or attitude)
+                # Pull GPS coordinates if available (non-blocking from background thread)
                 gps_data = None
                 t_gps_elapsed = 0.0
                 if self.gps is not None:
                     t_gps0 = time.time()
                     try:
-                        reading = self.gps.read()
+                        reading = self.gps.get_latest_fix()
                         if reading and "latitude" in reading and "longitude" in reading:
                             gps_data = {
                                 "latitude": float(reading["latitude"]),
@@ -344,6 +350,11 @@ class CaptureThread(threading.Thread):
                     self.t_pacing_s += (time.time() - t_pc0)
 
         finally:
+            if self.gps is not None:
+                try:
+                    self.gps.stop()
+                except Exception:
+                    pass
             cap.release()
             self.out_queue.put(None)
             self.t_total_s = time.time() - t_start

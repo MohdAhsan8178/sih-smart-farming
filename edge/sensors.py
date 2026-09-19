@@ -16,6 +16,7 @@ import datetime
 import os
 import re
 import sys
+import threading
 import time
 from typing import Any, Dict, Optional, Tuple
 
@@ -192,6 +193,8 @@ class GPS(object):
 
     Features:
       - Small pure stdlib NMEA parser for GGA and RMC sentences (no external pynmea2).
+      - Background asynchronous daemon thread reading UART continuously off the capture path.
+      - Thread-safe non-blocking get_latest_fix() query with configurable staleness timeout.
       - Strict fix validity checks (GGA fix quality > 0, sat count >= 3, RMC status A).
       - UTC timestamp extracted directly from RMC sentence.
       - Simulation-mode fallback when /dev/ttyTHS1 does not exist.
@@ -199,13 +202,65 @@ class GPS(object):
       - Safe pyserial import check with clear error diagnostics.
     """
 
-    def __init__(self, port=DEFAULT_GPS_UART, baud=9600, timeout=1.0):
+    def __init__(self, port=DEFAULT_GPS_UART, baud=9600, timeout=1.0, auto_start=False):
         self.port = port
         self.baud = int(baud)
         self.timeout = float(timeout)
         self._simulation_mode = not os.path.exists(self.port)
-        self._last_fix = None
+        self._latest_fix = None
         self._last_fix_time = 0.0
+        self._lock = threading.Lock()
+        self._thread = None
+        self._running = False
+
+        self._state_lat = None
+        self._state_lon = None
+        self._state_alt = 0.0
+        self._state_satellites = 0
+        self._state_fix_quality = 0
+        self._state_utc_iso = None
+        self._state_utc_ts = None
+
+        if auto_start:
+            self.start()
+
+    def start(self):
+        """Starts the background GPS reader thread if hardware port is present."""
+        with self._lock:
+            if self._running:
+                return self
+            if self._simulation_mode:
+                return self
+            if serial is None:
+                return self
+
+            self._running = True
+            self._thread = threading.Thread(target=self._reader_loop, name="GPSReaderThread")
+            self._thread.daemon = True
+            self._thread.start()
+            return self
+
+    def stop(self, timeout=1.0):
+        """Stops the background GPS reader thread and waits for termination."""
+        with self._lock:
+            self._running = False
+            thread = self._thread
+            self._thread = None
+
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=timeout)
+
+    def is_running(self):
+        """Returns True if the background reader thread is running."""
+        with self._lock:
+            return bool(self._running and self._thread is not None and self._thread.is_alive())
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
 
     def is_simulation_mode(self):
         """Returns True if running without GPS hardware or port absent."""
@@ -218,74 +273,140 @@ class GPS(object):
             "baud": self.baud,
             "simulation_mode": self._simulation_mode,
             "serial_available": serial is not None,
+            "running": self.is_running(),
         }
 
     def parse_sentence(self, sentence):
         """Public helper to parse a raw NMEA sentence."""
         return parse_nmea_sentence(sentence)
 
+    def _update_from_parsed(self, parsed):
+        """Internal helper to update state and latest fix from a single parsed sentence."""
+        if not parsed:
+            return
+
+        with self._lock:
+            if parsed["type"] == "GGA":
+                self._state_fix_quality = parsed.get("fix_quality", 0)
+                self._state_satellites = parsed.get("satellites", 0)
+                self._state_alt = parsed.get("altitude_m", 0.0)
+                if parsed.get("valid") and parsed.get("latitude") is not None and parsed.get("longitude") is not None:
+                    self._state_lat = parsed["latitude"]
+                    self._state_lon = parsed["longitude"]
+                else:
+                    self._state_lat = None
+                    self._state_lon = None
+
+            elif parsed["type"] == "RMC":
+                if parsed.get("valid") and parsed.get("latitude") is not None and parsed.get("longitude") is not None:
+                    self._state_lat = parsed["latitude"]
+                    self._state_lon = parsed["longitude"]
+                    self._state_utc_iso = parsed.get("utc_iso")
+                    self._state_utc_ts = parsed.get("utc_timestamp")
+                else:
+                    self._state_lat = None
+                    self._state_lon = None
+
+            if self._state_lat is not None and self._state_lon is not None:
+                now_iso = self._state_utc_iso or _iso_now()
+                now_ts = self._state_utc_ts or int(time.time())
+                self._latest_fix = {
+                    "latitude": round(self._state_lat, 6),
+                    "longitude": round(self._state_lon, 6),
+                    "altitude_m": round(self._state_alt, 2),
+                    "satellites": self._state_satellites,
+                    "fix_quality": self._state_fix_quality,
+                    "utc_iso": now_iso,
+                    "utc_timestamp": now_ts,
+                    "timestamp_utc": now_iso,
+                    "staleness_seconds": 0.0,
+                    "valid": True,
+                }
+                self._last_fix_time = time.time()
+
+    def _reader_loop(self):
+        """
+        Background daemon thread that continuously reads NMEA sentences from UART.
+        """
+        if serial is None:
+            return
+
+        while self._running:
+            ser = None
+            try:
+                ser = serial.Serial(self.port, self.baud, timeout=0.2)
+                while self._running:
+                    raw_line = ser.readline()
+                    if not raw_line:
+                        continue
+                    try:
+                        line = raw_line.decode("ascii", errors="replace").strip()
+                    except Exception:
+                        continue
+                    if not line or not line.startswith("$"):
+                        continue
+                    parsed = parse_nmea_sentence(line)
+                    if parsed:
+                        self._update_from_parsed(parsed)
+            except Exception:
+                if ser is not None:
+                    try:
+                        ser.close()
+                    except Exception:
+                        pass
+                for _ in range(10):
+                    if not self._running:
+                        break
+                    time.sleep(0.1)
+            finally:
+                if ser is not None:
+                    try:
+                        ser.close()
+                    except Exception:
+                        pass
+
+    def get_latest_fix(self, max_staleness_s=5.0):
+        """
+        Non-blocking atomic retrieval of the most recent valid GPS fix.
+        Returns None if no fix has been acquired or if the fix is older than max_staleness_s.
+        """
+        with self._lock:
+            if self._latest_fix is None:
+                return None
+            staleness = time.time() - self._last_fix_time
+            if max_staleness_s is not None and staleness > float(max_staleness_s):
+                return None
+            fix_copy = dict(self._latest_fix)
+            fix_copy["staleness_seconds"] = round(staleness, 2)
+            return fix_copy
+
     def read_stream(self, lines):
         """
         Processes a sequence of NMEA lines (e.g. from recorded file or generator),
         updating the current fix state.
         """
-        current_lat = None
-        current_lon = None
-        current_alt = 0.0
-        current_sats = 0
-        current_fix_quality = 0
-        current_utc_iso = None
-        current_utc_ts = None
-        is_valid = False
-
         for line in lines:
             parsed = parse_nmea_sentence(line)
-            if not parsed:
-                continue
-            if parsed["type"] == "GGA":
-                current_fix_quality = parsed["fix_quality"]
-                current_sats = parsed["satellites"]
-                current_alt = parsed["altitude_m"]
-                if parsed["valid"]:
-                    current_lat = parsed["latitude"]
-                    current_lon = parsed["longitude"]
-            elif parsed["type"] == "RMC":
-                if parsed["valid"]:
-                    current_lat = parsed["latitude"]
-                    current_lon = parsed["longitude"]
-                    current_utc_iso = parsed["utc_iso"]
-                    current_utc_ts = parsed["utc_timestamp"]
+            if parsed:
+                self._update_from_parsed(parsed)
 
-        if (current_fix_quality > 0 or current_utc_iso is not None) and current_lat is not None and current_lon is not None:
-            is_valid = True
-            now_iso = current_utc_iso or _iso_now()
-            self._last_fix = {
-                "latitude": round(current_lat, 6),
-                "longitude": round(current_lon, 6),
-                "altitude_m": round(current_alt, 2),
-                "satellites": current_sats,
-                "fix_quality": current_fix_quality,
-                "utc_iso": now_iso,
-                "utc_timestamp": current_utc_ts or int(time.time()),
-                "timestamp_utc": now_iso,
-                "staleness_seconds": 0.0,
-                "valid": True,
-            }
-            self._last_fix_time = time.time()
-            return self._last_fix
+        return self.get_latest_fix(max_staleness_s=None)
 
-        return None
-
-    def read(self):
+    def read(self, max_staleness_s=5.0):
         """
-        Obtains a fresh GPS fix from /dev/ttyTHS1.
+        Obtains a GPS fix. If the background reader is active, returns the latest
+        cached fix non-blockingly. If not active, performs a short one-shot read
+        or returns the latest valid fix.
 
         Returns:
-            Dict {"latitude": float, "longitude": float, "timestamp_utc": str, "staleness_seconds": float}
-            or None if hardware is absent or fix is invalid.
+            Dict {"latitude": float, "longitude": float, "timestamp_utc": str, "staleness_seconds": float, ...}
+            or None if hardware is absent or fix is invalid / stale.
         """
         if self._simulation_mode:
             return None
+
+        if self.is_running():
+            return self.get_latest_fix(max_staleness_s=max_staleness_s)
 
         if serial is None:
             raise RuntimeError(
@@ -310,11 +431,11 @@ class GPS(object):
         except Exception:
             return None
 
-    def get_current_fix(self):
+    def get_current_fix(self, max_staleness_s=5.0):
         """
         Returns full fix details including UTC timestamp for mast time synchronization.
         """
-        fix = self.read()
+        fix = self.read(max_staleness_s=max_staleness_s)
         if fix and fix.get("valid") and fix.get("utc_timestamp"):
             return fix
         return None

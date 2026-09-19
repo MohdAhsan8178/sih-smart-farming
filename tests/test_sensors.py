@@ -5,6 +5,7 @@ import datetime
 import json
 from pathlib import Path
 import tempfile
+import time
 import pytest
 
 from edge.sensors import (
@@ -74,6 +75,7 @@ def test_k2_1_gps_read_stream_and_simulation():
     gps = GPS(port="/dev/nonexistent_uart_test")
     assert gps.is_simulation_mode() is True
     assert gps.read() is None  # Simulation fallback returns None, never fake coords
+    assert gps.get_latest_fix() is None
 
     # Feed real recorded NMEA stream
     stream = [
@@ -87,6 +89,56 @@ def test_k2_1_gps_read_stream_and_simulation():
     assert abs(fix["latitude"] - 28.642387) < 1e-4
     assert abs(fix["longitude"] - 77.20576) < 1e-4
     assert fix["utc_iso"] == "2026-09-17T09:27:50Z"
+
+
+def test_gps_background_non_blocking_and_staleness():
+    """Verify background GPS fix cache, non-blocking zero-time access, and staleness rejection."""
+    gps = GPS(port="/dev/nonexistent_uart_test")
+
+    # 1. No fix yet -> get_latest_fix() returns None in zero time
+    t0 = time.time()
+    assert gps.get_latest_fix() is None
+    assert (time.time() - t0) < 0.01
+
+    # 2. Update with parsed sentence
+    sentence_gga = "$GPGGA,092750.000,2838.5432,N,07712.3456,E,1,06,1.2,210.0,M,-35.0,M,,*7E"
+    parsed_gga = parse_nmea_sentence(sentence_gga)
+    gps._update_from_parsed(parsed_gga)
+
+    sentence_rmc = "$GPRMC,092750.000,A,2838.5432,N,07712.3456,E,0.02,120.0,170926,,,A*5B"
+    parsed_rmc = parse_nmea_sentence(sentence_rmc)
+    gps._update_from_parsed(parsed_rmc)
+
+    # 3. Retrieve latest fix non-blockingly
+    t1 = time.time()
+    latest = gps.get_latest_fix(max_staleness_s=5.0)
+    assert (time.time() - t1) < 0.01
+    assert latest is not None
+    assert latest["valid"] is True
+    assert latest["satellites"] == 6
+    assert abs(latest["latitude"] - 28.642387) < 1e-4
+    assert latest["staleness_seconds"] < 1.0
+
+    # 4. If fix becomes older than max_staleness_s -> returns None
+    gps._last_fix_time = time.time() - 10.0
+    assert gps.get_latest_fix(max_staleness_s=5.0) is None
+
+    # 5. Invalid/lost signal sentence resets coordinates
+    sentence_void = "$GPRMC,092750.000,V,2838.5432,N,07712.3456,E,0.02,120.0,170926,,,A*4C"
+    parsed_void = parse_nmea_sentence(sentence_void)
+    gps._update_from_parsed(parsed_void)
+    assert gps._state_lat is None
+    assert gps._state_lon is None
+
+
+def test_gps_lifecycle_start_stop():
+    """Verify start and stop lifecycle methods without hardware."""
+    gps = GPS(port="/dev/nonexistent_uart_test")
+    # In simulation mode, start() safely returns without creating zombie threads
+    gps.start()
+    assert gps.is_running() is False
+    gps.stop()
+    assert gps.is_running() is False
 
 
 def test_k1_5_mast_telemetry_reader_fields_and_staleness():
