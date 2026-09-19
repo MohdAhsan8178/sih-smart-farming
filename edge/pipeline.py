@@ -253,6 +253,9 @@ class CaptureThread(threading.Thread):
 
         self.t_open_s = 0.0
         self.t_read_s = 0.0
+        self.t_gps_read_s = 0.0
+        self.t_metadata_s = 0.0
+        self.t_queue_put_s = 0.0
         self.t_pacing_s = 0.0
         self.t_total_s = 0.0
 
@@ -288,6 +291,7 @@ class CaptureThread(threading.Thread):
                 if not ret or frame is None:
                     break
 
+                t_meta0 = time.time()
                 try:
                     from datetime import timezone
                     ts = datetime.datetime.now(timezone.utc).isoformat()
@@ -296,7 +300,9 @@ class CaptureThread(threading.Thread):
 
                 # Pull GPS coordinates if available (no altitude or attitude)
                 gps_data = None
+                t_gps_elapsed = 0.0
                 if self.gps is not None:
+                    t_gps0 = time.time()
                     try:
                         reading = self.gps.read()
                         if reading and "latitude" in reading and "longitude" in reading:
@@ -306,6 +312,8 @@ class CaptureThread(threading.Thread):
                             }
                     except Exception:
                         pass
+                    t_gps_elapsed = time.time() - t_gps0
+                    self.t_gps_read_s += t_gps_elapsed
 
                 # Resolve source image from manifest sidecar if available
                 source_image = "%s:frame_%04d" % (Path(str(self.source)).name, frame_idx)
@@ -320,8 +328,12 @@ class CaptureThread(threading.Thread):
                     "source_image": source_image,
                     "manifest_entry": manifest_entry,
                 }
+                self.t_metadata_s += (time.time() - t_meta0 - t_gps_elapsed)
 
+                t_qp0 = time.time()
                 self.out_queue.put((frame_idx, frame, metadata))
+                self.t_queue_put_s += (time.time() - t_qp0)
+
                 self.frames_read += 1
                 frame_idx += 1
 
@@ -342,6 +354,9 @@ class CaptureThread(threading.Thread):
             "total_s": round(self.t_total_s, 3),
             "open_s": round(self.t_open_s, 3),
             "read_s": round(self.t_read_s, 3),
+            "gps_read_s": round(self.t_gps_read_s, 3),
+            "metadata_s": round(self.t_metadata_s, 3),
+            "queue_put_s": round(self.t_queue_put_s, 3),
             "pacing_s": round(self.t_pacing_s, 3),
         }
 
@@ -1056,6 +1071,9 @@ class EdgePipeline(object):
         print("  1. Capture Thread (Total: %.2fs)" % cap_t.get("total_s", 0.0))
         print("     - Source open           : %.3fs" % cap_t.get("open_s", 0.0))
         print("     - Frame read (cap.read) : %.3fs (%d frames)" % (cap_t.get("read_s", 0.0), metrics["frames_seen"]))
+        print("     - GPS UART read block   : %.3fs" % cap_t.get("gps_read_s", 0.0))
+        print("     - Metadata & manifest   : %.3fs" % cap_t.get("metadata_s", 0.0))
+        print("     - Raw queue put         : %.3fs" % cap_t.get("queue_put_s", 0.0))
         print("     - Playback pacing sleep : %.3fs" % cap_t.get("pacing_s", 0.0))
         print("  2. Gate & Tile Thread (Total: %.2fs)" % gt_t.get("total_s", 0.0))
         print("     - Raw queue wait        : %.3fs" % gt_t.get("queue_wait_s", 0.0))
