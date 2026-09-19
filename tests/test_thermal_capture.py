@@ -189,10 +189,12 @@ def test_mlx90640_eeprom_decoding_and_temperature_calculation():
     eeprom[48] = (4 << 12) | 6000
     # resEE = 2 (EEPROM[56] bits 13:12 = 2), scales
     eeprom[56] = (2 << 12) | (4 << 8) | (4 << 4) | 4
-    # offset_ref = -200 (EEPROM[33])
-    eeprom[33] = 0xFF38
-    # alpha_scale = 32 (EEPROM[32] bits 3:0 = 2)
-    eeprom[32] = 0x0002
+    # offset_ref = -200 (EEPROM[17])
+    eeprom[17] = 0xFF38
+    # alpha_ref = 2000 (EEPROM[33])
+    eeprom[33] = 2000
+    # alpha_scale = 35 (EEPROM[32] bits 15:12 = 5), acc_rem_scale = 2 (bits 3:0 = 2)
+    eeprom[32] = (5 << 12) | 0x0002
 
     # Populate 768 pixel words with alpha and offset
     for i in range(768):
@@ -246,7 +248,7 @@ def test_mlx90640_eeprom_decoding_and_temperature_calculation():
 def test_mlx90640_intermediate_diagnostics_and_dump():
     """
     Verify that dump_intermediates returns all required 16-bit raw signed RAM words
-    and computed intermediate variables.
+    and computed intermediate variables including sample pixels.
     """
     sensor = MLX90640(mock=True)
     inter = sensor.dump_intermediates()
@@ -275,6 +277,19 @@ def test_mlx90640_intermediate_diagnostics_and_dump():
     assert "to_max" in inter
     assert "to_mean" in inter
     assert "to_median" in inter
+
+    # Sample pixels checks
+    assert "sample_pixels" in inter
+    assert len(inter["sample_pixels"]) == 5
+    first_sp = inter["sample_pixels"][0]
+    assert "raw_word" in first_sp
+    assert "offset" in first_sp
+    assert "alpha" in first_sp
+    assert "Vir" in first_sp
+    assert "Vir_comp" in first_sp
+    assert "alpha_comp" in first_sp
+    assert "Sx" in first_sp
+    assert "To_c" in first_sp
 
     assert 3.0 < inter["vdd"] < 3.6
     assert 20.0 < inter["ta"] < 60.0

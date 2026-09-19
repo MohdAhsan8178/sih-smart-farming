@@ -248,10 +248,10 @@ class MLX90640(object):
         p["kvCP"] = kvCP
 
         # 0x2420 = index 32: alpha scale
-        acc_rem_scale = (eeprom[32] >> 4) & 0x0F
-        acc_col_scale = (eeprom[32] >> 8) & 0x0F
-        acc_row_scale = (eeprom[32] >> 12) & 0x0F
-        alpha_scale = (eeprom[32] & 0x0F) + 30
+        acc_rem_scale = eeprom[32] & 0x0F
+        acc_col_scale = (eeprom[32] >> 4) & 0x0F
+        acc_row_scale = (eeprom[32] >> 8) & 0x0F
+        alpha_scale = ((eeprom[32] >> 12) & 0x0F) + 30
         p["alpha_scale"] = alpha_scale
 
         # 0x243B = index 59
@@ -274,10 +274,13 @@ class MLX90640(object):
         scale_occ_col = (eeprom[16] >> 4) & 0x0F
         scale_occ_rem = eeprom[16] & 0x0F
 
-        # 0x2421 = index 33
-        offset_ref = eeprom[33]
+        # 0x2411 = index 17
+        offset_ref = eeprom[17]
         if offset_ref > 32767:
             offset_ref -= 65536
+
+        # 0x2421 = index 33
+        alpha_ref = eeprom[33]
 
         row_occ = []
         for r in range(24):
@@ -375,7 +378,7 @@ class MLX90640(object):
             alpha_rem = (p_word >> 4) & 0x3F
             if alpha_rem > 31:
                 alpha_rem -= 64
-            pixels_alpha[r, c] = (row_acc[r] + col_acc[c] + alpha_rem * scale_acc_rem_val) / scale_alpha
+            pixels_alpha[r, c] = (alpha_ref + row_acc[r] + col_acc[c] + alpha_rem * scale_acc_rem_val) / scale_alpha
 
             # Kta
             kta_rem = (p_word >> 1) & 0x07
@@ -481,6 +484,9 @@ class MLX90640(object):
         pixels_kv = p["pixels_kv"]
         pixels_alpha = p["pixels_alpha"]
 
+        sample_coords = [(0, 0), (0, 31), (12, 16), (23, 0), (23, 31)]
+        sample_pixels_map = {}
+
         for i in range(768):
             r = i // 32
             c = i % 32
@@ -519,7 +525,25 @@ class MLX90640(object):
 
             to_array[r, c] = float(to_val)
 
+            if return_intermediates and (r, c) in sample_coords:
+                sample_pixels_map[(r, c)] = {
+                    "row": r,
+                    "col": c,
+                    "subpage_active": (r + c) % 2,
+                    "raw_word": int(pix_raw),
+                    "offset": float(pixels_offset[r, c]),
+                    "alpha": float(pixels_alpha[r, c]),
+                    "Vir": float(v_pix_offset_comp),
+                    "Vir_comp": float(v_ir_comp),
+                    "alpha_comp": float(alpha_comp_emiss),
+                    "Sx": float(sx),
+                    "denom": float(denom),
+                    "to_k4": float(to_k4),
+                    "To_c": float(to_val),
+                }
+
         if return_intermediates:
+            sample_pixels_list = [sample_pixels_map[coord] for coord in sample_coords if coord in sample_pixels_map]
             intermediates = {
                 "gain_ram": int(gain_ram),
                 "vdd_pix": int(vdd_ram),
@@ -538,6 +562,7 @@ class MLX90640(object):
                 "to_max": float(np.max(to_array)),
                 "to_mean": float(np.mean(to_array)),
                 "to_median": float(np.median(to_array)),
+                "sample_pixels": sample_pixels_list,
             }
             return to_array, float(ta), intermediates
 

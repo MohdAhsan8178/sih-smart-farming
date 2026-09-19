@@ -104,6 +104,7 @@ def dump_mlx90640_diagnostics(bus_num=1, address=0x33, mock=False, emissivity=0.
             "to_mean (°C)": round(intermediates["to_mean"], 2),
             "to_median (°C)": round(intermediates["to_median"], 2),
         },
+        "sample_pixels": intermediates.get("sample_pixels", []),
     }
 
     if as_json:
@@ -125,9 +126,27 @@ def dump_mlx90640_diagnostics(bus_num=1, address=0x33, mock=False, emissivity=0.
         for k, v in report["computed_intermediates"].items():
             print("   - %-32s : %s" % (k, str(v)))
         print("-" * 70)
-        print("3. Object Temperature (To) Statistics (24x32 Array):")
+        print("3. Object Temperature (To) Statistics (Current Subpage Pass):")
         for k, v in report["object_temperature_stats"].items():
             print("   - %-32s : %s" % (k, str(v)))
+        print("-" * 70)
+        print("4. Sample Pixels Detail (5 Sample Locations):")
+        for sp in report["sample_pixels"]:
+            r_s, c_s = sp["row"], sp["col"]
+            active_sp = sp["subpage_active"]
+            is_active = (active_sp == subpage)
+            active_marker = "[ACTIVE SP %d]" % active_sp if is_active else "[OTHER SP %d]" % active_sp
+            print("   - Pixel (%2d, %2d) %s:" % (r_s, c_s, active_marker))
+            print("       Raw Word   : %d (0x%04X)" % (sp["raw_word"], sp["raw_word"] & 0xFFFF))
+            print("       Offset     : %.4f" % sp["offset"])
+            print("       Alpha      : %.6e" % sp["alpha"])
+            print("       Vir        : %.4f" % sp["Vir"])
+            print("       Vir_comp   : %.4f" % sp["Vir_comp"])
+            print("       Alpha_comp : %.6e" % sp["alpha_comp"])
+            print("       Sx         : %.6e" % sp["Sx"])
+            print("       Denom      : %.6e" % sp["denom"])
+            print("       To_k4      : %.6e" % sp["to_k4"])
+            print("       To (°C)    : %.2f °C" % sp["To_c"])
         print("=" * 70)
 
     return report
