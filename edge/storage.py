@@ -920,26 +920,67 @@ class EdgeStorage(object):
         else:
             mlx_ok, mlx_reason = detect_mlx90640()
             if mlx_ok:
-                from edge.thermal_capture import load_thermal_refs
-                refs_cfg = load_thermal_refs()
-                if refs_cfg.get("status") != "MEASURED":
-                    thermal_reason = "THERMAL_REFS_NOT_CONFIGURED"
-                else:
-                    thermal_reason = "NO_THERMAL_FRAME_IN_SCAN"
+                try:
+                    from edge.thermal_capture import MLX90640, load_thermal_refs
+                    from core.thermal import evaluate_reference_cwsi_from_frame
+                    sensor = MLX90640(mock=False)
+                    tf = sensor.capture_frame()
+                    if tf.get("available") and tf.get("temperature_array") is not None:
+                        refs_cfg = load_thermal_refs()
+                        cwsi_eval = evaluate_reference_cwsi_from_frame(tf["temperature_array"], refs_cfg)
+                        thermal_block = {
+                            "available": cwsi_eval["available"],
+                            "reason": cwsi_eval["reason"],
+                            "tc_c": cwsi_eval["tc_c"],
+                            "twet_c": cwsi_eval["twet_c"],
+                            "tdry_c": cwsi_eval["tdry_c"],
+                            "cwsi": cwsi_eval["cwsi"],
+                            "flag": cwsi_eval["flag"],
+                            "thermal_source": "hardware",
+                            "frame_utc": tf.get("timestamp_utc", scan_row["started_utc"]),
+                        }
+                    else:
+                        from edge.thermal_capture import load_thermal_refs
+                        refs_cfg = load_thermal_refs()
+                        reason = "THERMAL_REFS_NOT_CONFIGURED" if refs_cfg.get("status") != "MEASURED" else tf.get("reason", "NO_THERMAL_FRAME_IN_SCAN")
+                        thermal_block = {
+                            "available": False,
+                            "reason": reason,
+                            "tc_c": None,
+                            "twet_c": None,
+                            "tdry_c": None,
+                            "cwsi": None,
+                            "flag": None,
+                            "thermal_source": "hardware",
+                            "frame_utc": None,
+                        }
+                except Exception as ex:
+                    from edge.thermal_capture import load_thermal_refs
+                    refs_cfg = load_thermal_refs()
+                    reason = "THERMAL_REFS_NOT_CONFIGURED" if refs_cfg.get("status") != "MEASURED" else "HARDWARE_CAPTURE_FAILED: %s" % ex
+                    thermal_block = {
+                        "available": False,
+                        "reason": reason,
+                        "tc_c": None,
+                        "twet_c": None,
+                        "tdry_c": None,
+                        "cwsi": None,
+                        "flag": None,
+                        "thermal_source": "hardware",
+                        "frame_utc": None,
+                    }
             else:
-                thermal_reason = mlx_reason
-
-            thermal_block = {
-                "available": False,
-                "reason": thermal_reason,
-                "tc_c": None,
-                "twet_c": None,
-                "tdry_c": None,
-                "cwsi": None,
-                "flag": None,
-                "thermal_source": "hardware",
-                "frame_utc": None,
-            }
+                thermal_block = {
+                    "available": False,
+                    "reason": mlx_reason,
+                    "tc_c": None,
+                    "twet_c": None,
+                    "tdry_c": None,
+                    "cwsi": None,
+                    "flag": None,
+                    "thermal_source": "hardware",
+                    "frame_utc": None,
+                }
 
         # 2. NDVI block (IMX219-77IR NoIR camera CSI probe)
         noir_ok, noir_reason = detect_noir_camera()
@@ -1148,7 +1189,23 @@ class EdgeStorage(object):
                     "status": (
                         "MOCK_PROVISIONAL"
                         if thermal_block.get("thermal_source") == "mock"
-                        else ("OK" if thermal_block.get("available") else "ABSENT")
+                        else (
+                            "OK"
+                            if thermal_block.get("available")
+                            else (
+                                "PENDING_CALIBRATION"
+                                if (
+                                    (thermal_frame_data and thermal_frame_data.get("available") and thermal_frame_data.get("thermal_source") == "hardware")
+                                    or (thermal_block.get("tc_c") is not None)
+                                    or (
+                                        thermal_block.get("reason")
+                                        and not str(thermal_block.get("reason")).startswith("HARDWARE_NOT_CONNECTED")
+                                        and not str(thermal_block.get("reason")).startswith("HARDWARE_CAPTURE_FAILED")
+                                    )
+                                )
+                                else "ABSENT"
+                            )
+                        )
                     ),
                 },
             ],

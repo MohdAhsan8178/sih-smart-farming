@@ -115,7 +115,7 @@ The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/ad
 #### 5. Thermal & Reference CWSI Block (`thermal`)
 - `available`: `true` when MLX90640 frame is captured and reference surfaces are configured/valid; `false` otherwise
 - `reason`: Explanation if CWSI unavailable (`THERMAL_REFS_NOT_CONFIGURED`, `INSUFFICIENT_REFERENCE_GAP`, `WET_REF_VARIANCE_HIGH`, `DRY_REF_VARIANCE_HIGH`, `HARDWARE_NOT_CONNECTED`, etc.)
-- `tc_c`: Median canopy temperature excluding reference boxes (°C)
+- `tc_c`: Median canopy temperature (°C) measured directly from thermal array (populated whenever a valid thermal frame is captured, even when wet/dry references are unconfigured)
 - `twet_c`: Median temperature of wet reference pad (°C)
 - `tdry_c`: Median temperature of dry reference pad (°C)
 - `cwsi`: Raw Crop Water Stress Index computed via Jones (1999):
@@ -198,10 +198,13 @@ The advisory document emitted by `GET /api/v1/advisory/<id>` and `GET /api/v1/ad
 - `active`: Boolean flag indicating active disease state
 
 #### 12. Inputs Status Block (`inputs[]`)
-- `sensor_id`: Sensor identifier (`"pod_csi0_rgb"`, `"pod_csi1_noir"`, `"pod_mlx90640_thermal"`, `"pod_gps_uart"`, `"mast_sih_node_01"`)
-- `type`: Input type category
-- `status`: Health status (`"OK"`, `"ABSENT"`, `"UNCONFIGURED"`, `"UNCALIBRATED"`)
-- `last_reading_utc`: Timestamp of last ingested reading
+- `name`: Sensor stream identifier (`"pod_camera_rgb"`, `"pod_gps"`, `"pod_thermal"`)
+- `source_node`: Node hosting the sensor (`"POD"`, `"MAST"`)
+- `status`: Operational hardware and calibration status (`"OK"`, `"PENDING_CALIBRATION"`, `"MOCK_PROVISIONAL"`, `"ABSENT"`)
+  - `OK`: Sensor hardware present, data acquired, and derived values fully operational.
+  - `PENDING_CALIBRATION`: Sensor hardware present and functional (e.g. valid canopy temperature `tc_c` acquired), but derived metric (CWSI) is unavailable pending reference calibration (`configs/thermal_refs.json`).
+  - `MOCK_PROVISIONAL`: Simulated / mock data source requested explicitly.
+  - `ABSENT`: Sensor hardware disconnected or probe failed.
 
 #### 13. Actions Block (`actions[]`)
 - `rank`: Priority rank (`>= 1`)

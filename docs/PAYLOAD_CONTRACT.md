@@ -92,7 +92,7 @@
 |---|---|---|---|---|
 | `available` | boolean | No | `true`, `false` | True when MLX90640 frame captured and references valid |
 | `reason` | string | Yes | `THERMAL_REFS_NOT_CONFIGURED`, `INSUFFICIENT_REFERENCE_GAP`, etc. | Explanation if CWSI unavailable |
-| `tc_c` | float | Yes | Numeric (°C) | Median canopy temperature excluding reference boxes |
+| `tc_c` | float | Yes | Numeric (°C) | Median canopy temperature (°C) measured directly from thermal array (populated whenever a valid thermal frame is captured, even when wet/dry references are unconfigured) |
 | `twet_c` | float | Yes | Numeric (°C) | Median temperature of wet reference pad |
 | `tdry_c` | float | Yes | Numeric (°C) | Median temperature of dry reference pad |
 | `cwsi` | float | Yes | Numeric | Raw Crop Water Stress Index $(T_c - T_{wet})/(T_{dry} - T_{wet})$ |
@@ -174,6 +174,13 @@
 | `offline_source_file` | string | Path | Local PDF archive citation |
 | `advisory_only` | boolean | `true` | Explicit disclaimer: advisory recommendation only |
 
+### 2.9 Sensor Inputs Block (`inputs[]`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `name` | string | No | `"pod_camera_rgb"`, `"pod_gps"`, `"pod_thermal"` | Sensor input stream identifier |
+| `source_node` | string | No | `"POD"`, `"MAST"` | Physical hardware node hosting the sensor |
+| `status` | string | No | `OK`, `PENDING_CALIBRATION`, `MOCK_PROVISIONAL`, `ABSENT` | Operational hardware and calibration status (`OK`: operational; `PENDING_CALIBRATION`: sensor hardware present and functional but derived metric unavailable pending calibration; `MOCK_PROVISIONAL`: simulated data; `ABSENT`: hardware disconnected/missing) |
+
 ---
 
 ## 3. Ground Mast Telemetry Pull Record Schema (Guide §6)
@@ -221,4 +228,7 @@ The ground mast ESP32 acts as an HTTP server (`GET /readings?since=&limit=`) pul
 
 ### 4.6 Established Sticky-Trap ETL Comparison Statuses
 `BELOW_ETL`, `AT_ETL`, `ABOVE_ETL`
+
+### 4.7 Sensor Input Status Enum (4 values)
+`OK`, `PENDING_CALIBRATION`, `MOCK_PROVISIONAL`, `ABSENT`
 

@@ -61,6 +61,9 @@ def test_m2_1_thermal_refs_parsing_and_not_configured():
     res = evaluate_reference_cwsi_from_frame(dummy_frame, not_configured_cfg)
     assert res["available"] is False
     assert res["reason"] == "THERMAL_REFS_NOT_CONFIGURED"
+    assert res["tc_c"] == 26.0
+    assert res["twet_c"] is None
+    assert res["tdry_c"] is None
     assert res["cwsi"] is None
 
 

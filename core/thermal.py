@@ -247,11 +247,25 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
             "flag": None,
         }
 
+    valid_pixels = arr[np.isfinite(arr)]
+    if valid_pixels.size == 0:
+        return {
+            "available": False,
+            "reason": "INVALID_THERMAL_FRAME (no finite pixels)",
+            "tc_c": None,
+            "twet_c": None,
+            "tdry_c": None,
+            "cwsi": None,
+            "flag": None,
+        }
+
+    raw_tc = round(float(np.median(valid_pixels)), 2)
+
     if not isinstance(refs_config, dict) or refs_config.get("status") != "MEASURED":
         return {
             "available": False,
             "reason": "THERMAL_REFS_NOT_CONFIGURED",
-            "tc_c": None,
+            "tc_c": raw_tc,
             "twet_c": None,
             "tdry_c": None,
             "cwsi": None,
@@ -264,7 +278,7 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
         return {
             "available": False,
             "reason": "THERMAL_REFS_NOT_CONFIGURED",
-            "tc_c": None,
+            "tc_c": raw_tc,
             "twet_c": None,
             "tdry_c": None,
             "cwsi": None,
@@ -280,7 +294,7 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
         return {
             "available": False,
             "reason": "INVALID_REFERENCE_BOX_COORDINATES",
-            "tc_c": None,
+            "tc_c": raw_tc,
             "twet_c": None,
             "tdry_c": None,
             "cwsi": None,
@@ -292,7 +306,7 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
         return {
             "available": False,
             "reason": "WET_REF_OUT_OF_BOUNDS",
-            "tc_c": None,
+            "tc_c": raw_tc,
             "twet_c": None,
             "tdry_c": None,
             "cwsi": None,
@@ -302,7 +316,7 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
         return {
             "available": False,
             "reason": "DRY_REF_OUT_OF_BOUNDS",
-            "tc_c": None,
+            "tc_c": raw_tc,
             "twet_c": None,
             "tdry_c": None,
             "cwsi": None,
@@ -316,7 +330,7 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
         return {
             "available": False,
             "reason": "EMPTY_REFERENCE_REGION",
-            "tc_c": None,
+            "tc_c": raw_tc,
             "twet_c": None,
             "tdry_c": None,
             "cwsi": None,
@@ -328,12 +342,33 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
     std_wet = float(np.std(wet_pixels))
     std_dry = float(np.std(dry_pixels))
 
+    # Canopy mask: exclude wet and dry reference boxes
+    canopy_mask = np.ones((24, 32), dtype=bool)
+    canopy_mask[rw0 : rw1 + 1, cw0 : cw1 + 1] = False
+    canopy_mask[rd0 : rd1 + 1, cd0 : cd1 + 1] = False
+
+    canopy_pixels = arr[canopy_mask]
+    canopy_pixels = canopy_pixels[np.isfinite(canopy_pixels)]
+    if canopy_pixels.size < 10:
+        return {
+            "available": False,
+            "reason": "INSUFFICIENT_CANOPY_PIXELS",
+            "tc_c": raw_tc,
+            "twet_c": round(t_wet, 2),
+            "tdry_c": round(t_dry, 2),
+            "cwsi": None,
+            "flag": None,
+        }
+
+    t_c = float(np.median(canopy_pixels))
+    t_c_rounded = round(t_c, 2)
+
     # Spread checks
     if std_wet > PROVISIONAL_MAX_REF_STD_C:
         return {
             "available": False,
             "reason": "WET_REF_SPREAD_EXCEEDED (std=%.2fC > %.1fC)" % (std_wet, PROVISIONAL_MAX_REF_STD_C),
-            "tc_c": None,
+            "tc_c": t_c_rounded,
             "twet_c": round(t_wet, 2),
             "tdry_c": round(t_dry, 2),
             "cwsi": None,
@@ -343,7 +378,7 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
         return {
             "available": False,
             "reason": "DRY_REF_SPREAD_EXCEEDED (std=%.2fC > %.1fC)" % (std_dry, PROVISIONAL_MAX_REF_STD_C),
-            "tc_c": None,
+            "tc_c": t_c_rounded,
             "twet_c": round(t_wet, 2),
             "tdry_c": round(t_dry, 2),
             "cwsi": None,
@@ -356,31 +391,12 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
         return {
             "available": False,
             "reason": "INSUFFICIENT_REFERENCE_GAP (Tdry - Twet = %.2fC < %.1fC)" % (gap, PROVISIONAL_MIN_REF_GAP_C),
-            "tc_c": None,
+            "tc_c": t_c_rounded,
             "twet_c": round(t_wet, 2),
             "tdry_c": round(t_dry, 2),
             "cwsi": None,
             "flag": None,
         }
-
-    # Canopy mask: exclude wet and dry reference boxes
-    canopy_mask = np.ones((24, 32), dtype=bool)
-    canopy_mask[rw0 : rw1 + 1, cw0 : cw1 + 1] = False
-    canopy_mask[rd0 : rd1 + 1, cd0 : cd1 + 1] = False
-
-    canopy_pixels = arr[canopy_mask]
-    if canopy_pixels.size < 10:
-        return {
-            "available": False,
-            "reason": "INSUFFICIENT_CANOPY_PIXELS",
-            "tc_c": None,
-            "twet_c": round(t_wet, 2),
-            "tdry_c": round(t_dry, 2),
-            "cwsi": None,
-            "flag": None,
-        }
-
-    t_c = float(np.median(canopy_pixels))
 
     # Raw CWSI calculation (unclamped)
     cwsi_raw = (t_c - t_wet) / gap
@@ -394,7 +410,7 @@ def evaluate_reference_cwsi_from_frame(thermal_array, refs_config, air_temp_c=No
     return {
         "available": True,
         "reason": None,
-        "tc_c": round(t_c, 2),
+        "tc_c": t_c_rounded,
         "twet_c": round(t_wet, 2),
         "tdry_c": round(t_dry, 2),
         "cwsi": round(float(cwsi_raw), 4),

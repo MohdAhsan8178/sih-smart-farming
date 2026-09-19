@@ -657,6 +657,34 @@ def test_inputs_sensor_status_consistency():
             inputs_map_hw = {inp["name"]: inp for inp in adv_hw_therm["inputs"]}
             assert inputs_map_hw["pod_thermal"]["status"] == "OK"
 
+        # Scenario 4: Real hardware thermal frame captured, but references NOT_CONFIGURED
+        unconf_refs_cfg = {"status": "NOT_CONFIGURED", "wet_ref": None, "dry_ref": None}
+        with unittest.mock.patch("edge.thermal_capture.load_thermal_refs", return_value=unconf_refs_cfg):
+            storage.record_scan_start("scan_hw_unconf")
+            storage.record_frame_event(
+                scan_id="scan_hw_unconf",
+                frame_idx=0,
+                timestamp_utc="2026-09-18T17:17:00Z",
+                cell_id="cell_0",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="HEALTHY",
+                class_id=0,
+                confidence=0.95,
+                tile_decisions=[],
+            )
+            storage.record_scan_end("scan_hw_unconf", frames_captured=1, frames_evaluated=1, tiles_classified=9)
+            adv_hw_unconf = storage.create_advisory("scan_hw_unconf", thermal_frame_data=hw_frame_data)
+
+            assert adv_hw_unconf["thermal"]["available"] is False
+            assert adv_hw_unconf["thermal"]["reason"] == "THERMAL_REFS_NOT_CONFIGURED"
+            assert adv_hw_unconf["thermal"]["tc_c"] == 24.0
+            assert adv_hw_unconf["thermal"]["cwsi"] is None
+            assert adv_hw_unconf["thermal"]["thermal_source"] == "hardware"
+            inputs_map_unconf = {inp["name"]: inp for inp in adv_hw_unconf["inputs"]}
+            assert inputs_map_unconf["pod_thermal"]["status"] == "PENDING_CALIBRATION"
+
         storage.close()
 
 
