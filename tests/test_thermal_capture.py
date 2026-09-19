@@ -185,8 +185,10 @@ def test_mlx90640_eeprom_decoding_and_temperature_calculation():
     eeprom[49] = 12200
     # kvPTAT = 0.005 -> ~20 (EEPROM[50] bits 15:10), ktPTAT = 25.0 -> 200 (EEPROM[50] bits 9:0)
     eeprom[50] = (20 << 10) | 200
-    # alphaPTAT = 9.0 (EEPROM[48] bits 15:12 = 4), gain = 6000 (EEPROM[48] bits 11:0)
-    eeprom[48] = (4 << 12) | 6000
+    # alphaPTAT = 9.0 (EEPROM[16] bits 15:12 = 4)
+    eeprom[16] = (4 << 12)
+    # gain = 6000 (EEPROM[48])
+    eeprom[48] = 6000
     # resEE = 2 (EEPROM[56] bits 13:12 = 2), scales
     eeprom[56] = (2 << 12) | (4 << 8) | (4 << 4) | 4
     # offset_ref = -200 (EEPROM[17])

@@ -152,8 +152,8 @@ class MLX90640(object):
         if vPTAT25 > 32767:
             vPTAT25 -= 65536
 
-        # 0x2430 = index 48
-        alphaPTAT = ((eeprom[48] >> 12) & 0x0F) / 4.0 + 8.0
+        # 0x2410 = index 16
+        alphaPTAT = ((eeprom[16] >> 12) & 0x0F) / 4.0 + 8.0
 
         p["kvPTAT"] = kvPTAT
         p["ktPTAT"] = ktPTAT

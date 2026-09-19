@@ -122,15 +122,19 @@ def dump_mlx90640_diagnostics(bus_num=1, address=0x33, mock=False, emissivity=0.
         for k, v in report["raw_ram_words"].items():
             print("   - %-32s : %d (0x%04X)" % (k, v, v & 0xFFFF))
         print("-" * 70)
-        print("2. Computed Intermediate Calibration Variables:")
+        print("2. Decoded EEPROM Calibration Parameters (Ta & Vdd):")
+        for k, v in report["eeprom_params"].items():
+            print("   - %-32s : %s" % (k, str(v)))
+        print("-" * 70)
+        print("3. Computed Intermediate Calibration Variables:")
         for k, v in report["computed_intermediates"].items():
             print("   - %-32s : %s" % (k, str(v)))
         print("-" * 70)
-        print("3. Object Temperature (To) Statistics (Current Subpage Pass):")
+        print("4. Object Temperature (To) Statistics (Current Subpage Pass):")
         for k, v in report["object_temperature_stats"].items():
             print("   - %-32s : %s" % (k, str(v)))
         print("-" * 70)
-        print("4. Sample Pixels Detail (5 Sample Locations):")
+        print("5. Sample Pixels Detail (5 Sample Locations):")
         for sp in report["sample_pixels"]:
             r_s, c_s = sp["row"], sp["col"]
             active_sp = sp["subpage_active"]
