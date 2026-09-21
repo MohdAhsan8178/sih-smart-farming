@@ -237,10 +237,78 @@ def load_video_manifest(video_path: Path) -> Dict[int, Dict[str, Any]]:
     return {}
 
 
+def is_camera_source(source: Union[str, int]) -> bool:
+    """Checks if source represents a hardware CSI camera index (e.g. 0, 1, or '0')."""
+    if isinstance(source, int):
+        return True
+    if isinstance(source, str) and source.strip().isdigit():
+        return True
+    return False
+
+
+def build_csi_gstreamer_pipeline(
+    sensor_id: int = 0,
+    width: int = 1920,
+    height: int = 1080,
+    framerate: int = 30,
+) -> str:
+    """
+    Constructs the GStreamer pipeline for Jetson Nano CSI camera (IMX219) via nvarguscamerasrc.
+    Verified on Jetson Nano: returns valid (1080, 1920, 3) BGR frames.
+    """
+    return (
+        "nvarguscamerasrc sensor-id=%d ! "
+        "video/x-raw(memory:NVMM),width=%d,height=%d,framerate=%d/1 ! "
+        "nvvidconv ! "
+        "video/x-raw,format=BGRx ! "
+        "videoconvert ! "
+        "video/x-raw,format=BGR ! "
+        "appsink drop=1 max-buffers=1"
+        % (int(sensor_id), int(width), int(height), int(framerate))
+    )
+
+
+def check_degenerate_frame(frame: np.ndarray) -> Tuple[bool, str, Dict[str, Any]]:
+    """
+    Checks if a captured frame from a live camera source is degenerate (e.g. solid color or near-zero variance).
+    On Jetson Nano, broken V4L2 raw capture returns solid green (0, 154, 0) frames with Laplacian variance 0.0.
+    Returns (is_degenerate, reason, metrics).
+    """
+    if frame is None or frame.size == 0:
+        return True, "EMPTY_FRAME", {"laplacian_var": 0.0, "std": 0.0}
+
+    # Convert to grayscale for Laplacian sharpness variance
+    if len(frame.shape) == 3:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        channel_stds = [float(np.std(frame[:, :, c])) for c in range(frame.shape[2])]
+    else:
+        gray = frame
+        channel_stds = [float(np.std(gray))]
+
+    lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    frame_std = float(np.std(frame))
+
+    metrics = {
+        "laplacian_var": round(lap_var, 4),
+        "std": round(frame_std, 4),
+        "channel_stds": [round(s, 4) for s in channel_stds],
+    }
+
+    # 1. Flat solid color check: near-zero standard deviation across all channels or uniform pixel values
+    if all(s < 0.5 for s in channel_stds) or np.all(frame == frame[0, 0]):
+        return True, "FLAT_SOLID_COLOR", metrics
+
+    # 2. Near-zero spatial variance check
+    if lap_var < 0.5 and frame_std < 1.0:
+        return True, "NEAR_ZERO_VARIANCE", metrics
+
+    return False, "OK", metrics
+
+
 class CaptureThread(threading.Thread):
     """
     Thread 1: Capture and Tagging.
-    Reads frames from video file (or camera index) and attaches timestamp + GPS metadata.
+    Reads frames from video file or CSI camera (via GStreamer nvarguscamerasrc) and attaches timestamp + GPS metadata.
     """
 
     def __init__(
@@ -250,6 +318,9 @@ class CaptureThread(threading.Thread):
         max_frames: Optional[int] = None,
         manifest_lookup: Optional[Dict[int, Dict[str, Any]]] = None,
         realtime: bool = True,
+        camera_width: int = 1920,
+        camera_height: int = 1080,
+        camera_framerate: int = 30,
     ):
         super(CaptureThread, self).__init__(name="CaptureThread")
         self.source = source
@@ -257,6 +328,17 @@ class CaptureThread(threading.Thread):
         self.max_frames = max_frames
         self.manifest_lookup = manifest_lookup or {}
         self.realtime = bool(realtime)
+        self.camera_width = int(camera_width)
+        self.camera_height = int(camera_height)
+        self.camera_framerate = int(camera_framerate)
+
+        self.is_camera = is_camera_source(self.source)
+        self.capture_backend = "gstreamer_nvarguscamerasrc" if self.is_camera else "opencv_file"
+        self.capture_width = self.camera_width if self.is_camera else 0
+        self.capture_height = self.camera_height if self.is_camera else 0
+        self.capture_framerate = self.camera_framerate if self.is_camera else 0
+        self.capture_resolution = ("%dx%d" % (self.camera_width, self.camera_height)) if self.is_camera else None
+        self.error = None
 
         self.frames_read = 0
         self.running = True
@@ -279,16 +361,38 @@ class CaptureThread(threading.Thread):
     def run(self) -> None:
         t_start = time.time()
         source_arg = self.source
-        # If source is an integer string, convert to int for OpenCV camera index
-        if isinstance(source_arg, str) and source_arg.isdigit():
-            source_arg = int(source_arg)
-
         t_op0 = time.time()
-        cap = cv2.VideoCapture(source_arg)
+
+        if self.is_camera:
+            sensor_id = int(source_arg)
+            pipeline_str = build_csi_gstreamer_pipeline(
+                sensor_id=sensor_id,
+                width=self.camera_width,
+                height=self.camera_height,
+                framerate=self.camera_framerate,
+            )
+            cap = cv2.VideoCapture(pipeline_str, cv2.CAP_GSTREAMER)
+        else:
+            pipeline_str = str(source_arg)
+            cap = cv2.VideoCapture(pipeline_str)
+            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+            fps_val = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+            self.capture_width = w
+            self.capture_height = h
+            self.capture_framerate = int(fps_val) if fps_val > 0 else 0
+            self.capture_resolution = ("%dx%d" % (w, h)) if (w > 0 and h > 0) else None
+
         self.t_open_s = time.time() - t_op0
 
         if not cap.isOpened():
-            print("[CaptureThread] ERROR: Could not open video source: %s" % str(self.source))
+            err_msg = "[CaptureThread] ERROR: Could not open source '%s' (backend: %s, target: %s)" % (
+                str(self.source),
+                self.capture_backend,
+                pipeline_str,
+            )
+            print(err_msg)
+            self.error = RuntimeError(err_msg)
             if self.gps is not None:
                 try:
                     self.gps.stop()
@@ -312,6 +416,28 @@ class CaptureThread(threading.Thread):
                 self.t_read_s += (time.time() - t_rd0)
                 if not ret or frame is None:
                     break
+
+                # Fail loudly on degenerate frames from live camera sources
+                if self.is_camera and frame_idx < 5:
+                    is_degenerate, reason, d_metrics = check_degenerate_frame(frame)
+                    if is_degenerate:
+                        err_msg = (
+                            "[CaptureThread] Degenerate frame detected from live camera source '%s' (frame %d, backend: %s, shape: %s): %s "
+                            "(laplacian_var=%.2f, std=%.2f). Unprocessed/flat sensor stream detected. "
+                            "Ensure CSI camera GStreamer pipeline is running properly."
+                            % (
+                                str(self.source),
+                                frame_idx,
+                                self.capture_backend,
+                                str(frame.shape),
+                                reason,
+                                d_metrics.get("laplacian_var", 0.0),
+                                d_metrics.get("std", 0.0),
+                            )
+                        )
+                        print("[CaptureThread] ERROR: %s" % err_msg)
+                        self.error = RuntimeError(err_msg)
+                        break
 
                 t_meta0 = time.time()
                 try:
@@ -359,8 +485,9 @@ class CaptureThread(threading.Thread):
                 self.frames_read += 1
                 frame_idx += 1
 
-                # Pace playback to video/camera framerate to simulate live streaming
-                if self.realtime and frame_interval > 0:
+                # Pace playback only for video files to simulate live streaming.
+                # Live camera sources pace themselves from the hardware stream.
+                if not self.is_camera and self.realtime and frame_interval > 0:
                     t_pc0 = time.time()
                     time.sleep(frame_interval)
                     self.t_pacing_s += (time.time() - t_pc0)
@@ -693,6 +820,9 @@ class DecisionAggregateStoreThread(threading.Thread):
         days_since_planting: Optional[int] = None,
         total_cycle_days: Optional[int] = None,
         inference_backend: str = "trt",
+        capture_backend: Optional[str] = None,
+        capture_resolution: Optional[str] = None,
+        source: Optional[str] = None,
     ):
         super(DecisionAggregateStoreThread, self).__init__(name="DecisionAggregateStoreThread")
         self.in_queue = in_queue
@@ -702,6 +832,9 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.days_since_planting = days_since_planting
         self.total_cycle_days = total_cycle_days
         self.inference_backend = str(inference_backend).lower()
+        self.capture_backend = capture_backend
+        self.capture_resolution = capture_resolution
+        self.source = source
 
         if isinstance(storage, (str, Path)):
             self.storage = EdgeStorage(db_path=storage)
@@ -733,9 +866,14 @@ class DecisionAggregateStoreThread(threading.Thread):
             scan_meta["days_since_planting"] = self.days_since_planting
         if self.total_cycle_days is not None:
             scan_meta["total_cycle_days"] = self.total_cycle_days
+        if self.capture_backend:
+            scan_meta["capture_backend"] = self.capture_backend
+        if self.capture_resolution:
+            scan_meta["capture_resolution"] = self.capture_resolution
 
         self.storage.record_scan_start(
             scan_id=self.scan_id,
+            source=self.source,
             metadata=scan_meta if scan_meta else None,
         )
 
@@ -938,6 +1076,9 @@ class EdgePipeline(object):
         realtime: bool = True,
         days_since_planting: Optional[int] = None,
         total_cycle_days: Optional[int] = None,
+        camera_width: int = 1920,
+        camera_height: int = 1080,
+        camera_framerate: int = 30,
     ):
         self.source = source
         self.backend = "mock" if dry_run else str(backend).lower()
@@ -957,9 +1098,27 @@ class EdgePipeline(object):
         self.scan_id = scan_id or ("scan_%s" % datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S"))
         self.days_since_planting = days_since_planting
         self.total_cycle_days = total_cycle_days
+        self.camera_width = int(camera_width)
+        self.camera_height = int(camera_height)
+        self.camera_framerate = int(camera_framerate)
         self.storage = EdgeStorage(db_path=self.db_path)
         self.queue_size = int(queue_size)
         self.realtime = bool(realtime)
+
+        self.is_camera = is_camera_source(self.source)
+        self.capture_backend = "gstreamer_nvarguscamerasrc" if self.is_camera else "opencv_file"
+        if self.is_camera:
+            self.capture_resolution = "%dx%d" % (self.camera_width, self.camera_height)
+        else:
+            self.capture_resolution = None
+            if isinstance(self.source, (str, Path)) and Path(str(self.source)).exists():
+                probe_cap = cv2.VideoCapture(str(self.source))
+                if probe_cap.isOpened():
+                    pw = int(probe_cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                    ph = int(probe_cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                    if pw > 0 and ph > 0:
+                        self.capture_resolution = "%dx%d" % (pw, ph)
+                    probe_cap.release()
 
         self.log_priors = load_log_priors(ROOT)
         self.manifest_lookup = {}
@@ -985,6 +1144,9 @@ class EdgePipeline(object):
             max_frames=self.max_frames,
             manifest_lookup=self.manifest_lookup,
             realtime=self.realtime,
+            camera_width=self.camera_width,
+            camera_height=self.camera_height,
+            camera_framerate=self.camera_framerate,
         )
         self.t2_gate_tile = GateTileThread(
             in_queue=self.raw_queue,
@@ -1010,6 +1172,9 @@ class EdgePipeline(object):
             days_since_planting=self.days_since_planting,
             total_cycle_days=self.total_cycle_days,
             inference_backend=self.backend,
+            capture_backend=self.capture_backend,
+            capture_resolution=self.capture_resolution,
+            source=str(self.source),
         )
 
         self.threads = [self.t1_capture, self.t2_gate_tile, self.t3_inference, self.t4_decision]
@@ -1024,7 +1189,10 @@ class EdgePipeline(object):
         for t in self.threads:
             t.join()
 
-        # Fail fast if inference or other worker encountered a fatal error
+        # Fail fast if capture, inference or other worker encountered a fatal error
+        if getattr(self.t1_capture, "error", None) is not None:
+            self.t4_decision.aborted = True
+            raise self.t1_capture.error
         if getattr(self.t3_inference, "error", None) is not None:
             self.t4_decision.aborted = True
             raise self.t3_inference.error
@@ -1044,9 +1212,14 @@ class EdgePipeline(object):
         if raw_drops > 0:
             rejections["queue_overflow_drop"] = raw_drops
 
+        capture_backend = getattr(self.t1_capture, "capture_backend", self.capture_backend)
+        capture_resolution = getattr(self.t1_capture, "capture_resolution", self.capture_resolution)
+
         metrics = {
             "elapsed_seconds": t_elapsed,
             "inference_backend": self.backend,
+            "capture_backend": capture_backend,
+            "capture_resolution": capture_resolution,
             "frames_seen": frames_seen,
             "frames_evaluated": frames_evaluated,
             "frames_passed": frames_passed,
@@ -1087,6 +1260,8 @@ class EdgePipeline(object):
         print("EDGE PROCESSING PIPELINE EXECUTION REPORT (Step 21 & Step 33)")
         print("=" * 70)
         print("Input Source        : %s" % str(self.source))
+        print("Capture Backend     : %s" % str(metrics.get("capture_backend", self.capture_backend)))
+        print("Capture Resolution  : %s" % str(metrics.get("capture_resolution", "unknown")))
         print("Inference Backend   : %s" % str(metrics.get("inference_backend", self.backend)).upper())
         print("Dry Run Mode        : %s" % ("ENABLED" if self.dry_run else "DISABLED"))
         print("Total Time Elapsed  : %.2f seconds" % metrics["elapsed_seconds"])
@@ -1190,6 +1365,9 @@ def main():
     parser.add_argument("--no-realtime", action="store_true", help="Disable realtime FPS pacing for file playback")
     parser.add_argument("--days-since-planting", type=int, default=None, help="Elapsed days since planting/sowing for phenology estimation")
     parser.add_argument("--total-cycle-days", type=int, default=None, help="Variety maturity cycle duration in days override")
+    parser.add_argument("--camera-width", type=int, default=1920, help="CSI camera capture width (default: 1920)")
+    parser.add_argument("--camera-height", type=int, default=1080, help="CSI camera capture height (default: 1080)")
+    parser.add_argument("--camera-framerate", type=int, default=30, help="CSI camera capture framerate (default: 30)")
     args = parser.parse_args()
 
     backend_choice = "mock" if args.dry_run else args.backend
@@ -1207,6 +1385,9 @@ def main():
         realtime=not args.no_realtime,
         days_since_planting=args.days_since_planting,
         total_cycle_days=args.total_cycle_days,
+        camera_width=args.camera_width,
+        camera_height=args.camera_height,
+        camera_framerate=args.camera_framerate,
     )
 
     metrics = pipeline.run()

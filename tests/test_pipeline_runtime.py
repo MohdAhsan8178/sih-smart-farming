@@ -28,6 +28,9 @@ from edge.pipeline import (
     GateTileThread,
     InferenceThread,
     _QUEUE_TIMEOUT,
+    build_csi_gstreamer_pipeline,
+    check_degenerate_frame,
+    is_camera_source,
     load_log_priors,
 )
 from edge.storage import EdgeStorage
@@ -454,6 +457,194 @@ def test_k3_3_backend_trt_unavailable_raises_and_writes_no_advisory():
         manifest = storage.get_manifest()
         assert len(manifest["advisories"]) == 0
         assert storage.get_advisory("latest") is None
+
+
+def test_csi_gstreamer_pipeline_builder():
+    """Verify CSI GStreamer pipeline string matches Jetson Nano nvarguscamerasrc specification."""
+    pipe_default = build_csi_gstreamer_pipeline(0, 1920, 1080, 30)
+    expected_default = (
+        "nvarguscamerasrc sensor-id=0 ! "
+        "video/x-raw(memory:NVMM),width=1920,height=1080,framerate=30/1 ! "
+        "nvvidconv ! "
+        "video/x-raw,format=BGRx ! "
+        "videoconvert ! "
+        "video/x-raw,format=BGR ! "
+        "appsink drop=1 max-buffers=1"
+    )
+    assert pipe_default == expected_default
+
+    pipe_custom = build_csi_gstreamer_pipeline(1, 1280, 720, 60)
+    assert "sensor-id=1" in pipe_custom
+    assert "width=1280,height=720,framerate=60/1" in pipe_custom
+
+
+def test_check_degenerate_frame_detection():
+    """Verify check_degenerate_frame catches flat green frames, uniform colors, and passes valid frames."""
+    # 1. Device failure mode: flat green frame (0, 154, 0)
+    flat_green = np.zeros((1080, 1920, 3), dtype=np.uint8)
+    flat_green[:, :, 1] = 154
+    is_deg, reason, metrics = check_degenerate_frame(flat_green)
+    assert is_deg is True
+    assert reason in ("FLAT_SOLID_COLOR", "NEAR_ZERO_VARIANCE")
+    assert metrics["laplacian_var"] == 0.0
+
+    # 2. Black frame (0, 0, 0)
+    black = np.zeros((480, 640, 3), dtype=np.uint8)
+    is_deg, reason, metrics = check_degenerate_frame(black)
+    assert is_deg is True
+    assert metrics["std"] == 0.0
+
+    # 3. Empty frame
+    is_deg, reason, metrics = check_degenerate_frame(np.zeros((0, 0, 3), dtype=np.uint8))
+    assert is_deg is True
+    assert reason == "EMPTY_FRAME"
+
+    # 4. Valid natural textured frame (from test dataset image or random texture)
+    np.random.seed(42)
+    textured = np.random.randint(40, 200, size=(1080, 1920, 3), dtype=np.uint8)
+    is_deg, reason, metrics = check_degenerate_frame(textured)
+    assert is_deg is False
+    assert reason == "OK"
+    assert metrics["laplacian_var"] > 50.0
+
+
+def test_capture_thread_live_camera_gstreamer_and_no_pacing(monkeypatch):
+    """Verify CaptureThread uses GStreamer for camera index and skips realtime pacing sleep."""
+    import cv2
+    opened_args = []
+    slept_intervals = []
+
+    class MockVideoCapture(object):
+        def __init__(self, *args):
+            opened_args.append(args)
+            self.frames_left = 3
+
+        def isOpened(self):
+            return True
+
+        def get(self, prop):
+            if prop == cv2.CAP_PROP_FPS:
+                return 30.0
+            if prop == cv2.CAP_PROP_FRAME_WIDTH:
+                return 1920
+            if prop == cv2.CAP_PROP_FRAME_HEIGHT:
+                return 1080
+            return 0.0
+
+        def read(self):
+            if self.frames_left <= 0:
+                return False, None
+            self.frames_left -= 1
+            # Return valid frame with texture
+            np.random.seed(self.frames_left)
+            frame = np.random.randint(30, 220, size=(1080, 1920, 3), dtype=np.uint8)
+            return True, frame
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", MockVideoCapture)
+    monkeypatch.setattr(time, "sleep", lambda s: slept_intervals.append(s))
+
+    q = DropOldestQueue(maxsize=10)
+    cap_thread = CaptureThread(
+        source=0,  # camera index
+        out_queue=q,
+        max_frames=3,
+        realtime=True,
+        camera_width=1920,
+        camera_height=1080,
+        camera_framerate=30,
+    )
+    cap_thread.start()
+    cap_thread.join()
+
+    # Check GStreamer was used
+    assert len(opened_args) == 1
+    pipe_str, cap_backend = opened_args[0]
+    assert "nvarguscamerasrc sensor-id=0" in pipe_str
+    assert cap_backend == cv2.CAP_GSTREAMER
+    assert cap_thread.capture_backend == "gstreamer_nvarguscamerasrc"
+    assert cap_thread.capture_resolution == "1920x1080"
+    assert cap_thread.frames_read == 3
+    # Pacing sleep should NOT be called for live camera source
+    assert len(slept_intervals) == 0
+    assert cap_thread.t_pacing_s == 0.0
+
+
+def test_capture_thread_degenerate_frame_fails_loudly(monkeypatch):
+    """Verify CaptureThread fails loudly on degenerate (solid flat color) frame from live camera."""
+    import cv2
+    class FlatGreenVideoCapture(object):
+        def __init__(self, *args):
+            pass
+
+        def isOpened(self):
+            return True
+
+        def get(self, prop):
+            return 30.0
+
+        def read(self):
+            # Return real Nano failure mode frame: (0, 154, 0)
+            frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+            frame[:, :, 1] = 154
+            return True, frame
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", FlatGreenVideoCapture)
+
+    q = DropOldestQueue(maxsize=10)
+    cap_thread = CaptureThread(
+        source="0",  # string camera index
+        out_queue=q,
+        max_frames=5,
+        realtime=True,
+    )
+    cap_thread.start()
+    cap_thread.join()
+
+    assert cap_thread.error is not None
+    assert isinstance(cap_thread.error, RuntimeError)
+    assert "Degenerate frame detected from live camera source" in str(cap_thread.error)
+    assert "gstreamer_nvarguscamerasrc" in str(cap_thread.error)
+
+
+def test_pipeline_records_capture_backend_and_resolution_metadata():
+    """Verify EdgePipeline records capture_backend and capture_resolution in scan metadata and metrics."""
+    video_path = Path("test_video_from_dataset_images.mp4")
+    if not video_path.exists():
+        video_path = Path("data/video/test_video_from_dataset_images.mp4")
+    assert video_path.exists()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test_scan_meta.db"
+        pipeline = EdgePipeline(
+            source=str(video_path),
+            dry_run=True,
+            max_frames=5,
+            db_path=db_path,
+            queue_size=4,
+            realtime=False,
+        )
+
+        metrics = pipeline.run()
+
+        assert metrics["capture_backend"] == "opencv_file"
+        assert metrics["capture_resolution"] is not None
+        assert "x" in metrics["capture_resolution"]
+
+        # Check SQLite scans table metadata_json
+        storage = EdgeStorage(db_path=db_path)
+        conn = storage._get_connection()
+        row = conn.execute("SELECT metadata_json FROM scans WHERE scan_id = ?", (pipeline.scan_id,)).fetchone()
+        assert row is not None
+        scan_meta = json.loads(row["metadata_json"])
+        assert scan_meta["capture_backend"] == "opencv_file"
+        assert "capture_resolution" in scan_meta
+        storage.close()
 
 
 if __name__ == "__main__":
