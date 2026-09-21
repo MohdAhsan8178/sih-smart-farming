@@ -1307,6 +1307,7 @@ class EdgeStorage(object):
 
         return {
             "schema_version": "1.0",
+            "count": len(advisories_list),
             "advisories": advisories_list,
             "truncated": truncated,
         }

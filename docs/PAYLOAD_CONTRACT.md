@@ -1,9 +1,23 @@
 # Payload Contract Specification (v1.0)
 
-**Last Updated:** 19 September 2026  
+**Last Updated:** 21 September 2026  
 **Document:** `docs/PAYLOAD_CONTRACT.md`  
 **Purpose:** Authoritative wire schema contract for all advisory JSON payloads emitted by `GET /api/v1/advisory/<id_or_seq>`, `GET /api/v1/advisory/latest`, and edge telemetry endpoints.  
 **Generation & Validation:** Synchronized with code constants and verified against real synthesized advisory payloads via `scripts/generate_payload_contract.py` and `tests/test_payload_contract.py`.
+
+---
+
+## Gateway Connection & Base URL
+
+The offline mobile API gateway is served at:
+```
+http://192.168.4.1:8080
+```
+- **Connection Method:** The farmer's mobile phone connects directly to the Handheld Pod's local WiFi Access Point:
+  - **SSID:** `SIH-FIELD`
+  - **IP Address:** `192.168.4.1`
+  - **Port:** `8080` (plain HTTP, no TLS)
+- **Hardware Verification Status:** All REST API endpoints, response schemas, and payload generation have been verified over Ethernet on the Jetson Nano hardware. The standalone `SIH-FIELD` WiFi Access Point hotspot itself is pending deployment of the replacement AR9271 USB WiFi dongle.
 
 ---
 
@@ -82,17 +96,74 @@
 | `document_reference` | string | No | Text citation | Primary FAO-56 document reference |
 
 ### 2.4 Vegetation Block (`vegetation`)
+
+#### 2.4.1 Top-Level Vegetation Fields
 | Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
 | `interpretation_mode` | string | No | `"relative"` | Within-scan relative distribution mode |
-| `canopy_cover` | object | No | Dictionary | Green canopy coverage statistics (`mean`, `p10`, `p50`, `p90`, `status`, `source`) |
-| `vari` | object | No | Dictionary | Visible Atmospherically Resistant Index (`mean`, `band`, `status`, `source`) |
-| `exg` | object | No | Dictionary | Excess Green index statistics (`mean`, `source`) |
-| `tgi` | object | No | Dictionary | Triangular Greenness Index statistics (`mean`, `source`) |
-| `dgci` | object | No | Dictionary | Dark Green Color Index statistics (`mean`, `out_of_domain_fraction`, `source`) |
+| `canopy_cover` | object | No | Dictionary | Green canopy coverage statistics |
+| `vari` | object | No | Dictionary | Visible Atmospherically Resistant Index statistics |
+| `exg` | object | No | Dictionary | Excess Green index statistics |
+| `tgi` | object | No | Dictionary | Triangular Greenness Index statistics |
+| `dgci` | object | No | Dictionary | Dark Green Color Index statistics |
 | `ndvi` | float / null | Yes | `null` (hardware pending) | Dual-bandpass normalized difference vegetation index |
 | `ndvi_status` | string | No | `"GATED_HARDWARE_CALIBRATION"`, `"PENDING_HARDWARE_FINALIZATION"` | Hardware gating status |
 | `ndvi_reason` | string | Yes | Text explanation | Explanation of hardware reservation |
+
+#### 2.4.2 Canopy Cover Sub-Block (`vegetation.canopy_cover`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `mean` | float | No | `0.0` to `1.0` | Mean fractional green canopy coverage across valid frames |
+| `p10` | float | No | `0.0` to `1.0` | 10th percentile canopy coverage |
+| `p50` | float | No | `0.0` to `1.0` | Median (50th percentile) canopy coverage |
+| `p90` | float | No | `0.0` to `1.0` | 90th percentile canopy coverage |
+| `min_fraction_threshold` | float | No | `0.10` | Minimum canopy fraction required for reliable index calculation |
+| `status` | string | No | `"OK"`, `"INSUFFICIENT_CANOPY"` | Canopy coverage sufficiency status |
+| `threshold_source` | string | No | Text string | Origin note for provisional canopy threshold |
+| `threshold_confirmed` | boolean | No | `false` | Calibration confirmation flag |
+| `source` | string | No | `"measured"` | Provenance label |
+
+#### 2.4.3 VARI Sub-Block (`vegetation.vari`)
+When canopy fraction is sufficient (`mean_canopy >= min_fraction_threshold`):
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `band` | string | No | `"LOWER_TAIL"`, `"BELOW_TYPICAL"`, `"TYPICAL"`, `"ABOVE_TYPICAL"` | Within-scan relative distribution band |
+| `band_basis` | string | No | `"within_scan_percentile"` | Basis used for relative VARI band classification |
+| `field_median` | float | No | Numeric | Scan median VARI value |
+| `mean` | float | Yes | Numeric or `null` | Mean VARI across canopy-covered pixels |
+| `p10` | float | Yes | Numeric | 10th percentile VARI |
+| `p50` | float | Yes | Numeric | 50th percentile VARI |
+| `p90` | float | Yes | Numeric | 90th percentile VARI |
+| `source` | string | No | `"measured"` | Provenance label |
+| `threshold_confirmed` | boolean | No | `false` | Calibration confirmation flag |
+| `threshold_source` | string | No | Text string | Explanatory note: relative within-scan distribution |
+
+*(Note: If canopy fraction is insufficient, `mean` is `null`, `reason` is `"INSUFFICIENT_CANOPY_FRACTION"`, `min_fraction_threshold` is `0.10`, `threshold_source` and `threshold_confirmed` are preserved, and `source` is `"measured"`).*
+
+#### 2.4.4 ExG Sub-Block (`vegetation.exg`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `mean` | float | Yes | Numeric or `null` | Mean Excess Green index across valid canopy pixels |
+| `source` | string | No | `"measured"` | Provenance label |
+| `threshold_confirmed` | boolean | No | `false` | Calibration confirmation flag |
+| `threshold_source` | string | No | Text string | Provisional threshold provenance |
+
+#### 2.4.5 TGI Sub-Block (`vegetation.tgi`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `mean` | float | Yes | Numeric or `null` | Mean Triangular Greenness Index across canopy pixels |
+| `source` | string | No | `"measured"` | Provenance label |
+| `threshold_confirmed` | boolean | No | `false` | Calibration confirmation flag |
+| `threshold_source` | string | No | Text string | Provisional regression provenance |
+
+#### 2.4.6 DGCI Sub-Block (`vegetation.dgci`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `mean` | float | Yes | Numeric or `null` | Mean Dark Green Color Index in `[0, 1]` |
+| `out_of_domain_fraction` | float | No | `0.0` to `1.0` | Fraction of pixels with hue outside `[60°, 120°]` |
+| `source` | string | No | `"measured"` | Provenance label |
+| `threshold_confirmed` | boolean | No | `false` | Calibration confirmation flag |
+| `threshold_source` | string | No | Text string | Narrowed foliage domain provenance |
 
 ### 2.5 Hardware-Gated & Environmental Blocks (`thermal`, `ndvi`, `ndvi_satellite`, `irrigation`)
 
@@ -309,6 +380,7 @@ The ground mast ESP32 acts as an HTTP server (`GET /readings?since=&limit=`) pul
 | Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
 | `schema_version` | string | No | `"1.0"` | Wire schema version |
+| `count` | integer | No | `>= 0` | Number of advisory items returned in this page |
 | `advisories` | array | No | List of summary objects | Monotonically ordered advisory catalog items |
 | `truncated` | boolean | No | `true`, `false` | True if additional newer advisories exist beyond limit |
 
@@ -340,3 +412,113 @@ The ground mast ESP32 acts as an HTTP server (`GET /readings?since=&limit=`) pul
 | `status` | string | No | `"accepted"` | Trigger acceptance status (returns 202) |
 | `timestamp` | string | No | ISO-8601 UTC string | Trigger initiation timestamp |
 | `expected_ap_downtime_s` | integer | No | `30` | Expected AP downtime during STA mode switch |
+
+### 5.7 Sticky Trap Photo Upload Endpoint (`POST /api/v1/trap/upload`)
+
+> [!NOTE]
+> **Hardware Status:** Not yet exercised on real Jetson Nano device (Model B pipeline verified in unit tests and offline simulation).
+
+#### Request
+- **Method:** `POST`
+- **Path:** `/api/v1/trap/upload?trap_id=<id>&days=<days>&scale=<scale>&allow_provisional=<bool>`
+- **Query / Headers:** `X-Trap-Id`, `X-Days-Monitored`, `X-Scale`, `X-Allow-Provisional`
+- **Body:** Binary JPEG or `multipart/form-data` with image file
+
+#### Success Response (`200 OK`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `status` | string | No | `"ok"` | Upload and processing status |
+| `job_id` | string | No | String identifier | Unique background trap processing job ID |
+| `trap_id` | string | No | String identifier | Sticky trap card identifier (e.g. `"TRAP_01"`) |
+| `record_id` | integer | No | `>= 1` | SQLite `sticky_traps` database row ID |
+| `advisory_id` | string | Yes | String ID or `null` | ID of updated/synthesized advisory document |
+| `total_blobs_counted` | integer | No | `>= 0` | Total morphological blobs segmented |
+| `scale_status` | string | No | `"CALIBRATED"`, `"PROVISIONAL"`, `"UNMEASURED"` | Pixel scale calibration status |
+| `scale_mm_per_pixel` | float | Yes | Numeric or `null` | Scale factor in mm per pixel |
+| `etl_status` | string | No | `"BELOW_ETL"`, `"AT_ETL"`, `"ABOVE_ETL"`, `"NO_PUBLISHED_ETL"`, `"UNKNOWN_PEST"` | Economic threshold comparison status |
+| `pest` | array | No | List of pest objects | Model B pest evaluation block (matches `pest[]` schema) |
+
+---
+
+## 6. Gateway HTTP Error Responses
+
+All error responses return `application/json; charset=utf-8` with a standardized JSON envelope:
+
+### 6.1 `400 Bad Request`
+Returned when headers, query parameters, or payload violate API constraints:
+- **Missing Content-Length:**
+  ```json
+  {"error": "bad_request", "detail": "Missing Content-Length header"}
+  ```
+- **Malformed JSON Payload:**
+  ```json
+  {"error": "bad_request", "detail": "Malformed JSON: <parser error>"}
+  ```
+- **Missing Required Identifier in Ack Payload:**
+  ```json
+  {"error": "bad_request", "detail": "Missing 'upto' or 'advisory_id' field in payload"}
+  ```
+- **Invalid Manifest Pagination Parameters:**
+  ```json
+  {"error": "bad_request", "detail": "limit must be an integer"}
+  ```
+  ```json
+  {"error": "bad_request", "detail": "limit must be >= 1"}
+  ```
+- **Uncalibrated Trap Image Scale (without provisional override):**
+  ```json
+  {"error": "scale_uncalibrated", "detail": "<scale error explanation>"}
+  ```
+
+### 6.2 `403 Forbidden`
+Returned in production mode (`--allow-mock` not set) when an advisory generated by the simulated/mock inference backend is requested:
+```json
+{
+  "error": "mock_advisory_rejected",
+  "detail": "Gateway running in production mode rejecting mock advisory"
+}
+```
+
+### 6.3 `404 Not Found`
+- **Unknown Advisory Document (by UUID string or sequence integer):**
+  ```json
+  {
+    "error": "not_found",
+    "advisory_id": "adv_unknown_999"
+  }
+  ```
+- **Unmatched Route:**
+  ```json
+  {
+    "error": "not_found",
+    "path": "/api/v1/nonexistent"
+  }
+  ```
+
+### 6.4 `409 Conflict`
+Returned by `POST /api/v1/sync/trigger` when a ground mast synchronization cycle is already actively executing:
+```json
+{
+  "error": "sync_in_progress",
+  "detail": "Mast synchronization is already running"
+}
+```
+
+### 6.5 `410 Gone`
+Returned by `GET /api/v1/media/<id>` for raw capture images, indicating that high-resolution assets have been retention-pruned per device storage policy:
+```json
+{
+  "error": "gone",
+  "reason": "retention_pruned"
+}
+```
+
+### 6.6 `503 Service Unavailable`
+Returned during the initial device boot window before pipeline services and database readiness are established:
+- **HTTP Header:** `Retry-After: 5`
+- **Body:**
+  ```json
+  {
+    "error": "not_ready"
+  }
+  ```

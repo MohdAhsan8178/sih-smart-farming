@@ -59,8 +59,8 @@ def test_app_team_changes_contains_all_payload_contract_fields():
     contract_content = contract_file.read_text(encoding="utf-8")
     app_content = app_file.read_text(encoding="utf-8")
 
-    # Extract all table column fields | `field_name` | from PAYLOAD_CONTRACT.md
-    fields = re.findall(r"\|\s*\`([a-zA-Z0-9_\.]+)\`\s*\|", contract_content)
+    # Extract all table column 1 fields | `field_name` | from PAYLOAD_CONTRACT.md
+    fields = re.findall(r"^\s*\|\s*\`([a-zA-Z0-9_\.]+)\`\s*\|", contract_content, re.MULTILINE)
     assert len(fields) > 50, f"Expected > 50 fields, extracted {len(fields)}"
 
     missing_fields = []
@@ -74,11 +74,393 @@ def test_app_team_changes_contains_all_payload_contract_fields():
     )
 
 
+def assert_advisory_payload_schema_recursive(payload: dict):
+    """
+    Recursively validates exact key sets and value constraints across every nested
+    block, sub-block, and list element in an Advisory document against the wire contract.
+    """
+    # 1. Top-Level Keys
+    expected_top_keys = {
+        "schema_version",
+        "advisory_id",
+        "seq",
+        "generated_at_utc",
+        "inference_backend",
+        "replay",
+        "scan",
+        "crop_health",
+        "growth_stage",
+        "vegetation",
+        "thermal",
+        "ndvi",
+        "ndvi_satellite",
+        "irrigation",
+        "detections",
+        "gps",
+        "disease",
+        "pest",
+        "inputs",
+        "actions",
+    }
+    assert set(payload.keys()) == expected_top_keys, f"Top-level keys mismatch: {set(payload.keys()) ^ expected_top_keys}"
+    assert payload["schema_version"] == "1.0"
+    assert isinstance(payload["advisory_id"], str)
+    assert isinstance(payload["seq"], int) and payload["seq"] >= 1
+    assert isinstance(payload["generated_at_utc"], str)
+    assert payload["inference_backend"] in ("trt", "onnx", "mock")
+    assert isinstance(payload["replay"], bool)
+
+    # 2. Scan Block
+    expected_scan_keys = {
+        "started_utc",
+        "ended_utc",
+        "mode",
+        "frames_captured",
+        "frames_evaluated",
+        "tiles_classified",
+        "distance_walked_m",
+        "distance_reason",
+    }
+    assert set(payload["scan"].keys()) == expected_scan_keys, f"Scan keys mismatch: {set(payload['scan'].keys()) ^ expected_scan_keys}"
+    assert isinstance(payload["scan"]["started_utc"], str)
+    assert isinstance(payload["scan"]["ended_utc"], str)
+    assert payload["scan"]["mode"] == "handheld_pod"
+    assert isinstance(payload["scan"]["frames_captured"], int)
+    assert isinstance(payload["scan"]["frames_evaluated"], int)
+    assert isinstance(payload["scan"]["tiles_classified"], int)
+
+    # 3. Crop Health Block
+    expected_crop_health_keys = {
+        "state",
+        "reason",
+        "crop",
+        "frames_evaluated",
+        "frames_agreeing",
+        "frames_rejected_ood",
+        "frames_rejected_not_crop",
+        "frames_uncertain",
+        "source",
+    }
+    assert set(payload["crop_health"].keys()) == expected_crop_health_keys, f"Crop health keys mismatch: {set(payload['crop_health'].keys()) ^ expected_crop_health_keys}"
+    assert payload["crop_health"]["state"] in ("HEALTHY", "DISEASE", "UNCERTAIN", "NOT_CROP", "NO_DATA")
+    assert payload["crop_health"]["source"] == "measured"
+
+    # 4. Growth Stage Block
+    if payload["growth_stage"].get("status") == "OK":
+        expected_growth_stage_keys = {
+            "crop",
+            "stage",
+            "stage_code",
+            "days_since_planting",
+            "total_cycle_days",
+            "cycle_source",
+            "cycle_verification_status",
+            "stage_lengths_days",
+            "canopy_cover_measured",
+            "canopy_cover_expected_range",
+            "kc",
+            "status",
+            "verification_status",
+            "source",
+            "document_reference",
+        }
+    elif payload["growth_stage"].get("status") == "AWAITING_PLANTING_DATE":
+        expected_growth_stage_keys = {
+            "crop",
+            "stage",
+            "stage_code",
+            "reason",
+            "status",
+            "days_since_planting",
+            "total_cycle_days",
+            "cycle_source",
+            "cycle_verification_status",
+            "canopy_cover_measured",
+            "canopy_cover_expected_range",
+            "kc",
+            "verification_status",
+            "source",
+            "document_reference",
+        }
+    else:
+        expected_growth_stage_keys = {
+            "crop",
+            "stage",
+            "stage_code",
+            "reason",
+            "status",
+            "days_since_planting",
+            "total_cycle_days",
+            "canopy_cover_measured",
+            "canopy_cover_expected_range",
+            "kc",
+            "verification_status",
+            "source",
+        }
+    assert set(payload["growth_stage"].keys()) == expected_growth_stage_keys, f"Growth stage keys mismatch: {set(payload['growth_stage'].keys()) ^ expected_growth_stage_keys}"
+    assert payload["growth_stage"]["verification_status"] in ("VERIFIED", "WEB_VERIFIED", "RECALLED_UNVERIFIED", "UNSOURCED")
+    assert payload["growth_stage"]["source"] == "derived"
+
+    # 5. Vegetation Block & Nested Sub-Blocks
+    expected_veg_top_keys = {
+        "interpretation_mode",
+        "canopy_cover",
+        "vari",
+        "exg",
+        "tgi",
+        "dgci",
+        "ndvi",
+        "ndvi_status",
+        "ndvi_reason",
+    }
+    assert set(payload["vegetation"].keys()) == expected_veg_top_keys, f"Vegetation top keys mismatch: {set(payload['vegetation'].keys()) ^ expected_veg_top_keys}"
+    assert payload["vegetation"]["interpretation_mode"] == "relative"
+    assert payload["vegetation"]["ndvi"] is None
+    assert payload["vegetation"]["ndvi_status"] in ("GATED_HARDWARE_CALIBRATION", "PENDING_HARDWARE_FINALIZATION")
+
+    # 5.1 Canopy Cover Sub-Block
+    expected_canopy_keys = {
+        "mean",
+        "p10",
+        "p50",
+        "p90",
+        "min_fraction_threshold",
+        "status",
+        "threshold_source",
+        "threshold_confirmed",
+        "source",
+    }
+    assert set(payload["vegetation"]["canopy_cover"].keys()) == expected_canopy_keys, f"Canopy cover keys mismatch: {set(payload['vegetation']['canopy_cover'].keys()) ^ expected_canopy_keys}"
+    assert payload["vegetation"]["canopy_cover"]["status"] in ("OK", "INSUFFICIENT_CANOPY")
+    assert isinstance(payload["vegetation"]["canopy_cover"]["threshold_confirmed"], bool)
+    assert payload["vegetation"]["canopy_cover"]["source"] == "measured"
+
+    # 5.2 VARI Sub-Block
+    if payload["vegetation"]["canopy_cover"]["status"] == "OK":
+        expected_vari_keys = {
+            "band",
+            "band_basis",
+            "field_median",
+            "mean",
+            "p10",
+            "p50",
+            "p90",
+            "source",
+            "threshold_confirmed",
+            "threshold_source",
+        }
+        assert set(payload["vegetation"]["vari"].keys()) == expected_vari_keys, f"VARI keys mismatch: {set(payload['vegetation']['vari'].keys()) ^ expected_vari_keys}"
+        assert payload["vegetation"]["vari"]["band"] in ("LOWER_TAIL", "BELOW_TYPICAL", "TYPICAL", "ABOVE_TYPICAL")
+        assert payload["vegetation"]["vari"]["band_basis"] == "within_scan_percentile"
+        assert isinstance(payload["vegetation"]["vari"]["threshold_confirmed"], bool)
+        assert payload["vegetation"]["vari"]["source"] == "measured"
+    else:
+        expected_vari_fallback_keys = {
+            "mean",
+            "reason",
+            "min_fraction_threshold",
+            "threshold_source",
+            "threshold_confirmed",
+            "source",
+        }
+        assert set(payload["vegetation"]["vari"].keys()) == expected_vari_fallback_keys
+
+    # 5.3 ExG Sub-Block
+    if payload["vegetation"]["canopy_cover"]["status"] == "OK":
+        expected_exg_keys = {"mean", "source", "threshold_confirmed", "threshold_source"}
+        assert set(payload["vegetation"]["exg"].keys()) == expected_exg_keys, f"ExG keys mismatch: {set(payload['vegetation']['exg'].keys()) ^ expected_exg_keys}"
+    else:
+        expected_exg_fallback_keys = {"mean", "reason", "min_fraction_threshold", "threshold_source", "threshold_confirmed", "source"}
+        assert set(payload["vegetation"]["exg"].keys()) == expected_exg_fallback_keys
+
+    # 5.4 TGI Sub-Block
+    if payload["vegetation"]["canopy_cover"]["status"] == "OK":
+        expected_tgi_keys = {"mean", "source", "threshold_confirmed", "threshold_source"}
+        assert set(payload["vegetation"]["tgi"].keys()) == expected_tgi_keys, f"TGI keys mismatch: {set(payload['vegetation']['tgi'].keys()) ^ expected_tgi_keys}"
+    else:
+        expected_tgi_fallback_keys = {"mean", "reason", "min_fraction_threshold", "threshold_source", "threshold_confirmed", "source"}
+        assert set(payload["vegetation"]["tgi"].keys()) == expected_tgi_fallback_keys
+
+    # 5.5 DGCI Sub-Block
+    if payload["vegetation"]["canopy_cover"]["status"] == "OK":
+        if payload["vegetation"]["dgci"].get("reason") == "OUT_OF_DOMAIN_FRACTION_EXCEEDED":
+            expected_dgci_keys = {"mean", "out_of_domain_fraction", "reason", "threshold", "threshold_source", "threshold_confirmed", "source"}
+        else:
+            expected_dgci_keys = {"mean", "out_of_domain_fraction", "source", "threshold_confirmed", "threshold_source"}
+        assert set(payload["vegetation"]["dgci"].keys()) == expected_dgci_keys, f"DGCI keys mismatch: {set(payload['vegetation']['dgci'].keys()) ^ expected_dgci_keys}"
+    else:
+        expected_dgci_fallback_keys = {"mean", "reason", "min_fraction_threshold", "threshold_source", "threshold_confirmed", "source"}
+        assert set(payload["vegetation"]["dgci"].keys()) == expected_dgci_fallback_keys
+
+    # 6. Thermal Block
+    expected_thermal_keys = {
+        "available",
+        "reason",
+        "tc_c",
+        "twet_c",
+        "tdry_c",
+        "cwsi",
+        "flag",
+        "thermal_source",
+        "frame_utc",
+    }
+    assert set(payload["thermal"].keys()) == expected_thermal_keys, f"Thermal keys mismatch: {set(payload['thermal'].keys()) ^ expected_thermal_keys}"
+    assert isinstance(payload["thermal"]["available"], bool)
+    assert payload["thermal"]["thermal_source"] in ("hardware", "mock")
+
+    # 7. NDVI Hardware Probe Block
+    expected_ndvi_keys = {"available", "reason"}
+    assert set(payload["ndvi"].keys()) == expected_ndvi_keys, f"NDVI keys mismatch: {set(payload['ndvi'].keys()) ^ expected_ndvi_keys}"
+    assert isinstance(payload["ndvi"]["available"], bool)
+
+    # 8. Sentinel-2 Satellite NDVI Block
+    expected_ndvi_sat_keys = {
+        "available",
+        "reason",
+        "source",
+        "scene_date",
+        "age_days",
+        "ndvi_mean",
+        "ndvi_std",
+        "valid_pixel_count",
+        "cloud_masked_fraction",
+        "pixel_size_m",
+        "reliability_note",
+    }
+    assert set(payload["ndvi_satellite"].keys()) == expected_ndvi_sat_keys, f"NDVI satellite keys mismatch: {set(payload['ndvi_satellite'].keys()) ^ expected_ndvi_sat_keys}"
+    assert isinstance(payload["ndvi_satellite"]["available"], bool)
+    assert payload["ndvi_satellite"]["source"] == "SENTINEL2_L2A_CDSE"
+
+    # 9. Irrigation Block
+    if payload["irrigation"]["available"]:
+        expected_irrigation_keys = {
+            "available",
+            "method",
+            "air_temp_c",
+            "rh_pct",
+            "t_min_24h_c",
+            "t_max_24h_c",
+            "t_mean_24h_c",
+            "ra_mj_m2_day",
+            "ra_mm_day",
+            "ra_source",
+            "ra_latitude_deg",
+            "day_of_year",
+            "et0_mm_day",
+            "kc",
+            "crop_et_mm_day",
+            "soil1_v",
+            "soil2_v",
+            "battery_v",
+            "samples_24h",
+            "source",
+        }
+        assert set(payload["irrigation"].keys()) == expected_irrigation_keys, f"Irrigation keys mismatch: {set(payload['irrigation'].keys()) ^ expected_irrigation_keys}"
+        assert payload["irrigation"]["source"] == "derived_fao56"
+        assert payload["irrigation"]["method"] == "fao56_hargreaves_samani"
+    else:
+        expected_irrigation_keys = {"available", "reason"}
+        assert set(payload["irrigation"].keys()) == expected_irrigation_keys, f"Irrigation keys mismatch: {set(payload['irrigation'].keys()) ^ expected_irrigation_keys}"
+        assert isinstance(payload["irrigation"]["reason"], str)
+
+    # 10. GPS Scan Summary Block
+    expected_gps_keys = {"status", "point_count", "accuracy_note"}
+    assert set(payload["gps"].keys()) == expected_gps_keys, f"GPS keys mismatch: {set(payload['gps'].keys()) ^ expected_gps_keys}"
+    assert payload["gps"]["status"] in ("OK", "ABSENT")
+    assert isinstance(payload["gps"]["point_count"], int)
+    assert isinstance(payload["gps"]["accuracy_note"], str)
+
+    # 11. Detections List Elements
+    expected_det_keys = {
+        "class",
+        "confidence",
+        "cross_source_reliability",
+        "lat",
+        "lon",
+        "fix_quality",
+        "hdop",
+        "captured_utc",
+        "source",
+    }
+    for det in payload["detections"]:
+        assert set(det.keys()) == expected_det_keys, f"Detection keys mismatch: {set(det.keys()) ^ expected_det_keys}"
+        assert isinstance(det["class"], str)
+        assert isinstance(det["confidence"], float)
+        assert det["cross_source_reliability"] in ("TESTED_ROBUST", "TESTED_WEAK", "TESTED_FAILED", "UNTESTED")
+        assert det["source"] == "measured"
+
+    # 12. Disease List Elements
+    expected_disease_keys = {"class", "confidence", "media_ids", "source"}
+    for dis in payload["disease"]:
+        assert set(dis.keys()) == expected_disease_keys, f"Disease keys mismatch: {set(dis.keys()) ^ expected_disease_keys}"
+        assert isinstance(dis["class"], str)
+        assert isinstance(dis["confidence"], float)
+        assert isinstance(dis["media_ids"], list)
+        assert dis["source"] == "measured"
+
+    # 13. Pest List Elements
+    expected_pest_keys = {
+        "target_pest_context",
+        "count_basis",
+        "count_observed",
+        "days_monitored",
+        "daily_rate",
+        "threshold_value",
+        "threshold_unit",
+        "threshold_available",
+        "status",
+        "threshold_verification_status",
+        "classification_verification_status",
+        "total_blobs_counted",
+        "classification_source",
+    }
+    for p in payload["pest"]:
+        assert set(p.keys()) == expected_pest_keys, f"Pest keys mismatch: {set(p.keys()) ^ expected_pest_keys}"
+        assert isinstance(p["threshold_available"], bool)
+        assert p["threshold_verification_status"] in ("VERIFIED", "WEB_VERIFIED", "RECALLED_UNVERIFIED", "UNSOURCED")
+
+    # 14. Inputs List Elements
+    expected_input_keys = {"name", "source_node", "status"}
+    for inp in payload["inputs"]:
+        assert set(inp.keys()) == expected_input_keys, f"Input keys mismatch: {set(inp.keys()) ^ expected_input_keys}"
+        assert inp["source_node"] in ("POD", "MAST")
+        assert inp["status"] in ("OK", "PENDING_CALIBRATION", "MOCK_PROVISIONAL", "ABSENT")
+
+    # 15. Actions List Elements
+    expected_action_keys = {
+        "rank",
+        "template_id",
+        "action",
+        "rationale",
+        "params",
+        "verification_status",
+        "url",
+        "document_reference",
+        "offline_source_file",
+        "confidence",
+        "advisory_only",
+        "generated_by",
+        "source",
+    }
+    for act in payload["actions"]:
+        assert set(act.keys()) == expected_action_keys, f"Action keys mismatch: {set(act.keys()) ^ expected_action_keys}"
+        assert isinstance(act["rank"], int) and act["rank"] >= 1
+        assert isinstance(act["template_id"], str)
+        assert isinstance(act["action"], str)
+        assert isinstance(act["rationale"], str)
+        assert isinstance(act["params"], dict)
+        assert act["verification_status"] in ("VERIFIED", "WEB_VERIFIED", "RECALLED_UNVERIFIED", "UNSOURCED")
+        assert act["confidence"] in ("high", "medium", "low")
+        assert act["advisory_only"] is True
+        assert act["generated_by"] == "template"
+        assert act["source"] == "derived"
+
+
 def test_real_advisory_payload_schema_conformance():
     """
     Rigorously validates that a real synthesized advisory payload emitted by
-    EdgeStorage.create_advisory() exactly matches the documented wire contract schema.
-    Prevents silent schema drift between storage.py, gateway/server.py, and docs.
+    EdgeStorage.create_advisory() exactly matches the documented wire contract schema
+    at all nesting levels.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test_contract_edge.db"
@@ -171,145 +553,28 @@ def test_real_advisory_payload_schema_conformance():
             inference_backend="trt",
         )
 
-        # --- Top-Level Schema Keys ---
-        expected_top_keys = {
-            "schema_version",
-            "advisory_id",
-            "seq",
-            "generated_at_utc",
-            "inference_backend",
-            "replay",
-            "scan",
-            "crop_health",
-            "growth_stage",
-            "vegetation",
-            "thermal",
-            "ndvi",
-            "ndvi_satellite",
-            "irrigation",
-            "detections",
-            "gps",
-            "disease",
-            "pest",
-            "inputs",
-            "actions",
-        }
-        assert set(payload.keys()) == expected_top_keys, f"Top-level keys mismatch: {set(payload.keys()) ^ expected_top_keys}"
-        assert payload["schema_version"] == "1.0"
-        assert payload["inference_backend"] == "trt"
-        assert payload["replay"] is False
+        # Recursively validate the entire advisory document structure
+        assert_advisory_payload_schema_recursive(payload)
 
-        # --- Scan Block Schema Keys ---
-        expected_scan_keys = {
-            "started_utc",
-            "ended_utc",
-            "mode",
-            "frames_captured",
-            "frames_evaluated",
-            "tiles_classified",
-            "distance_walked_m",
-            "distance_reason",
-        }
-        assert set(payload["scan"].keys()) == expected_scan_keys
+        # Specific value checks
         assert payload["scan"]["frames_evaluated"] == 2
         assert payload["scan"]["tiles_classified"] == 18
-
-        # --- Crop Health Block Schema Keys ---
-        expected_crop_health_keys = {
-            "state",
-            "reason",
-            "crop",
-            "frames_evaluated",
-            "frames_agreeing",
-            "frames_rejected_ood",
-            "frames_rejected_not_crop",
-            "frames_uncertain",
-            "source",
-        }
-        assert set(payload["crop_health"].keys()) == expected_crop_health_keys
         assert payload["crop_health"]["state"] == "DISEASE"
         assert payload["crop_health"]["crop"] == "rice"
-
-        # --- Detections Block Schema Keys (Item 1) ---
-        expected_detection_keys = {
-            "class",
-            "confidence",
-            "cross_source_reliability",
-            "lat",
-            "lon",
-            "fix_quality",
-            "hdop",
-            "captured_utc",
-            "source",
-        }
         assert len(payload["detections"]) == 2
-        for det in payload["detections"]:
-            assert set(det.keys()) == expected_detection_keys, f"Detection keys mismatch: {set(det.keys()) ^ expected_detection_keys}"
-            assert isinstance(det["class"], str)
-            assert isinstance(det["confidence"], float)
-            assert isinstance(det["lat"], float)
-            assert isinstance(det["lon"], float)
-            assert det["source"] == "measured"
-
-        # --- GPS Block Schema Keys (Item 2) ---
-        expected_gps_keys = {"status", "point_count", "accuracy_note"}
-        assert set(payload["gps"].keys()) == expected_gps_keys, f"GPS keys mismatch: {set(payload['gps'].keys()) ^ expected_gps_keys}"
         assert payload["gps"]["status"] == "OK"
         assert payload["gps"]["point_count"] == 2
-        assert isinstance(payload["gps"]["accuracy_note"], str)
-
-        # --- Disease Block Schema Keys (Item 3) ---
-        expected_disease_keys = {"class", "confidence", "media_ids", "source"}
-        assert len(payload["disease"]) == 1  # 1 blast disease detection
-        for dis in payload["disease"]:
-            assert set(dis.keys()) == expected_disease_keys, f"Disease keys mismatch: {set(dis.keys()) ^ expected_disease_keys}"
-            assert dis["class"] == "rice__blast"
-            assert isinstance(dis["confidence"], float)
-            assert isinstance(dis["media_ids"], list)
-            assert dis["source"] == "measured"
-
-        # --- Actions Block Schema Keys (Item 4) ---
-        expected_action_keys = {
-            "rank",
-            "template_id",
-            "action",
-            "rationale",
-            "params",
-            "verification_status",
-            "url",
-            "document_reference",
-            "offline_source_file",
-            "confidence",
-            "advisory_only",
-            "generated_by",
-            "source",
-        }
-        assert len(payload["actions"]) >= 1
-        for act in payload["actions"]:
-            assert set(act.keys()) == expected_action_keys, f"Action keys mismatch: {set(act.keys()) ^ expected_action_keys}"
-            assert isinstance(act["rank"], int)
-            assert isinstance(act["template_id"], str)
-            assert isinstance(act["action"], str)
-            assert isinstance(act["rationale"], str)
-            assert isinstance(act["params"], dict)
-            assert isinstance(act["confidence"], str)
-            assert act["confidence"] in ("high", "medium", "low")
-            assert act["advisory_only"] is True
-            assert act["generated_by"] == "template"
-            assert act["source"] == "derived"
-
-        # --- Inputs Block Schema Keys ---
-        expected_input_keys = {"name", "source_node", "status"}
+        assert len(payload["disease"]) == 1
+        assert payload["disease"][0]["class"] == "rice__blast"
         assert len(payload["inputs"]) == 3
-        for inp in payload["inputs"]:
-            assert set(inp.keys()) == expected_input_keys
-            assert inp["status"] in ("OK", "PENDING_CALIBRATION", "MOCK_PROVISIONAL", "ABSENT")
+        assert len(payload["actions"]) >= 1
 
-        # --- Verify GET /api/v1/advisory/latest against EdgeStorage ---
+        # Verify GET /api/v1/advisory/latest against EdgeStorage
         latest_adv = storage.get_advisory("latest")
         assert latest_adv is not None
         assert latest_adv["advisory_id"] == "adv_contract_001"
         assert latest_adv["seq"] == payload["seq"]
+        assert_advisory_payload_schema_recursive(latest_adv)
 
         storage.close()
 
@@ -351,9 +616,9 @@ def test_gateway_all_endpoints_schema_conformance():
     Rigorously validates response key-sets and types for every HTTP gateway endpoint:
     - GET  /api/v1/health
     - GET  /api/v1/sync/status
-    - GET  /api/v1/manifest
-    - GET  /api/v1/advisory/latest
-    - GET  /api/v1/advisory/<id_or_seq>
+    - GET  /api/v1/manifest (including count field)
+    - GET  /api/v1/advisory/latest (recursive validation)
+    - GET  /api/v1/advisory/<id_or_seq> (recursive validation)
     - POST /api/v1/ack
     - GET  /api/v1/media/<id>
     """
@@ -385,6 +650,13 @@ def test_gateway_all_endpoints_schema_conformance():
             tile_decisions=[{"state": "OK", "class_id": 4, "conf": 0.95}] * 9,
             source_image="frame_0.jpg",
             gps={"latitude": 28.52, "longitude": 77.58, "fix_quality": 1, "hdop": 1.1},
+            canopy_cover=0.85,
+            vari=0.25,
+            exg=48.0,
+            tgi=20.0,
+            dgci=0.60,
+            dgci_ood_frac=0.0,
+            indices_status="OK",
         )
         storage.record_cell_verdict(
             scan_id=scan_id,
@@ -394,6 +666,7 @@ def test_gateway_all_endpoints_schema_conformance():
             score=0.95,
             n_frames=1,
             n_agree=1,
+            canopy_cover=0.85,
         )
         storage.record_scan_end(
             scan_id=scan_id,
@@ -468,18 +741,21 @@ def test_gateway_all_endpoints_schema_conformance():
                 assert isinstance(sync_status["records_pulled"], int) and sync_status["records_pulled"] >= 0
                 assert isinstance(sync_status["trap_images_pulled"], int) and sync_status["trap_images_pulled"] >= 0
 
-            # 3. GET /api/v1/manifest
+            # 3. GET /api/v1/manifest (with count)
             req = urllib.request.Request(f"{base_url}/api/v1/manifest?since=0&limit=10")
             with urllib.request.urlopen(req) as resp:
                 assert resp.status == 200
                 manifest = json.loads(resp.read().decode("utf-8"))
                 expected_manifest_keys = {
                     "schema_version",
+                    "count",
                     "advisories",
                     "truncated",
                 }
                 assert set(manifest.keys()) == expected_manifest_keys, f"Manifest keys mismatch: {set(manifest.keys()) ^ expected_manifest_keys}"
                 assert manifest["schema_version"] == "1.0"
+                assert isinstance(manifest["count"], int)
+                assert manifest["count"] == len(manifest["advisories"])
                 assert isinstance(manifest["truncated"], bool)
                 assert isinstance(manifest["advisories"], list)
                 assert len(manifest["advisories"]) >= 1
@@ -501,28 +777,30 @@ def test_gateway_all_endpoints_schema_conformance():
                     assert isinstance(item["replay"], bool)
                     assert item["inference_backend"] in ("trt", "onnx", "mock")
 
-            # 4. GET /api/v1/advisory/latest
+            # 4. GET /api/v1/advisory/latest (recursive)
             req = urllib.request.Request(f"{base_url}/api/v1/advisory/latest")
             with urllib.request.urlopen(req) as resp:
                 assert resp.status == 200
                 latest_adv = json.loads(resp.read().decode("utf-8"))
                 assert latest_adv["advisory_id"] == "adv_conf_001"
                 assert latest_adv["seq"] == created_adv["seq"]
-                assert latest_adv["schema_version"] == "1.0"
+                assert_advisory_payload_schema_recursive(latest_adv)
 
-            # 5. GET /api/v1/advisory/<id_or_seq>
+            # 5. GET /api/v1/advisory/<id_or_seq> (recursive)
             # By ID
             req = urllib.request.Request(f"{base_url}/api/v1/advisory/adv_conf_001")
             with urllib.request.urlopen(req) as resp:
                 assert resp.status == 200
                 adv_by_id = json.loads(resp.read().decode("utf-8"))
                 assert adv_by_id["advisory_id"] == "adv_conf_001"
+                assert_advisory_payload_schema_recursive(adv_by_id)
             # By Seq
             req = urllib.request.Request(f"{base_url}/api/v1/advisory/{created_adv['seq']}")
             with urllib.request.urlopen(req) as resp:
                 assert resp.status == 200
                 adv_by_seq = json.loads(resp.read().decode("utf-8"))
                 assert adv_by_seq["advisory_id"] == "adv_conf_001"
+                assert_advisory_payload_schema_recursive(adv_by_seq)
 
             # 6. POST /api/v1/ack
             ack_body = json.dumps({"advisory_id": "adv_conf_001"}).encode("utf-8")
@@ -554,4 +832,5 @@ def test_gateway_all_endpoints_schema_conformance():
         finally:
             gateway.stop()
             storage.close()
+
 

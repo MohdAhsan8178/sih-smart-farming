@@ -37,7 +37,7 @@ def generate_payload_contract() -> str:
         assert tid in content, f"Missing template ID {tid} in contract"
 
     # Verify key table fields are present in both documents
-    fields = re.findall(r"\|\s*\`([a-zA-Z0-9_\.]+)\`\s*\|", content)
+    fields = re.findall(r"^\s*\|\s*\`([a-zA-Z0-9_\.]+)\`\s*\|", content, re.MULTILINE)
     assert len(fields) > 50, f"Expected > 50 fields, extracted {len(fields)}"
 
     for f in fields:
