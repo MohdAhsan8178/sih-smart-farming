@@ -3,14 +3,18 @@
 gateway/server.py — Offline HTTP API Gateway for Handheld Nano Pod (Steps 30–32).
 
 Serves the offline mobile client (farmer's smartphone) over local WiFi AP (SIH-FIELD)
-according to the wire contract in ans_for_vitthal.md (§2, §3, §8).
+according to the wire contract in docs/PAYLOAD_CONTRACT.md.
 
-Endpoints:
-  GET  /api/v1/health              -> Device liveness, unacked count, clock validity, sync seam
+Endpoints (9 total):
+  GET  /api/v1/health                 -> Device liveness, advisory count, clock validity, sync state
+  GET  /api/v1/sync/status            -> Ground mast telemetry synchronization status & metrics
   GET  /api/v1/manifest?since=&limit= -> Paginated advisory catalog ordered strictly by monotonic seq
-  GET  /api/v1/advisory/<id>       -> Complete v1.0 advisory document
-  POST /api/v1/ack                 -> Non-blocking phone cursor advancement
-  GET  /api/v1/media/<id>          -> 410 Gone (media retention pruned per §A5/§A10)
+  GET  /api/v1/advisory/<id_or_seq>   -> Complete v1.0 advisory document by UUID or sequence number
+  GET  /api/v1/advisory/latest        -> Most recently synthesized advisory document
+  GET  /api/v1/media/<id>             -> 410 Gone (media retention pruned per policy)
+  POST /api/v1/ack                    -> Non-blocking phone cursor advancement
+  POST /api/v1/trap/upload            -> Sticky trap card photo for Model B segmentation & classification
+  POST /api/v1/sync/trigger           -> Triggers asynchronous ground mast collector pull
 
 Key Architectural Properties:
 1. Python 3.6 stdlib only (http.server + socketserver.ThreadingMixIn) — zero external dependencies.
@@ -135,7 +139,7 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
 
 class GatewayRequestHandler(BaseHTTPRequestHandler):
     """
-    HTTP Request handler implementing ans_for_vitthal.md wire contract (§2, §3, §8).
+    HTTP Request handler implementing docs/PAYLOAD_CONTRACT.md wire contract.
     """
 
     # Suppress default noisy per-request logging to stderr in quiet mode
@@ -525,8 +529,16 @@ def main():
     print("=" * 70)
     print("Binding Address     : http://%s:%d" % (args.host, args.port))
     print("Storage Database    : %s" % args.db_path)
-    print("Wire Contract       : ans_for_vitthal.md (§2, §3, §8)")
-    print("Endpoints           : /api/v1/health, /api/v1/manifest, /api/v1/advisory/<id>, /api/v1/ack")
+    print("Wire Contract       : docs/PAYLOAD_CONTRACT.md (v1.0)")
+    print("Endpoints (9 total) : GET  /api/v1/health")
+    print("                      GET  /api/v1/sync/status")
+    print("                      GET  /api/v1/manifest?since=&limit=")
+    print("                      GET  /api/v1/advisory/<id_or_seq>")
+    print("                      GET  /api/v1/advisory/latest")
+    print("                      GET  /api/v1/media/<id>")
+    print("                      POST /api/v1/ack")
+    print("                      POST /api/v1/trap/upload")
+    print("                      POST /api/v1/sync/trigger")
     print("AP/STA Seam Status  : IDLE (Subsystem 7 ready)")
     print("Press Ctrl+C to terminate.")
     print("=" * 70)

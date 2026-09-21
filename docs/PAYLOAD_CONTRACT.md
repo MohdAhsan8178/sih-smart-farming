@@ -274,3 +274,69 @@ The ground mast ESP32 acts as an HTTP server (`GET /readings?since=&limit=`) pul
 
 ### 4.7 Sensor Input Status Enum (4 values)
 `OK`, `PENDING_CALIBRATION`, `MOCK_PROVISIONAL`, `ABSENT`
+
+---
+
+## 5. Gateway Endpoint Response Schemas
+
+### 5.1 Health Endpoint (`GET /api/v1/health`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `device` | string | No | `"sih-pod-01"` | Handheld Nano Pod device identifier |
+| `schema_version` | string | No | `"1.0"` | Wire schema version |
+| `server_time_utc` | string | No | ISO-8601 UTC string | Current system clock timestamp on the Nano |
+| `gps_time_valid` | boolean | No | `true`, `false` | Whether system clock is locked to GPS or RTC |
+| `clock_source` | string | No | `"gps"`, `"rtc"`, `"filesystem"` | Source of system clock synchronization |
+| `advisory_count` | integer | No | `>= 0` | Total number of advisories stored in SQLite database |
+| `latest_seq` | integer | No | `>= 0` | Highest monotonic advisory sequence number |
+| `storage_free_kb` | integer | No | `>= 0` | Free disk space available on storage partition (KB) |
+| `syncing` | boolean | No | `true`, `false` | AP/STA mode-switch status flag (true when syncing with ground mast) |
+| `sync_state` | string | No | `"IDLE"`, `"STA_SYNC"` | AP/STA state seam identifier |
+
+### 5.2 Mast Sync Status Endpoint (`GET /api/v1/sync/status`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `sync_in_progress` | boolean | No | `true`, `false` | Whether a background mast sync pull is currently executing |
+| `last_success_utc` | string | Yes | ISO-8601 UTC string or `null` | ISO-8601 UTC timestamp of last successful sync cycle |
+| `last_attempt_utc` | string | Yes | ISO-8601 UTC string or `null` | ISO-8601 UTC timestamp of last sync attempt |
+| `last_result` | string | Yes | `"OK"`, `"MAST_NOT_FOUND"`, `"PARTIAL"`, `"ERROR"`, or `null` | Result code of last sync cycle |
+| `mast_data_age_s` | integer | Yes | `>= 0` or `null` | Age of latest ingested mast telemetry record in seconds |
+| `records_pulled` | integer | No | `>= 0` | Count of telemetry records pulled in last sync cycle |
+| `trap_images_pulled` | integer | No | `>= 0` | Count of sticky-trap images pulled in last sync cycle |
+
+### 5.3 Advisory Manifest Endpoint (`GET /api/v1/manifest?since=&limit=`)
+#### Top-Level Response
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `schema_version` | string | No | `"1.0"` | Wire schema version |
+| `advisories` | array | No | List of summary objects | Monotonically ordered advisory catalog items |
+| `truncated` | boolean | No | `true`, `false` | True if additional newer advisories exist beyond limit |
+
+#### Advisory Summary Object (`advisories[]`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `advisory_id` | string | No | String identifier | Unique advisory document identifier |
+| `seq` | integer | No | `>= 1` | Monotonic sequential advisory sequence number |
+| `generated_at_utc` | string | No | ISO-8601 UTC string | Timestamp of advisory generation |
+| `bytes` | integer | No | `>= 0` | Size of raw JSON advisory document in bytes |
+| `replay` | boolean | No | `true`, `false` | Provenance label (`true` for replay, `false` for live) |
+| `inference_backend` | string | No | `"trt"`, `"onnx"`, `"mock"` | Model A inference backend used |
+
+### 5.4 Acknowledgment Endpoint (`POST /api/v1/ack`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `status` | string | No | `"ok"` | Acknowledgement execution status |
+| `acked` | string / integer | No | String or integer | Cursor or advisory identifier acknowledged |
+
+### 5.5 Media Pruning Endpoint (`GET /api/v1/media/<id>`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `error` | string | No | `"gone"` | HTTP 410 error identifier |
+| `reason` | string | No | `"retention_pruned"` | Explanation of media lifecycle pruning policy |
+
+### 5.6 Mast Sync Trigger Endpoint (`POST /api/v1/sync/trigger`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `status` | string | No | `"accepted"` | Trigger acceptance status (returns 202) |
+| `timestamp` | string | No | ISO-8601 UTC string | Trigger initiation timestamp |
+| `expected_ap_downtime_s` | integer | No | `30` | Expected AP downtime during STA mode switch |

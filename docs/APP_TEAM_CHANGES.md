@@ -256,8 +256,19 @@ The ground mast ESP32 acts strictly as an HTTP server (`192.168.9.1`, AP `SIH-NO
 
 | Method | Path | Response | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/sync/trigger` | `202 Accepted`<br>`{"status": "SYNC_SCHEDULED", "triggered_utc": "...", "task_id": "...", "expected_ap_downtime_s": 30}` | Schedules asynchronous collector pull. Returns `409 Conflict` if sync is already in progress. |
-| `GET` | `/api/v1/sync/status` | `200 OK`<br>`{"status": "IDLE", "sync_in_progress": false, "last_attempt_utc": "...", "last_success_utc": "...", "last_result": "SUCCESS", "records_pulled": 42, "trap_images_pulled": 1, "mast_data_age_s": 120, "sih_collector_version": "1.0"}` | Returns collector status, timestamps, records transferred, and mast data age in seconds. |
+| `POST` | `/api/v1/sync/trigger` | `202 Accepted`<br>`{"status": "accepted", "timestamp": "2026-09-21T05:47:54Z", "expected_ap_downtime_s": 30}` | Schedules asynchronous collector pull. Returns `409 Conflict` (`{"error": "sync_in_progress", "detail": "..."}`) if sync is already in progress. |
+| `GET` | `/api/v1/sync/status` | `200 OK`<br>`{"sync_in_progress": false, "last_success_utc": null, "last_attempt_utc": null, "last_result": null, "mast_data_age_s": null, "records_pulled": 0, "trap_images_pulled": 0}` | Returns collector status, timestamps, records transferred, and mast data age in seconds. |
+
+#### Sync Status Field Breakdown (`GET /api/v1/sync/status`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `sync_in_progress` | boolean | No | `true`, `false` | Whether a background mast sync pull is currently executing |
+| `last_success_utc` | string | Yes | ISO-8601 UTC string or `null` | ISO-8601 UTC timestamp of last successful sync cycle |
+| `last_attempt_utc` | string | Yes | ISO-8601 UTC string or `null` | ISO-8601 UTC timestamp of last sync attempt |
+| `last_result` | string | Yes | `"OK"`, `"MAST_NOT_FOUND"`, `"PARTIAL"`, `"ERROR"`, or `null` | Result code of last sync cycle |
+| `mast_data_age_s` | integer | Yes | `>= 0` or `null` | Age of latest ingested mast telemetry record in seconds |
+| `records_pulled` | integer | No | `>= 0` | Count of telemetry records pulled in last sync cycle |
+| `trap_images_pulled` | integer | No | `>= 0` | Count of sticky-trap images pulled in last sync cycle |
 
 ### 4.2 Ground Mast Pull Record Schema (`GET /readings`)
 - `log_epoch`: Monotonic boot timestamp to detect ESP32 reboots
@@ -284,7 +295,7 @@ The ground mast ESP32 acts strictly as an HTTP server (`192.168.9.1`, AP `SIH-NO
 
 | Method | Path | Request Body | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/health` | None | Device liveness, unacked count, storage free KB, sync state |
+| `GET` | `/api/v1/health` | None | Device liveness, advisory count, latest sequence, storage free KB, GPS clock status, and AP/STA sync state |
 | `GET` | `/api/v1/manifest?since=&limit=` | None | Monotonic advisory catalog pagination (mock advisories omitted in production) |
 | `GET` | `/api/v1/advisory/latest` | None | Retrieves the most recent synthesized advisory document (ordered by `seq DESC LIMIT 1`) |
 | `GET` | `/api/v1/advisory/<id_or_seq>` | None | Complete frozen v1.0 advisory document by UUID string or integer sequence number (returns 403 Forbidden in production if mock) |
@@ -293,3 +304,54 @@ The ground mast ESP32 acts strictly as an HTTP server (`192.168.9.1`, AP `SIH-NO
 | `GET` | `/api/v1/media/<id>` | None | Returns `410 Gone` (media retention pruned per policy) |
 | `POST` | `/api/v1/sync/trigger` | None | Triggers async collector sync against mast node (returns `202 Accepted` or `409 Conflict`) |
 | `GET` | `/api/v1/sync/status` | None | Returns collector sync status, timestamps, records pulled, expected downtime |
+
+#### Health Endpoint Schema (`GET /api/v1/health`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `device` | string | No | `"sih-pod-01"` | Handheld Nano Pod device identifier |
+| `schema_version` | string | No | `"1.0"` | Wire schema version |
+| `server_time_utc` | string | No | ISO-8601 UTC string | Current system clock timestamp on the Nano |
+| `gps_time_valid` | boolean | No | `true`, `false` | Whether system clock is locked to GPS or RTC |
+| `clock_source` | string | No | `"gps"`, `"rtc"`, `"filesystem"` | Source of system clock synchronization |
+| `advisory_count` | integer | No | `>= 0` | Total number of advisories stored in SQLite database |
+| `latest_seq` | integer | No | `>= 0` | Highest monotonic advisory sequence number |
+| `storage_free_kb` | integer | No | `>= 0` | Free disk space available on storage partition (KB) |
+| `syncing` | boolean | No | `true`, `false` | AP/STA mode-switch status flag (true when syncing with ground mast) |
+| `sync_state` | string | No | `"IDLE"`, `"STA_SYNC"` | AP/STA state seam identifier |
+
+#### Advisory Manifest Endpoint Schema (`GET /api/v1/manifest?since=&limit=`)
+##### Top-Level Response
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `schema_version` | string | No | `"1.0"` | Wire schema version |
+| `advisories` | array | No | List of summary objects | Monotonically ordered advisory catalog items |
+| `truncated` | boolean | No | `true`, `false` | True if additional newer advisories exist beyond limit |
+
+##### Advisory Summary Object (`advisories[]`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `advisory_id` | string | No | String identifier | Unique advisory document identifier |
+| `seq` | integer | No | `>= 1` | Monotonic sequential advisory sequence number |
+| `generated_at_utc` | string | No | ISO-8601 UTC string | Timestamp of advisory generation |
+| `bytes` | integer | No | `>= 0` | Size of raw JSON advisory document in bytes |
+| `replay` | boolean | No | `true`, `false` | Provenance label (`true` for replay, `false` for live) |
+| `inference_backend` | string | No | `"trt"`, `"onnx"`, `"mock"` | Model A inference backend used |
+
+#### Acknowledgment Endpoint Schema (`POST /api/v1/ack`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `status` | string | No | `"ok"` | Acknowledgement execution status |
+| `acked` | string / integer | No | String or integer | Cursor or advisory identifier acknowledged |
+
+#### Media Pruning Endpoint Schema (`GET /api/v1/media/<id>`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `error` | string | No | `"gone"` | HTTP 410 error identifier |
+| `reason` | string | No | `"retention_pruned"` | Explanation of media lifecycle pruning policy |
+
+#### Mast Sync Trigger Endpoint Schema (`POST /api/v1/sync/trigger`)
+| Field | Type | Nullable | Allowed Values | Description |
+|---|---|---|---|---|
+| `status` | string | No | `"accepted"` | Trigger acceptance status (returns 202) |
+| `timestamp` | string | No | ISO-8601 UTC string | Trigger initiation timestamp |
+| `expected_ap_downtime_s` | integer | No | `30` | Expected AP downtime during STA mode switch |

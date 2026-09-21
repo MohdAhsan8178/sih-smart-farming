@@ -344,3 +344,214 @@ def test_gateway_latest_endpoint_retrieval():
         finally:
             gateway.stop()
             storage.close()
+
+
+def test_gateway_all_endpoints_schema_conformance():
+    """
+    Rigorously validates response key-sets and types for every HTTP gateway endpoint:
+    - GET  /api/v1/health
+    - GET  /api/v1/sync/status
+    - GET  /api/v1/manifest
+    - GET  /api/v1/advisory/latest
+    - GET  /api/v1/advisory/<id_or_seq>
+    - POST /api/v1/ack
+    - GET  /api/v1/media/<id>
+    """
+    import urllib.request
+    import urllib.error
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "gateway_conformance_test.db"
+        storage = EdgeStorage(db_path=db_path)
+
+        # Seed realistic scan and advisory
+        scan_id = "scan_conf_001"
+        storage.record_scan_start(
+            scan_id=scan_id,
+            started_utc="2026-09-21T05:00:00Z",
+            source="test_cam.mp4",
+        )
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=0,
+            timestamp_utc="2026-09-21T05:00:01Z",
+            cell_id="cell_001",
+            gate_passed=True,
+            gate_metrics={"blur_score": 150.0, "displacement": 1.0},
+            n_valid_tiles=9,
+            frame_state="DISEASE",
+            class_id=4,  # rice__blast
+            confidence=0.95,
+            tile_decisions=[{"state": "OK", "class_id": 4, "conf": 0.95}] * 9,
+            source_image="frame_0.jpg",
+            gps={"latitude": 28.52, "longitude": 77.58, "fix_quality": 1, "hdop": 1.1},
+        )
+        storage.record_cell_verdict(
+            scan_id=scan_id,
+            cell_id="cell_001",
+            state="DISEASE",
+            class_id=4,
+            score=0.95,
+            n_frames=1,
+            n_agree=1,
+        )
+        storage.record_scan_end(
+            scan_id=scan_id,
+            ended_utc="2026-09-21T05:00:10Z",
+            frames_captured=1,
+            frames_evaluated=1,
+            tiles_classified=9,
+        )
+        created_adv = storage.create_advisory(
+            scan_id=scan_id,
+            advisory_id="adv_conf_001",
+            replay=False,
+            field_id="F01",
+            inference_backend="trt",
+        )
+
+        gateway = EdgeGateway(host="127.0.0.1", port=0, storage=storage, db_path=db_path, allow_mock=True)
+        gateway.start_background()
+        actual_port = gateway.server.server_address[1]
+        base_url = f"http://127.0.0.1:{actual_port}"
+
+        try:
+            # 1. GET /api/v1/health
+            req = urllib.request.Request(f"{base_url}/api/v1/health")
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                health = json.loads(resp.read().decode("utf-8"))
+                expected_health_keys = {
+                    "device",
+                    "schema_version",
+                    "server_time_utc",
+                    "gps_time_valid",
+                    "clock_source",
+                    "advisory_count",
+                    "latest_seq",
+                    "storage_free_kb",
+                    "syncing",
+                    "sync_state",
+                }
+                assert set(health.keys()) == expected_health_keys, f"Health keys mismatch: {set(health.keys()) ^ expected_health_keys}"
+                assert isinstance(health["device"], str)
+                assert health["schema_version"] == "1.0"
+                assert isinstance(health["server_time_utc"], str)
+                assert isinstance(health["gps_time_valid"], bool)
+                assert health["clock_source"] in ("gps", "rtc", "filesystem")
+                assert isinstance(health["advisory_count"], int) and health["advisory_count"] >= 1
+                assert isinstance(health["latest_seq"], int) and health["latest_seq"] >= 1
+                assert isinstance(health["storage_free_kb"], int) and health["storage_free_kb"] >= 0
+                assert isinstance(health["syncing"], bool)
+                assert health["sync_state"] in ("IDLE", "STA_SYNC")
+
+            # 2. GET /api/v1/sync/status
+            req = urllib.request.Request(f"{base_url}/api/v1/sync/status")
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                sync_status = json.loads(resp.read().decode("utf-8"))
+                expected_sync_keys = {
+                    "sync_in_progress",
+                    "last_success_utc",
+                    "last_attempt_utc",
+                    "last_result",
+                    "mast_data_age_s",
+                    "records_pulled",
+                    "trap_images_pulled",
+                }
+                assert set(sync_status.keys()) == expected_sync_keys, f"Sync status keys mismatch: {set(sync_status.keys()) ^ expected_sync_keys}"
+                assert isinstance(sync_status["sync_in_progress"], bool)
+                assert sync_status["last_success_utc"] is None or isinstance(sync_status["last_success_utc"], str)
+                assert sync_status["last_attempt_utc"] is None or isinstance(sync_status["last_attempt_utc"], str)
+                assert sync_status["last_result"] is None or sync_status["last_result"] in ("OK", "MAST_NOT_FOUND", "PARTIAL", "ERROR")
+                assert sync_status["mast_data_age_s"] is None or (isinstance(sync_status["mast_data_age_s"], int) and sync_status["mast_data_age_s"] >= 0)
+                assert isinstance(sync_status["records_pulled"], int) and sync_status["records_pulled"] >= 0
+                assert isinstance(sync_status["trap_images_pulled"], int) and sync_status["trap_images_pulled"] >= 0
+
+            # 3. GET /api/v1/manifest
+            req = urllib.request.Request(f"{base_url}/api/v1/manifest?since=0&limit=10")
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                manifest = json.loads(resp.read().decode("utf-8"))
+                expected_manifest_keys = {
+                    "schema_version",
+                    "advisories",
+                    "truncated",
+                }
+                assert set(manifest.keys()) == expected_manifest_keys, f"Manifest keys mismatch: {set(manifest.keys()) ^ expected_manifest_keys}"
+                assert manifest["schema_version"] == "1.0"
+                assert isinstance(manifest["truncated"], bool)
+                assert isinstance(manifest["advisories"], list)
+                assert len(manifest["advisories"]) >= 1
+
+                expected_adv_item_keys = {
+                    "advisory_id",
+                    "seq",
+                    "generated_at_utc",
+                    "bytes",
+                    "replay",
+                    "inference_backend",
+                }
+                for item in manifest["advisories"]:
+                    assert set(item.keys()) == expected_adv_item_keys, f"Manifest advisory item keys mismatch: {set(item.keys()) ^ expected_adv_item_keys}"
+                    assert isinstance(item["advisory_id"], str)
+                    assert isinstance(item["seq"], int) and item["seq"] >= 1
+                    assert isinstance(item["generated_at_utc"], str)
+                    assert isinstance(item["bytes"], int) and item["bytes"] >= 0
+                    assert isinstance(item["replay"], bool)
+                    assert item["inference_backend"] in ("trt", "onnx", "mock")
+
+            # 4. GET /api/v1/advisory/latest
+            req = urllib.request.Request(f"{base_url}/api/v1/advisory/latest")
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                latest_adv = json.loads(resp.read().decode("utf-8"))
+                assert latest_adv["advisory_id"] == "adv_conf_001"
+                assert latest_adv["seq"] == created_adv["seq"]
+                assert latest_adv["schema_version"] == "1.0"
+
+            # 5. GET /api/v1/advisory/<id_or_seq>
+            # By ID
+            req = urllib.request.Request(f"{base_url}/api/v1/advisory/adv_conf_001")
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                adv_by_id = json.loads(resp.read().decode("utf-8"))
+                assert adv_by_id["advisory_id"] == "adv_conf_001"
+            # By Seq
+            req = urllib.request.Request(f"{base_url}/api/v1/advisory/{created_adv['seq']}")
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                adv_by_seq = json.loads(resp.read().decode("utf-8"))
+                assert adv_by_seq["advisory_id"] == "adv_conf_001"
+
+            # 6. POST /api/v1/ack
+            ack_body = json.dumps({"advisory_id": "adv_conf_001"}).encode("utf-8")
+            req = urllib.request.Request(
+                f"{base_url}/api/v1/ack",
+                data=ack_body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req) as resp:
+                assert resp.status == 200
+                ack_resp = json.loads(resp.read().decode("utf-8"))
+                assert set(ack_resp.keys()) == {"status", "acked"}
+                assert ack_resp["status"] == "ok"
+                assert ack_resp["acked"] == "adv_conf_001"
+
+            # 7. GET /api/v1/media/<id> -> 410 Gone
+            req = urllib.request.Request(f"{base_url}/api/v1/media/img_test_001")
+            try:
+                urllib.request.urlopen(req)
+                pytest.fail("Expected HTTP 410 Gone for GET /api/v1/media/<id>")
+            except urllib.error.HTTPError as e:
+                assert e.code == 410
+                media_resp = json.loads(e.read().decode("utf-8"))
+                assert set(media_resp.keys()) == {"error", "reason"}
+                assert media_resp["error"] == "gone"
+                assert media_resp["reason"] == "retention_pruned"
+
+        finally:
+            gateway.stop()
+            storage.close()
+
