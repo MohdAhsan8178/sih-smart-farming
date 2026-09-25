@@ -1022,25 +1022,49 @@ class EdgeStorage(object):
 
         # 3. Irrigation block (FAO-56 Hargreaves-Samani, Eq 52 & Dynamic Ra Eqs 21-25)
         history_24h = self.get_mast_readings_history(hours=24.0)
-        valid_temps = [float(r["air_temp_c"]) for r in history_24h if r.get("air_temp_c") is not None]
+        valid_clock_readings = []
+        invalid_clock_count = 0
+        for r in history_24h:
+            if r.get("rtc_valid") and r.get("utc"):
+                dt = _parse_iso_timestamp(r["utc"])
+                if dt is not None:
+                    valid_clock_readings.append((dt, r))
+                else:
+                    invalid_clock_count += 1
+            else:
+                invalid_clock_count += 1
+
+        # Sort valid readings chronologically by their valid UTC timestamp
+        valid_clock_readings.sort(key=lambda x: x[0])
+        valid_temps = [float(r["air_temp_c"]) for dt, r in valid_clock_readings if r.get("air_temp_c") is not None]
 
         # Minimum coverage rule:
         # At least 6 samples spanning >= 6.0 hours (to capture diurnal day/night spread)
         has_min_coverage = False
         time_span_h = 0.0
-        if len(valid_temps) >= 6 and len(history_24h) >= 2:
-            dt0 = _parse_iso_timestamp(history_24h[0]["received_at"])
-            dt1 = _parse_iso_timestamp(history_24h[-1]["received_at"])
-            if dt0 and dt1:
-                time_span_h = abs((dt1 - dt0).total_seconds()) / 3600.0
-                if time_span_h >= 6.0:
-                    has_min_coverage = True
+        if len(valid_clock_readings) >= 2:
+            dt0 = valid_clock_readings[0][0]
+            dt1 = valid_clock_readings[-1][0]
+            time_span_h = abs((dt1 - dt0).total_seconds()) / 3600.0
+
+        if len(valid_temps) >= 6 and time_span_h >= 6.0:
+            has_min_coverage = True
 
         if mast_reading is not None and mast_reading.get("air_temp_c") is not None:
             if not has_min_coverage:
+                excl_suffix = ""
+                if invalid_clock_count > 0:
+                    excl_suffix = ", %d reading%s excluded for invalid clock" % (
+                        invalid_clock_count,
+                        "s" if invalid_clock_count != 1 else "",
+                    )
                 irrigation_block = {
                     "available": False,
-                    "reason": "INSUFFICIENT_24H_HISTORY (need >=6 readings spanning >=6h in last 24h for Tmin/Tmax, found %d readings spanning %.1fh)" % (len(valid_temps), time_span_h),
+                    "reason": "INSUFFICIENT_24H_HISTORY (need >=6 readings spanning >=6h in last 24h for Tmin/Tmax, found %d readings spanning %.1fh%s)" % (
+                        len(valid_temps),
+                        time_span_h,
+                        excl_suffix,
+                    ),
                 }
             else:
                 t_min = min(valid_temps)
@@ -1664,21 +1688,20 @@ class EdgeStorage(object):
         node_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Fetches mast readings recorded over the last `hours` window.
+        Fetches mast readings recorded over the last `hours` window based on valid UTC timestamps.
         """
         conn = self._get_connection()
-        cutoff_dt = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=hours)
-        cutoff_iso = cutoff_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        query = "SELECT * FROM mast_telemetry WHERE received_at >= ? "
-        params = [cutoff_iso]
+        query = "SELECT * FROM mast_telemetry "
+        params = []
         if node_id:
-            query += "AND node_id = ? "
+            query += "WHERE node_id = ? "
             params.append(str(node_id))
         query += "ORDER BY id ASC;"
 
         rows = conn.execute(query, tuple(params)).fetchall()
-        result = []
+        all_readings = []
+        valid_utc_list = []
+
         for row in rows:
             status_obj = None
             if row["status_json"]:
@@ -1686,7 +1709,7 @@ class EdgeStorage(object):
                     status_obj = json.loads(row["status_json"])
                 except Exception:
                     status_obj = None
-            result.append({
+            rec = {
                 "id": row["id"],
                 "log_epoch": row["log_epoch"],
                 "seq": row["seq"],
@@ -1705,8 +1728,32 @@ class EdgeStorage(object):
                 "battery_v": row["battery_v"],
                 "status": status_obj,
                 "received_at": row["received_at"],
-            })
-        return result
+            }
+            if rec["rtc_valid"] and rec["utc"]:
+                dt = _parse_iso_timestamp(rec["utc"])
+                if dt is not None:
+                    valid_utc_list.append(dt)
+            all_readings.append(rec)
+
+        if not valid_utc_list:
+            return all_readings
+
+        latest_utc_dt = max(valid_utc_list)
+        cutoff_dt = latest_utc_dt - datetime.timedelta(hours=hours)
+
+        filtered_result = []
+        for r in all_readings:
+            if r["rtc_valid"] and r["utc"]:
+                dt = _parse_iso_timestamp(r["utc"])
+                if dt is not None:
+                    if dt >= cutoff_dt:
+                        filtered_result.append(r)
+                else:
+                    filtered_result.append(r)
+            else:
+                filtered_result.append(r)
+
+        return filtered_result
 
     def record_satellite_ndvi(
         self,

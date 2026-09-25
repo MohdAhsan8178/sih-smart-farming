@@ -24,6 +24,10 @@ Supported Indices (Section B):
   - GMR: G - R (unnormalized channel difference, scale/illumination dependent, Section E fixed-AWB).
   - DGCI: Dark Green Colour Index (Karcher & Richardson 2003) via float32 HSV conversion.
 """
+try:
+    from collections.abc import Mapping as ABCMapping
+except ImportError:
+    from collections import Mapping as ABCMapping
 from typing import Mapping, Dict, Any, Tuple, Optional, Union
 import numpy as np
 import cv2
@@ -220,7 +224,7 @@ def vegetation_mask(bgr_or_bands: Union[np.ndarray, BandMap],
     so a fully vegetated frame comes back ~50% vegetation and fails any
     downstream purity gate.
     """
-    if isinstance(bgr_or_bands, dict) or (hasattr(bgr_or_bands, "__getitem__") and "green" in bgr_or_bands):
+    if isinstance(bgr_or_bands, (dict, ABCMapping)):
         exg_arr = exg(bgr_or_bands)
     else:
         exg_arr = excess_green(bgr_or_bands)
