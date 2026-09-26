@@ -17,6 +17,7 @@ from pathlib import Path
 import tempfile
 import threading
 import time
+import numpy as np
 import pytest
 
 from edge.storage import EdgeStorage
@@ -650,7 +651,7 @@ def test_inputs_sensor_status_consistency():
                 tile_decisions=[],
             )
             storage.record_scan_end("scan_hw_thermal", frames_captured=1, frames_evaluated=1, tiles_classified=9)
-            adv_hw_therm = storage.create_advisory("scan_hw_thermal", thermal_frame_data=hw_frame_data)
+            adv_hw_therm = storage.create_advisory("scan_hw_thermal", replay=False, thermal_frame_data=hw_frame_data)
 
             assert adv_hw_therm["thermal"]["available"] is True
             assert adv_hw_therm["thermal"]["thermal_source"] == "hardware"
@@ -675,7 +676,7 @@ def test_inputs_sensor_status_consistency():
                 tile_decisions=[],
             )
             storage.record_scan_end("scan_hw_unconf", frames_captured=1, frames_evaluated=1, tiles_classified=9)
-            adv_hw_unconf = storage.create_advisory("scan_hw_unconf", thermal_frame_data=hw_frame_data)
+            adv_hw_unconf = storage.create_advisory("scan_hw_unconf", replay=False, thermal_frame_data=hw_frame_data)
 
             assert adv_hw_unconf["thermal"]["available"] is False
             assert adv_hw_unconf["thermal"]["reason"] == "THERMAL_REFS_NOT_CONFIGURED"
@@ -685,7 +686,127 @@ def test_inputs_sensor_status_consistency():
             inputs_map_unconf = {inp["name"]: inp for inp in adv_hw_unconf["inputs"]}
             assert inputs_map_unconf["pod_thermal"]["status"] == "PENDING_CALIBRATION"
 
+        # Scenario 5: Replay scan with thermal frame provided (provenance suppression)
+        with unittest.mock.patch("edge.thermal_capture.load_thermal_refs", return_value=mock_refs_cfg):
+            storage.record_scan_start("scan_replay_therm")
+            storage.record_frame_event(
+                scan_id="scan_replay_therm",
+                frame_idx=0,
+                timestamp_utc="2026-09-18T17:18:00Z",
+                cell_id="cell_0",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="HEALTHY",
+                class_id=0,
+                confidence=0.95,
+                tile_decisions=[],
+            )
+            storage.record_scan_end("scan_replay_therm", frames_captured=1, frames_evaluated=1, tiles_classified=9)
+            adv_replay_therm = storage.create_advisory("scan_replay_therm", replay=True, thermal_frame_data=hw_frame_data)
+
+            assert adv_replay_therm["replay"] is True
+            assert adv_replay_therm["thermal"]["available"] is False
+            assert adv_replay_therm["thermal"]["reason"] == "REPLAY_THERMAL_NOT_OF_SCENE"
+            assert adv_replay_therm["thermal"]["tc_c"] is None
+            assert adv_replay_therm["thermal"]["twet_c"] is None
+            assert adv_replay_therm["thermal"]["tdry_c"] is None
+            assert adv_replay_therm["thermal"]["cwsi"] is None
+            assert adv_replay_therm["thermal"]["flag"] is None
+            assert adv_replay_therm["thermal"]["frame_utc"] is None
+            inputs_map_replay = {inp["name"]: inp for inp in adv_replay_therm["inputs"]}
+            assert inputs_map_replay["pod_thermal"]["status"] == "ABSENT"
+
         storage.close()
+
+
+def test_thermal_block_replay_provenance_explicit(tmp_path):
+    """
+    Verify replay=True vs replay=False thermal provenance behavior:
+      - replay=True  -> tc_c is None, cwsi is None, available is False, reason is REPLAY_THERMAL_NOT_OF_SCENE
+      - replay=False -> tc_c is populated from thermal frame / sensor as before
+    """
+    import unittest.mock
+    db_path = tmp_path / "provenance_test.db"
+    storage = EdgeStorage(db_path=db_path)
+
+    hw_array = np.full((24, 32), 26.5, dtype=np.float32)
+    hw_array[2:6, 26:30] = 35.0  # dry pad
+    hw_frame = {
+        "available": True,
+        "temperature_array": hw_array,
+        "thermal_source": "hardware",
+        "timestamp_utc": "2026-09-27T00:00:00Z",
+    }
+    mock_refs = {
+        "status": "MEASURED",
+        "wet_ref": {"row_min": 2, "row_max": 5, "col_min": 2, "col_max": 5},
+        "dry_ref": {"row_min": 2, "row_max": 5, "col_min": 26, "col_max": 29},
+    }
+
+    # 1. Replay scan (replay=True)
+    storage.record_scan_start("scan_prov_replay")
+    storage.record_frame_event(
+        scan_id="scan_prov_replay",
+        frame_idx=0,
+        timestamp_utc="2026-09-27T00:00:00Z",
+        cell_id="cell_0",
+        gate_passed=True,
+        gate_metrics={},
+        n_valid_tiles=9,
+        frame_state="HEALTHY",
+        class_id=0,
+        confidence=0.98,
+        tile_decisions=[],
+    )
+    storage.record_scan_end("scan_prov_replay", frames_captured=1, frames_evaluated=1, tiles_classified=9)
+
+    with unittest.mock.patch("edge.thermal_capture.load_thermal_refs", return_value=mock_refs):
+        adv_replay = storage.create_advisory("scan_prov_replay", replay=True, thermal_frame_data=hw_frame)
+
+    assert adv_replay["replay"] is True
+    assert adv_replay["thermal"]["available"] is False
+    assert adv_replay["thermal"]["reason"] == "REPLAY_THERMAL_NOT_OF_SCENE"
+    assert adv_replay["thermal"]["tc_c"] is None
+    assert adv_replay["thermal"]["cwsi"] is None
+    assert adv_replay["thermal"]["twet_c"] is None
+    assert adv_replay["thermal"]["tdry_c"] is None
+    assert adv_replay["thermal"]["flag"] is None
+    assert adv_replay["thermal"]["frame_utc"] is None
+    inputs_map_rep = {inp["name"]: inp for inp in adv_replay["inputs"]}
+    assert inputs_map_rep["pod_thermal"]["status"] == "ABSENT"
+
+    # 2. Live scan (replay=False)
+    storage.record_scan_start("scan_prov_live")
+    storage.record_frame_event(
+        scan_id="scan_prov_live",
+        frame_idx=0,
+        timestamp_utc="2026-09-27T00:00:10Z",
+        cell_id="cell_0",
+        gate_passed=True,
+        gate_metrics={},
+        n_valid_tiles=9,
+        frame_state="HEALTHY",
+        class_id=0,
+        confidence=0.98,
+        tile_decisions=[],
+    )
+    storage.record_scan_end("scan_prov_live", frames_captured=1, frames_evaluated=1, tiles_classified=9)
+
+    with unittest.mock.patch("edge.thermal_capture.load_thermal_refs", return_value=mock_refs):
+        adv_live = storage.create_advisory("scan_prov_live", replay=False, thermal_frame_data=hw_frame)
+
+    assert adv_live["replay"] is False
+    assert adv_live["thermal"]["available"] is True
+    assert adv_live["thermal"]["reason"] is None
+    assert adv_live["thermal"]["tc_c"] == 26.5
+    assert adv_live["thermal"]["cwsi"] is not None
+    assert adv_live["thermal"]["thermal_source"] == "hardware"
+    assert adv_live["thermal"]["frame_utc"] == "2026-09-27T00:00:00Z"
+    inputs_map_live = {inp["name"]: inp for inp in adv_live["inputs"]}
+    assert inputs_map_live["pod_thermal"]["status"] == "OK"
+
+    storage.close()
 
 
 if __name__ == "__main__":

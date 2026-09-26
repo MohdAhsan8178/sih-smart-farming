@@ -171,14 +171,22 @@ When canopy fraction is sufficient (`mean_canopy >= min_fraction_threshold`):
 | Field | Type | Nullable | Allowed Values | Description |
 |---|---|---|---|---|
 | `available` | boolean | No | `true`, `false` | True when MLX90640 frame captured and references valid |
-| `reason` | string | Yes | `THERMAL_REFS_NOT_CONFIGURED`, `INSUFFICIENT_REFERENCE_GAP`, etc. | Explanation if CWSI unavailable |
-| `tc_c` | float | Yes | Numeric (°C) | Median canopy temperature (°C) measured directly from thermal array (populated whenever a valid thermal frame is captured, even when wet/dry references are unconfigured) |
+| `reason` | string | Yes | `REPLAY_THERMAL_NOT_OF_SCENE`, `THERMAL_REFS_NOT_CONFIGURED`, `INSUFFICIENT_REFERENCE_GAP`, etc. | Explanation if CWSI / canopy thermal data unavailable |
+| `tc_c` | float | Yes | Numeric (°C) | Median canopy temperature (°C) measured directly from thermal array (populated whenever a valid thermal frame is captured, even when wet/dry references are unconfigured; `null` on replay) |
 | `twet_c` | float | Yes | Numeric (°C) | Median temperature of wet reference pad |
 | `tdry_c` | float | Yes | Numeric (°C) | Median temperature of dry reference pad |
 | `cwsi` | float | Yes | Numeric | Raw Crop Water Stress Index $(T_c - T_{wet})/(T_{dry} - T_{wet})$ |
 | `flag` | string | Yes | `"NORMAL"`, `"CWSI_BELOW_ZERO"`, `"CWSI_ABOVE_ONE"` | Out-of-bounds flag (unclamped reporting) |
 | `thermal_source` | string | No | `"hardware"`, `"mock"` | Origin of thermal data |
 | `frame_utc` | string | Yes | ISO-8601 UTC string or `null` | Capture timestamp of thermal frame |
+
+*Thermal Reason Codes:*
+- `REPLAY_THERMAL_NOT_OF_SCENE`: Scan RGB source is a recorded replay file; live MLX90640 reading does not correspond to recorded video scene.
+- `THERMAL_REFS_NOT_CONFIGURED`: MLX90640 thermal frame acquired, but wet/dry reference surfaces are unconfigured in `configs/thermal_refs.json`.
+- `INSUFFICIENT_REFERENCE_GAP`: Difference between dry and wet reference surface temperatures ($T_{dry} - T_{wet}$) is below minimum threshold (1.5 °C).
+- `WET_REF_SPREAD_EXCEEDED` / `DRY_REF_SPREAD_EXCEEDED`: Temperature standard deviation within reference bounding box exceeds threshold (1.5 °C).
+- `HARDWARE_NOT_CONNECTED`: MLX90640 I2C device not detected on bus.
+- `HARDWARE_CAPTURE_FAILED`: I2C read error occurred during thermal frame acquisition.
 
 #### NDVI Hardware Probe Block (`ndvi`)
 | Field | Type | Nullable | Allowed Values | Description |

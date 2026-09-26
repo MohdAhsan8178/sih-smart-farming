@@ -30,7 +30,7 @@ def test_k4_2_hardware_guards_when_absent():
             confidence=0.95,
             tile_decisions=[],
         )
-        adv = storage.create_advisory("scan_test_1")
+        adv = storage.create_advisory("scan_test_1", replay=False)
 
         # 1. Thermal (handheld array absent)
         assert adv["thermal"]["available"] is False

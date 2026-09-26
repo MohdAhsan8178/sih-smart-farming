@@ -901,7 +901,19 @@ class EdgeStorage(object):
         mast_reading = reader.get_latest()
 
         # 1. Thermal block (MLX90640 runtime I2C probe + Reference CWSI M2.3/M2.5)
-        if thermal_frame_data and thermal_frame_data.get("available") and thermal_frame_data.get("temperature_array") is not None:
+        if replay:
+            thermal_block = {
+                "available": False,
+                "reason": "REPLAY_THERMAL_NOT_OF_SCENE",
+                "tc_c": None,
+                "twet_c": None,
+                "tdry_c": None,
+                "cwsi": None,
+                "flag": None,
+                "thermal_source": str(thermal_frame_data.get("thermal_source", "hardware")) if thermal_frame_data else "hardware",
+                "frame_utc": None,
+            }
+        elif thermal_frame_data and thermal_frame_data.get("available") and thermal_frame_data.get("temperature_array") is not None:
             from edge.thermal_capture import load_thermal_refs
             from core.thermal import evaluate_reference_cwsi_from_frame
             refs_cfg = load_thermal_refs()
@@ -1219,12 +1231,15 @@ class EdgeStorage(object):
                             else (
                                 "PENDING_CALIBRATION"
                                 if (
-                                    (thermal_frame_data and thermal_frame_data.get("available") and thermal_frame_data.get("thermal_source") == "hardware")
-                                    or (thermal_block.get("tc_c") is not None)
-                                    or (
-                                        thermal_block.get("reason")
-                                        and not str(thermal_block.get("reason")).startswith("HARDWARE_NOT_CONNECTED")
-                                        and not str(thermal_block.get("reason")).startswith("HARDWARE_CAPTURE_FAILED")
+                                    not replay
+                                    and (
+                                        (thermal_frame_data and thermal_frame_data.get("available") and thermal_frame_data.get("thermal_source") == "hardware")
+                                        or (thermal_block.get("tc_c") is not None)
+                                        or (
+                                            thermal_block.get("reason")
+                                            and not str(thermal_block.get("reason")).startswith("HARDWARE_NOT_CONNECTED")
+                                            and not str(thermal_block.get("reason")).startswith("HARDWARE_CAPTURE_FAILED")
+                                        )
                                     )
                                 )
                                 else "ABSENT"

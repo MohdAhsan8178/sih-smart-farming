@@ -136,8 +136,9 @@ The advisory document emitted by `GET /api/v1/advisory/<id_or_seq>` and `GET /ap
 
 #### 5. Thermal & Reference CWSI Block (`thermal`)
 - `available`: `true` when MLX90640 frame is captured and reference surfaces are configured/valid; `false` otherwise
-- `reason`: Explanation if CWSI unavailable (`THERMAL_REFS_NOT_CONFIGURED`, `INSUFFICIENT_REFERENCE_GAP`, `WET_REF_VARIANCE_HIGH`, `DRY_REF_VARIANCE_HIGH`, `HARDWARE_NOT_CONNECTED`, etc.)
-- `tc_c`: Median canopy temperature (°C) measured directly from thermal array (populated whenever a valid thermal frame is captured, even when wet/dry references are unconfigured)
+- `reason`: Explanation if CWSI unavailable (`REPLAY_THERMAL_NOT_OF_SCENE`, `THERMAL_REFS_NOT_CONFIGURED`, `INSUFFICIENT_REFERENCE_GAP`, `WET_REF_VARIANCE_HIGH`, `DRY_REF_VARIANCE_HIGH`, `HARDWARE_NOT_CONNECTED`, etc.)
+  - `REPLAY_THERMAL_NOT_OF_SCENE`: Scan RGB source is a recorded replay file; live MLX90640 reading does not correspond to recorded video scene.
+- `tc_c`: Median canopy temperature (°C) measured directly from thermal array (populated whenever a valid thermal frame is captured, even when wet/dry references are unconfigured; `null` on replay)
 - `twet_c`: Median temperature of wet reference pad (°C)
 - `tdry_c`: Median temperature of dry reference pad (°C)
 - `cwsi`: Raw Crop Water Stress Index computed via Jones (1999):

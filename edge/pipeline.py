@@ -1027,9 +1027,10 @@ class DecisionAggregateStoreThread(threading.Thread):
                     frames_evaluated=self.events_written,
                     tiles_classified=self.events_written * N_TILES,
                 )
+                replay_flag = not is_camera_source(self.source)
                 self.last_advisory = self.storage.create_advisory(
                     scan_id=self.scan_id,
-                    replay=True,
+                    replay=replay_flag,
                     days_since_planting=self.days_since_planting,
                     total_cycle_days=self.total_cycle_days,
                     inference_backend=self.inference_backend,
