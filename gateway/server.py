@@ -248,7 +248,7 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
             # Route: GET /api/v1/advisory/<id_or_seq> (§A5, §A8, §8)
             advisory_match = re.match(r"^/api/v1/advisory/([^/]+)$", path)
             if advisory_match:
-                advisory_id = advisory_match.group(1)
+                advisory_id = urllib.parse.unquote(advisory_match.group(1))
                 advisory = self.server.storage.get_advisory(advisory_id)
                 if advisory is None:
                     self._send_json_response(404, {"error": "not_found", "advisory_id": advisory_id})

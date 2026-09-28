@@ -407,3 +407,76 @@ def test_m3_2_wifi_switch_skip_if_client_connected():
         assert res_skip["result_code"] == "SKIPPED_CLIENT_CONNECTED"
 
 
+def test_advisory_retrieval_url_encoded_and_formats():
+    """
+    Validates advisory retrieval routing across all format variants:
+      1. URL-encoded string id (e.g. '2026-09-27T12%3A31%3A15Z_F01') -> 200 with identical body to unencoded
+      2. Unencoded string id ('2026-09-27T12:31:15Z_F01') -> 200
+      3. Unknown id ('unknown_advisory_999') -> 404 with error payload
+      4. Integer seq ('1') -> 200 with matching seq
+      5. 'latest' -> 200 with most recently synthesized advisory
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "gateway_unquote_test.db"
+        storage = EdgeStorage(db_path=db_path)
+
+        adv_id = "2026-09-27T12:31:15Z_F01"
+        scan_id = "scan_iso_001"
+        storage.record_scan_start(scan_id)
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=0,
+            timestamp_utc="2026-09-27T12:31:15Z",
+            cell_id="cell_0",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="HEALTHY",
+            class_id=0,
+            confidence=0.98,
+            tile_decisions=[],
+        )
+        storage.record_scan_end(scan_id, frames_captured=1, frames_evaluated=1, tiles_classified=9)
+        storage.create_advisory(scan_id=scan_id, advisory_id=adv_id, replay=False)
+
+        gateway = EdgeGateway(host="127.0.0.1", port=0, storage=storage, db_path=db_path)
+        gateway.start_background()
+        actual_port = gateway.server.server_address[1]
+        base_url = f"http://127.0.0.1:{actual_port}"
+
+        try:
+            # 1. URL-encoded string ID -> 200
+            encoded_id = urllib.parse.quote(adv_id)
+            assert "%3A" in encoded_id
+            status_enc, body_enc, _ = http_get(f"{base_url}/api/v1/advisory/{encoded_id}")
+            assert status_enc == 200
+            assert body_enc["advisory_id"] == adv_id
+            assert body_enc["seq"] == 1
+
+            # 2. Unencoded string ID -> 200
+            status_raw, body_raw, _ = http_get(f"{base_url}/api/v1/advisory/{adv_id}")
+            assert status_raw == 200
+            assert body_raw["advisory_id"] == adv_id
+            assert body_enc == body_raw
+
+            # 3. Unknown ID -> 404
+            status_404, body_404, _ = http_get(f"{base_url}/api/v1/advisory/unknown_advisory_999")
+            assert status_404 == 404
+            assert body_404["error"] == "not_found"
+
+            # 4. Integer seq -> 200
+            status_seq, body_seq, _ = http_get(f"{base_url}/api/v1/advisory/1")
+            assert status_seq == 200
+            assert body_seq["seq"] == 1
+            assert body_seq["advisory_id"] == adv_id
+
+            # 5. 'latest' -> 200
+            status_latest, body_latest, _ = http_get(f"{base_url}/api/v1/advisory/latest")
+            assert status_latest == 200
+            assert body_latest["advisory_id"] == adv_id
+            assert body_latest["seq"] == 1
+        finally:
+            gateway.stop()
+
+
+
