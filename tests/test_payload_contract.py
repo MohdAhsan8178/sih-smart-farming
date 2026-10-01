@@ -101,6 +101,11 @@ def assert_advisory_payload_schema_recursive(payload: dict):
         "pest",
         "inputs",
         "actions",
+        "time_source",
+        "summary",
+        "stretches",
+        "alerts",
+        "field_conditions",
     }
     assert set(payload.keys()) == expected_top_keys, f"Top-level keys mismatch: {set(payload.keys()) ^ expected_top_keys}"
     assert payload["schema_version"] == "1.0"
@@ -109,6 +114,11 @@ def assert_advisory_payload_schema_recursive(payload: dict):
     assert isinstance(payload["generated_at_utc"], str)
     assert payload["inference_backend"] in ("trt", "onnx", "mock")
     assert isinstance(payload["replay"], bool)
+    assert payload["time_source"] in ("gps", "phone", "filesystem")
+    assert isinstance(payload["summary"], dict)
+    assert isinstance(payload["stretches"], list)
+    assert isinstance(payload["alerts"], list)
+    assert isinstance(payload["field_conditions"], dict)
 
     # 2. Scan Block
     expected_scan_keys = {
@@ -120,11 +130,14 @@ def assert_advisory_payload_schema_recursive(payload: dict):
         "tiles_classified",
         "distance_walked_m",
         "distance_reason",
+        "crop_declared",
+        "duration_s",
+        "stop_reason",
     }
     assert set(payload["scan"].keys()) == expected_scan_keys, f"Scan keys mismatch: {set(payload['scan'].keys()) ^ expected_scan_keys}"
     assert isinstance(payload["scan"]["started_utc"], str)
     assert isinstance(payload["scan"]["ended_utc"], str)
-    assert payload["scan"]["mode"] == "handheld_pod"
+    assert payload["scan"]["mode"] in ("walk", "handheld_pod")
     assert isinstance(payload["scan"]["frames_captured"], int)
     assert isinstance(payload["scan"]["frames_evaluated"], int)
     assert isinstance(payload["scan"]["tiles_classified"], int)
@@ -705,18 +718,24 @@ def test_gateway_all_endpoints_schema_conformance():
                     "storage_free_kb",
                     "syncing",
                     "sync_state",
+                    "storage",
+                    "pod_ready",
+                    "scan_state",
                 }
                 assert set(health.keys()) == expected_health_keys, f"Health keys mismatch: {set(health.keys()) ^ expected_health_keys}"
                 assert isinstance(health["device"], str)
                 assert health["schema_version"] == "1.0"
                 assert isinstance(health["server_time_utc"], str)
                 assert isinstance(health["gps_time_valid"], bool)
-                assert health["clock_source"] in ("gps", "rtc", "filesystem")
+                assert health["clock_source"] in ("gps", "rtc", "filesystem", "phone")
                 assert isinstance(health["advisory_count"], int) and health["advisory_count"] >= 1
                 assert isinstance(health["latest_seq"], int) and health["latest_seq"] >= 1
                 assert isinstance(health["storage_free_kb"], int) and health["storage_free_kb"] >= 0
                 assert isinstance(health["syncing"], bool)
                 assert health["sync_state"] in ("IDLE", "STA_SYNC")
+                assert isinstance(health["storage"], dict)
+                assert isinstance(health["pod_ready"], bool)
+                assert isinstance(health["scan_state"], str)
 
             # 2. GET /api/v1/sync/status
             req = urllib.request.Request(f"{base_url}/api/v1/sync/status")

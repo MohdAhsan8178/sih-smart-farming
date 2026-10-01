@@ -28,7 +28,9 @@ import os
 from pathlib import Path
 import shutil
 import sqlite3
+import subprocess
 import threading
+import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from configs.classes import CLASS_NAMES, NUM_CLASSES
@@ -36,8 +38,75 @@ from configs.reliability import get_cross_source_reliability
 import configs.train_config as train_config
 import numpy as np
 
-# Default database storage location on the Jetson Nano filesystem
-DEFAULT_DB_PATH = Path("data/edge.db")
+# SD Card mount and storage path definitions
+SD_MOUNT_POINT = Path("/mnt/aegisdata")
+
+
+def resolve_data_directory(
+    mount_point: Optional[Union[str, Path]] = None,
+    internal_dir: Optional[Union[str, Path]] = None,
+) -> Tuple[Path, str, bool]:
+    """
+    Resolves active data directory based on SD card mount status and writability.
+
+    Rule:
+      Use SD only if os.path.ismount(mount_point) AND a real write test succeeds
+      (create + delete a temp file in <mount_point>/aegis/).
+      If not mounted or write test fails, falls back to internal_dir (repo ROOT / 'data')
+      and reports card_missing=True.
+
+    Returns:
+      (resolved_data_dir: Path, location_str: 'sd'|'internal', card_missing: bool)
+    """
+    mnt = Path(mount_point) if mount_point is not None else SD_MOUNT_POINT
+    repo_root = Path(__file__).resolve().parent.parent
+    internal = Path(internal_dir) if internal_dir is not None else (repo_root / "data")
+
+    # 1. Check if mount_point is an actual mount
+    if os.path.ismount(str(mnt)):
+        sd_aegis = mnt / "aegis"
+        try:
+            sd_aegis.mkdir(parents=True, exist_ok=True)
+            # Real write test: create + delete temp file
+            test_file = sd_aegis / (".write_test_%d_%d" % (os.getpid(), int(time.time())))
+            with open(str(test_file), "w") as f:
+                f.write("aegis_sd_test\n")
+            test_file.unlink()
+
+            # Ensure subdirectories exist
+            (sd_aegis / "archive").mkdir(parents=True, exist_ok=True)
+            (sd_aegis / "logs").mkdir(parents=True, exist_ok=True)
+            (sd_aegis / "status").mkdir(parents=True, exist_ok=True)
+
+            # One-time migration: if SD dir has no edge.db and internal data/edge.db exists, copy it
+            sd_db = sd_aegis / "edge.db"
+            internal_db = internal / "edge.db"
+            if not sd_db.exists() and internal_db.exists():
+                shutil.copy2(str(internal_db), str(sd_db))
+
+            return sd_aegis, "sd", False
+        except Exception:
+            pass
+
+    # Fallback to internal storage
+    internal.mkdir(parents=True, exist_ok=True)
+    (internal / "archive").mkdir(parents=True, exist_ok=True)
+    (internal / "logs").mkdir(parents=True, exist_ok=True)
+    (internal / "status").mkdir(parents=True, exist_ok=True)
+    return internal, "internal", True
+
+
+def get_storage_free_mb(target_dir: Union[str, Path]) -> int:
+    """Returns free filesystem space in megabytes for the given directory."""
+    try:
+        st = os.statvfs(str(target_dir))
+        return int((st.f_bavail * st.f_frsize) / (1024 * 1024))
+    except Exception:
+        return 0
+
+
+DEFAULT_DATA_DIR, DEFAULT_STORAGE_LOCATION, DEFAULT_STORAGE_CARD_MISSING = resolve_data_directory()
+DEFAULT_DB_PATH = DEFAULT_DATA_DIR / "edge.db"
 
 # Retention ceiling: 50,000 frames (empirically measured at 121 MB on disk: ~2.1 KB/row including 9 tile decisions, metadata, B-tree indexes, and SQLite freelist page allocation)
 DEFAULT_MAX_RETAINED_FRAMES = 50000
@@ -70,12 +139,28 @@ class EdgeStorage(object):
 
     def __init__(
         self,
-        db_path: Union[str, Path] = DEFAULT_DB_PATH,
+        db_path: Optional[Union[str, Path]] = None,
         max_retained_frames: int = DEFAULT_MAX_RETAINED_FRAMES,
     ):
-        self.db_path = Path(db_path)
+        if db_path is None or Path(db_path) == DEFAULT_DB_PATH:
+            resolved_dir, loc, missing = resolve_data_directory()
+            self.data_dir = resolved_dir
+            self.storage_location = loc
+            self.storage_card_missing = missing
+            self.db_path = self.data_dir / "edge.db"
+        else:
+            self.db_path = Path(db_path)
+            self.data_dir = self.db_path.parent
+            if "/mnt/aegisdata" in str(self.db_path):
+                self.storage_location = "sd"
+                self.storage_card_missing = False
+            else:
+                self.storage_location = "internal"
+                self.storage_card_missing = True
+
         self.max_retained_frames = int(max_retained_frames)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.clock_source = "filesystem"
 
         self._local = threading.local()
         self._init_lock = threading.Lock()
@@ -112,17 +197,41 @@ class EdgeStorage(object):
                         scan_id TEXT PRIMARY KEY,
                         started_utc TEXT NOT NULL,
                         ended_utc TEXT,
-                        mode TEXT DEFAULT 'handheld_pod',
+                        mode TEXT DEFAULT 'walk',
                         source TEXT,
                         frames_captured INTEGER DEFAULT 0,
                         frames_evaluated INTEGER DEFAULT 0,
                         tiles_classified INTEGER DEFAULT 0,
                         distance_walked_m REAL,
                         distance_reason TEXT,
-                        metadata_json TEXT
+                        metadata_json TEXT,
+                        pid INTEGER,
+                        status TEXT DEFAULT 'complete',
+                        crop TEXT,
+                        field_id TEXT,
+                        stop_reason TEXT,
+                        duration_s REAL,
+                        time_source TEXT
                     );
                     """
                 )
+
+                # Safe column migrations for existing databases
+                try:
+                    scan_cols = set(r["name"] for r in conn.execute("PRAGMA table_info(scans);").fetchall())
+                    for col_name, col_type in [
+                        ("pid", "INTEGER"),
+                        ("status", "TEXT DEFAULT 'complete'"),
+                        ("crop", "TEXT"),
+                        ("field_id", "TEXT"),
+                        ("stop_reason", "TEXT"),
+                        ("duration_s", "REAL"),
+                        ("time_source", "TEXT"),
+                    ]:
+                        if scan_cols and col_name not in scan_cols:
+                            conn.execute("ALTER TABLE scans ADD COLUMN %s %s;" % (col_name, col_type))
+                except Exception:
+                    pass
 
                 # 2. Granular frame events (replaces JSONL stream)
                 conn.execute(
@@ -336,8 +445,13 @@ class EdgeStorage(object):
         scan_id: str,
         started_utc: Optional[str] = None,
         source: Optional[str] = None,
-        mode: str = "handheld_pod",
+        mode: str = "walk",
         metadata: Optional[Dict[str, Any]] = None,
+        pid: Optional[int] = None,
+        status: str = "running",
+        crop: Optional[str] = None,
+        field_id: Optional[str] = None,
+        time_source: Optional[str] = None,
     ) -> None:
         """Records the beginning of a scanning session."""
         started_utc = started_utc or get_utc_iso_now()
@@ -346,8 +460,9 @@ class EdgeStorage(object):
             conn.execute(
                 """
                 INSERT OR REPLACE INTO scans (
-                    scan_id, started_utc, mode, source, metadata_json
-                ) VALUES (?, ?, ?, ?, ?);
+                    scan_id, started_utc, mode, source, metadata_json,
+                    pid, status, crop, field_id, time_source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     scan_id,
@@ -355,6 +470,40 @@ class EdgeStorage(object):
                     mode,
                     str(source) if source else None,
                     json.dumps(metadata or {}),
+                    int(pid) if pid is not None else None,
+                    str(status),
+                    str(crop) if crop else None,
+                    str(field_id) if field_id else None,
+                    str(time_source) if time_source else None,
+                ),
+            )
+
+    def update_scan_progress(
+        self,
+        scan_id: str,
+        frames_seen: int,
+        frames_evaluated: int,
+        tiles_classified: int,
+        status: str = "running",
+    ) -> None:
+        """Incrementally updates scan row metrics during an ongoing scan."""
+        conn = self._get_connection()
+        with conn:
+            conn.execute(
+                """
+                UPDATE scans SET
+                    frames_captured = ?,
+                    frames_evaluated = ?,
+                    tiles_classified = ?,
+                    status = ?
+                WHERE scan_id = ?;
+                """,
+                (
+                    int(frames_seen),
+                    int(frames_evaluated),
+                    int(tiles_classified),
+                    str(status),
+                    scan_id,
                 ),
             )
 
@@ -367,6 +516,9 @@ class EdgeStorage(object):
         tiles_classified: int = 0,
         distance_walked_m: Optional[float] = None,
         distance_reason: Optional[str] = None,
+        status: str = "complete",
+        stop_reason: Optional[str] = "user",
+        duration_s: Optional[float] = None,
     ) -> None:
         """Records completion metrics for a scanning session."""
         ended_utc = ended_utc or get_utc_iso_now()
@@ -383,7 +535,10 @@ class EdgeStorage(object):
                     frames_evaluated = ?,
                     tiles_classified = ?,
                     distance_walked_m = ?,
-                    distance_reason = ?
+                    distance_reason = ?,
+                    status = ?,
+                    stop_reason = ?,
+                    duration_s = ?
                 WHERE scan_id = ?;
                 """,
                 (
@@ -393,6 +548,9 @@ class EdgeStorage(object):
                     int(tiles_classified),
                     distance_walked_m,
                     distance_reason,
+                    str(status),
+                    str(stop_reason) if stop_reason else None,
+                    float(duration_s) if duration_s is not None else None,
                     scan_id,
                 ),
             )
@@ -605,6 +763,11 @@ class EdgeStorage(object):
         pest_data: Optional[Dict[str, Any]] = None,
         inference_backend: str = "trt",
         thermal_frame_data: Optional[Dict[str, Any]] = None,
+        stop_reason: Optional[str] = None,
+        crop_declared: Optional[str] = None,
+        duration_s: Optional[float] = None,
+        time_source: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Synthesizes a complete frozen Advisory document (schema v1.0) from recorded
@@ -1168,12 +1331,41 @@ class EdgeStorage(object):
             "scan": {
                 "started_utc": scan_row["started_utc"],
                 "ended_utc": scan_row["ended_utc"] or now_utc,
-                "mode": scan_row["mode"] or "handheld_pod",
+                "mode": mode or scan_row["mode"] or "walk",
+                "crop_declared": crop_declared or (scan_row["crop"] if "crop" in scan_row.keys() else None),
+                "duration_s": duration_s if duration_s is not None else (scan_row["duration_s"] if "duration_s" in scan_row.keys() and scan_row["duration_s"] is not None else int(round(abs(((_parse_iso_timestamp(scan_row["ended_utc"] or now_utc) or _parse_iso_timestamp(now_utc)) - (_parse_iso_timestamp(scan_row["started_utc"]) or _parse_iso_timestamp(now_utc))).total_seconds())))),
+                "stop_reason": stop_reason or (scan_row["stop_reason"] if "stop_reason" in scan_row.keys() and scan_row["stop_reason"] is not None else "user"),
                 "frames_captured": int(scan_row["frames_captured"] or len(events)),
                 "frames_evaluated": len(events),
                 "tiles_classified": int(scan_row["tiles_classified"] or len(events) * train_config.N_TILES),
                 "distance_walked_m": scan_row["distance_walked_m"],
                 "distance_reason": scan_row["distance_reason"] or ("GPS_TRACK_NOT_RECORDED" if gps_points == 0 else None),
+            },
+            "time_source": time_source or (scan_row["time_source"] if "time_source" in scan_row.keys() and scan_row["time_source"] is not None else getattr(self, "clock_source", "filesystem")),
+            "summary": {
+                "stretches_total": 0,
+                "healthy": 0,
+                "need_look": 0,
+                "unclear": 0,
+                "not_crop": 0,
+                "no_data": 0,
+            },
+            "stretches": [],
+            "alerts": [],
+            "field_conditions": {
+                "available": False,
+                "reason": "NO_VALID_MAST_READING",
+                "node_id": None,
+                "reading_utc": None,
+                "age_minutes": None,
+                "air_temp_c": None,
+                "rh_pct": None,
+                "lux": None,
+                "soil1_v": None,
+                "soil2_v": None,
+                "battery_v": None,
+                "soil_units": "raw_volts_uncalibrated",
+                "source": "measured",
             },
             "crop_health": {
                 "state": overall_state,
@@ -1422,6 +1614,7 @@ class EdgeStorage(object):
         # Storage free KB
         stat = os.statvfs(str(self.db_path.parent))
         storage_free_kb = int((stat.f_bavail * stat.f_frsize) / 1024)
+        storage_free_mb = int(storage_free_kb / 1024)
 
         return {
             "device": "sih-pod-01",
@@ -1431,8 +1624,80 @@ class EdgeStorage(object):
             "schema_version": "1.0",
             "latest_seq": latest_seq,
             "server_time_utc": get_utc_iso_now(),
-            "clock_source": "filesystem",  # "gps" once GPS time sync is live
+            "clock_source": getattr(self, "clock_source", "filesystem"),
+            "storage": {
+                "location": getattr(self, "storage_location", "internal"),
+                "free_mb": storage_free_mb,
+            },
         }
+
+    def recover_interrupted_scans(self) -> List[str]:
+        """
+        On gateway start: any scan with status 'running' and no live pipeline process is finalized
+        into a normal advisory from its saved events, with scan.stop_reason = 'interrupted'.
+        Nothing saved before the cut may be lost.
+        Returns list of recovered advisory_ids.
+        """
+        conn = self._get_connection()
+        rows = conn.execute("SELECT * FROM scans WHERE status = 'running';").fetchall()
+        recovered_ids: List[str] = []
+
+        for row in rows:
+            scan_id = row["scan_id"]
+            pid = row["pid"] if "pid" in row.keys() else None
+            alive = False
+            if pid and pid > 0:
+                try:
+                    os.kill(pid, 0)
+                    alive = True
+                    # Check if process is actually pipeline.py
+                    try:
+                        cmdline_file = Path("/proc") / str(pid) / "cmdline"
+                        if cmdline_file.exists():
+                            cmd_str = cmdline_file.read_text()
+                            if "pipeline.py" not in cmd_str:
+                                alive = False
+                        else:
+                            ps_out = subprocess.check_output(
+                                ["ps", "-p", str(pid), "-o", "command="],
+                                stderr=subprocess.DEVNULL,
+                            )
+                            if b"pipeline.py" not in ps_out:
+                                alive = False
+                    except Exception:
+                        pass
+                except OSError:
+                    alive = False
+
+            if alive:
+                continue
+
+            # Check if advisory already exists
+            adv_row = conn.execute("SELECT advisory_id FROM advisories WHERE scan_id = ?;", (scan_id,)).fetchone()
+            if adv_row:
+                with conn:
+                    conn.execute("UPDATE scans SET status = 'interrupted', stop_reason = 'interrupted' WHERE scan_id = ?;", (scan_id,))
+                continue
+
+            try:
+                advisory = self.create_advisory(
+                    scan_id=scan_id,
+                    stop_reason="interrupted",
+                    replay=False if row["source"] and "0" in str(row["source"]) else True,
+                )
+                with conn:
+                    conn.execute(
+                        "UPDATE scans SET status = 'interrupted', stop_reason = 'interrupted', ended_utc = ? WHERE scan_id = ?;",
+                        (get_utc_iso_now(), scan_id),
+                    )
+                recovered_ids.append(advisory["advisory_id"])
+            except Exception:
+                with conn:
+                    conn.execute(
+                        "UPDATE scans SET status = 'interrupted', stop_reason = 'interrupted', ended_utc = ? WHERE scan_id = ?;",
+                        (get_utc_iso_now(), scan_id),
+                    )
+        return recovered_ids
 
     # -------------------------------------------------------------------------
     # Retention & Disk Space Policy

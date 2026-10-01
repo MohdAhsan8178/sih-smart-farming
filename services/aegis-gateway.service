@@ -1,0 +1,19 @@
+[Unit]
+Description=AEGIS Handheld Pod Offline HTTP Gateway
+After=network.target aegis-maxn.service
+Wants=aegis-maxn.service
+
+[Service]
+Type=simple
+User=nvidia
+WorkingDirectory=/home/nvidia/sih-smart-farming
+KillMode=control-group
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+Environment="PATH=/usr/local/cuda-10.2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="LD_LIBRARY_PATH=/usr/local/cuda-10.2/lib64:/usr/lib/aarch64-linux-gnu/tegra"
+ExecStart=/usr/bin/python3 -u gateway/server.py --host 192.168.4.1 --port 8080
+
+[Install]
+WantedBy=multi-user.target

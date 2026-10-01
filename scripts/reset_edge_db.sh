@@ -33,10 +33,13 @@ if [ "$RUNNING_PROCS" -ne 0 ]; then
     exit 1
 fi
 
-# 2. Check for existing database files
-DB_FILE="data/edge.db"
-WAL_FILE="data/edge.db-wal"
-SHM_FILE="data/edge.db-shm"
+# 2. Resolve active storage directory via shared Python resolver
+RESOLVED_DIR=$(python3 -c "import sys; sys.path.insert(0, '.'); from edge.storage import resolve_data_directory; print(resolve_data_directory()[0])" 2>/dev/null || echo "data")
+echo "[INFO] Resolved active data directory: $RESOLVED_DIR"
+
+DB_FILE="$RESOLVED_DIR/edge.db"
+WAL_FILE="$RESOLVED_DIR/edge.db-wal"
+SHM_FILE="$RESOLVED_DIR/edge.db-shm"
 
 if [ ! -f "$DB_FILE" ] && [ ! -f "$WAL_FILE" ] && [ ! -f "$SHM_FILE" ]; then
     echo "[INFO] No active SQLite database found at $DB_FILE. Nothing to archive."
@@ -45,7 +48,7 @@ if [ ! -f "$DB_FILE" ] && [ ! -f "$WAL_FILE" ] && [ ! -f "$SHM_FILE" ]; then
 fi
 
 # 3. Create archive directory
-ARCHIVE_DIR="data/archive"
+ARCHIVE_DIR="$RESOLVED_DIR/archive"
 mkdir -p "$ARCHIVE_DIR"
 
 TS="$(date -u +%Y%m%d_%H%M%SZ)"

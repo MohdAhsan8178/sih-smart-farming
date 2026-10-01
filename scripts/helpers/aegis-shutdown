@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# aegis-shutdown — Root helper to cleanly shut down Handheld Nano Pod
+if [ -x /sbin/shutdown ]; then
+    exec /sbin/shutdown -h now
+else
+    exec shutdown -h now
+fi

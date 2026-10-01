@@ -26,11 +26,14 @@ Key Architectural Properties:
 
 import argparse
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import datetime
 import json
 import os
 from pathlib import Path
 import re
+import signal
 import socketserver
+import subprocess
 import sys
 import threading
 import time
@@ -42,7 +45,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from edge.storage import DEFAULT_DB_PATH, EdgeStorage, get_utc_iso_now
+from edge.storage import DEFAULT_DB_PATH, EdgeStorage, _parse_iso_timestamp, get_utc_iso_now
 
 DEFAULT_GATEWAY_HOST = "192.168.4.1"
 DEFAULT_GATEWAY_PORT = 8080
@@ -81,6 +84,373 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
         self.last_records_pulled = 0
         self.last_trap_images_pulled = 0
         self._sync_lock = threading.Lock()
+
+        # Scan controller state (Stage 1 / spec §1.2, §1.3, §1.5)
+        self.engine_path = ROOT / "artifacts" / "engines" / "model_a_fp16.engine"
+        self.camera_device = Path("/dev/video0")
+        self.replay_source = ROOT / "test_video_from_dataset_images.mp4"
+        self.clock_source = "filesystem"
+        self.init_utc = get_utc_iso_now()
+        self.current_scan_state = "idle"
+        self.current_scan_id = None
+        self.current_scan_proc = None
+        self.current_scan_info = None
+        self.current_scan_status_file = None
+        self.current_scan_started_mono = 0.0
+        self.last_scan_status = None
+        self.current_stop_reason = None
+        self.scan_lock = threading.Lock()
+
+        # Interrupted recovery on startup (Point 5)
+        try:
+            self.storage.recover_interrupted_scans()
+        except Exception:
+            pass
+
+    def is_pod_ready(self) -> bool:
+        """
+        pod_ready = gateway up AND engine file exists AND /dev/video0 exists
+        AND no scan in 'error' state that has not been cleared by the next start.
+        It is cheap: never open the camera or load the engine for health.
+        """
+        if not getattr(self, "is_ready", True):
+            return False
+        if getattr(self, "current_scan_state", "idle") == "error":
+            return False
+        if getattr(self, "allow_mock", False):
+            return True
+        return self.engine_path.exists() and self.camera_device.exists()
+
+    def get_scan_status(self) -> Dict[str, Any]:
+        """Returns full spec §1.3 scan status shape with all required keys."""
+        status_file = getattr(self, "current_scan_status_file", None)
+        st = None
+        if status_file and status_file.exists():
+            try:
+                with open(str(status_file), "r", encoding="utf-8") as f:
+                    st = json.load(f)
+            except Exception:
+                st = None
+
+        if st is not None:
+            if self.current_scan_state not in ("done", "error") and "state" in st:
+                self.current_scan_state = st["state"]
+            status = st
+        elif self.last_scan_status is not None and self.current_scan_state in ("done", "error"):
+            status = dict(self.last_scan_status)
+        else:
+            scan_id = self.current_scan_id
+            elapsed_s = 0
+            if self.current_scan_started_mono > 0:
+                elapsed_s = int(time.monotonic() - self.current_scan_started_mono)
+            status = {
+                "state": self.current_scan_state,
+                "scan_id": scan_id,
+                "field_id": self.current_scan_info.get("field_id") if self.current_scan_info else None,
+                "crop": self.current_scan_info.get("crop") if self.current_scan_info else None,
+                "replay": self.current_scan_info.get("replay", False) if self.current_scan_info else False,
+                "started_utc": self.current_scan_info.get("started_utc") if self.current_scan_info else None,
+                "elapsed_s": elapsed_s,
+                "max_duration_s": 1800,
+                "counts": {
+                    "frames_seen": 0,
+                    "frames_used": 0,
+                    "stretches": 0,
+                    "healthy": 0,
+                    "need_look": 0,
+                    "unclear": 0,
+                    "not_crop": 0,
+                },
+                "thermal_c_latest": None,
+                "field_station": {
+                    "reachable": None,
+                    "readings_collected": None,
+                    "last_reading_utc": None,
+                },
+                "warnings": [],
+                "alerts": [],
+                "advisory_id": None,
+                "stop_reason": self.current_stop_reason,
+            }
+
+        # Guarantee all spec §1.3 keys exist
+        required_counts = ["frames_seen", "frames_used", "stretches", "healthy", "need_look", "unclear", "not_crop"]
+        if "counts" not in status or not isinstance(status["counts"], dict):
+            status["counts"] = {}
+        for k in required_counts:
+            if k not in status["counts"]:
+                status["counts"][k] = 0
+
+        if "field_station" not in status or not isinstance(status["field_station"], dict):
+            status["field_station"] = {
+                "reachable": None,
+                "readings_collected": None,
+                "last_reading_utc": None,
+            }
+        for k in ("reachable", "readings_collected", "last_reading_utc"):
+            if k not in status["field_station"]:
+                status["field_station"][k] = None
+
+        if "warnings" not in status or not isinstance(status["warnings"], list):
+            status["warnings"] = []
+        if "alerts" not in status or not isinstance(status["alerts"], list):
+            status["alerts"] = []
+
+        # Add STORAGE_CARD_MISSING warning if storage is internal
+        if getattr(self.storage, "storage_location", "internal") == "internal":
+            has_storage_warn = any(w.get("code") == "STORAGE_CARD_MISSING" for w in status["warnings"] if isinstance(w, dict))
+            if not has_storage_warn:
+                status["warnings"].append({"code": "STORAGE_CARD_MISSING", "since_utc": self.init_utc})
+
+        if "advisory_id" not in status:
+            status["advisory_id"] = None
+        if "stop_reason" not in status:
+            status["stop_reason"] = self.current_stop_reason
+
+        return status
+
+    def start_scan(
+        self,
+        field_id: str,
+        crop: str,
+        source: str = "camera",
+        phone_utc: Optional[str] = None,
+    ) -> Tuple[int, Dict[str, Any]]:
+        with self.scan_lock:
+            # 1. Concurrency check (409)
+            if self.current_scan_state in ("starting", "scanning", "finalizing"):
+                return 409, {"error": "scan_in_progress", "scan_id": self.current_scan_id}
+
+            # 2. Camera & Engine check (503)
+            if not self.allow_mock:
+                if not self.engine_path.exists():
+                    return 503, {"error": "camera_unavailable", "detail": "model_a_fp16.engine missing"}
+                if source == "camera" and not self.camera_device.exists():
+                    return 503, {"error": "camera_unavailable", "detail": "/dev/video0 missing"}
+
+            # 3. Adopt phone time if applicable
+            if phone_utc and self.clock_source != "gps":
+                if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$", phone_utc):
+                    try:
+                        year = int(phone_utc[:4])
+                        if 2025 <= year <= 2035:
+                            phone_dt = _parse_iso_timestamp(phone_utc)
+                            if phone_dt:
+                                drift = abs((datetime.datetime.now(datetime.timezone.utc) - phone_dt).total_seconds())
+                                if drift > 2.0:
+                                    try:
+                                        subprocess.call(["sudo", "/usr/local/sbin/aegis-set-time", phone_utc])
+                                    except Exception:
+                                        pass
+                                    self.clock_source = "phone"
+                                    self.storage.clock_source = "phone"
+                    except Exception:
+                        pass
+
+            # 4. Clear any previous error state & prepare scan
+            now_iso = get_utc_iso_now()
+            scan_id = "%s_%s" % (now_iso, field_id)
+            replay_flag = (source == "replay")
+            self.current_scan_id = scan_id
+            self.current_scan_state = "starting"
+            self.current_stop_reason = None
+            self.current_scan_started_mono = time.monotonic()
+            status_file_path = self.storage.data_dir / "status" / ("scan_status_%s.json" % scan_id)
+            status_file_path.parent.mkdir(parents=True, exist_ok=True)
+            self.current_scan_status_file = status_file_path
+
+            self.current_scan_info = {
+                "scan_id": scan_id,
+                "field_id": field_id,
+                "crop": crop,
+                "source": source,
+                "replay": replay_flag,
+                "started_utc": now_iso,
+                "status_file": str(status_file_path),
+            }
+
+            # 5. Build pipeline subprocess command
+            cmd = [
+                sys.executable,
+                str(ROOT / "edge" / "pipeline.py"),
+                "--source", "0" if source == "camera" else str(self.replay_source),
+                "--until-stopped",
+                "--scan-id", scan_id,
+                "--field-id", field_id,
+                "--crop", crop,
+                "--status-file", str(status_file_path),
+                "--db-path", str(self.storage.db_path),
+            ]
+            if source == "camera":
+                backend_type = "mock" if self.allow_mock else "trt"
+                cmd.extend(["--backend", backend_type])
+                if not self.allow_mock:
+                    cmd.extend(["--engine", str(self.engine_path)])
+            else:
+                backend_type = "mock" if self.allow_mock else "trt"
+                cmd.extend(["--backend", backend_type, "--no-realtime"])
+                if not self.allow_mock:
+                    cmd.extend(["--engine", str(self.engine_path)])
+
+            try:
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                self.current_scan_proc = proc
+            except Exception as e:
+                self.current_scan_state = "error"
+                self.current_stop_reason = "error"
+                return 503, {"error": "camera_unavailable", "detail": str(e)}
+
+            # Record scan start in SQLite with PID
+            self.storage.record_scan_start(
+                scan_id=scan_id,
+                started_utc=now_iso,
+                source=source,
+                mode="walk",
+                pid=proc.pid,
+                status="running",
+                crop=crop,
+                field_id=field_id,
+                time_source=self.clock_source,
+            )
+
+            # Spawn background monitor thread
+            t = threading.Thread(
+                target=self._monitor_scan_process,
+                args=(scan_id, proc, status_file_path, self.current_scan_started_mono),
+            )
+            t.daemon = True
+            t.start()
+
+            return 202, {"scan_id": scan_id, "state": "starting", "replay": replay_flag}
+
+    def _monitor_scan_process(
+        self,
+        scan_id: str,
+        proc: subprocess.Popen,
+        status_file: Path,
+        started_mono: float,
+    ) -> None:
+        """Background thread monitoring the pipeline subprocess."""
+        status_file_seen = False
+        while True:
+            time.sleep(0.5)
+
+            # Check if process exited
+            ret = proc.poll()
+            if ret is not None:
+                if ret != 0:
+                    self.current_scan_state = "error"
+                    self.current_stop_reason = "error"
+                    adv_id = None
+                    try:
+                        adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
+                        adv_id = adv.get("advisory_id")
+                    except Exception:
+                        pass
+                    self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
+                    st = self.get_scan_status()
+                    st["state"] = "error"
+                    st["stop_reason"] = "error"
+                    st["advisory_id"] = adv_id
+                    self.last_scan_status = st
+                else:
+                    self.current_scan_state = "done"
+                    if self.current_stop_reason is None:
+                        self.current_stop_reason = "user"
+                    self.last_scan_status = self.get_scan_status()
+
+                self.current_scan_proc = None
+                break
+
+            # Check status file
+            if status_file.exists():
+                status_file_seen = True
+                try:
+                    with open(str(status_file), "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    if data.get("state") == "scanning":
+                        self.current_scan_state = "scanning"
+                    elif data.get("state") in ("done", "error"):
+                        self.current_scan_state = data.get("state")
+                except Exception:
+                    pass
+
+            # Timeout check: if no status file written within 20s of spawn
+            now_mono = time.monotonic()
+            if not status_file_seen and (now_mono - started_mono > 20.0):
+                try:
+                    proc.terminate()
+                    time.sleep(1.0)
+                    if proc.poll() is None:
+                        proc.kill()
+                except Exception:
+                    pass
+                self.current_scan_state = "error"
+                self.current_stop_reason = "error"
+                adv_id = None
+                try:
+                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
+                    adv_id = adv.get("advisory_id")
+                except Exception:
+                    pass
+                self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
+                st = self.get_scan_status()
+                st["state"] = "error"
+                st["stop_reason"] = "error"
+                st["advisory_id"] = adv_id
+                self.last_scan_status = st
+                self.current_scan_proc = None
+                break
+
+    def stop_scan(self, reason: str = "user", wait_timeout: float = 30.0) -> Tuple[int, Dict[str, Any]]:
+        with self.scan_lock:
+            if self.current_scan_state in ("done", "idle"):
+                return 200, self.get_scan_status()
+            if self.current_scan_state == "finalizing":
+                return 200, self.get_scan_status()
+
+            self.current_scan_state = "finalizing"
+            self.current_stop_reason = reason
+            proc = self.current_scan_proc
+            active_scan_id = self.current_scan_id
+
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.send_signal(signal.SIGTERM)
+                except Exception:
+                    pass
+
+                def _watchdog():
+                    t0 = time.monotonic()
+                    while time.monotonic() - t0 < wait_timeout:
+                        if proc.poll() is not None:
+                            return
+                        time.sleep(0.5)
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                    self.current_stop_reason = "interrupted"
+                    self.current_scan_state = "done"
+                    adv_id = None
+                    try:
+                        adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason="interrupted")
+                        adv_id = adv.get("advisory_id")
+                    except Exception:
+                        pass
+                    self.storage.record_scan_end(scan_id=active_scan_id, status="interrupted", stop_reason="interrupted")
+                    st = self.get_scan_status()
+                    st["state"] = "done"
+                    st["stop_reason"] = "interrupted"
+                    st["advisory_id"] = adv_id
+                    self.last_scan_status = st
+                    self.current_scan_proc = None
+
+                wd = threading.Thread(target=_watchdog)
+                wd.daemon = True
+                wd.start()
+
+            return 202, {"state": "finalizing"}
 
     def set_sync_state(self, syncing: bool, state_name: str = "IDLE") -> None:
         """
@@ -184,7 +554,15 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                 # Inject Subsystem 7 AP/STA mode-switch seam
                 health["syncing"] = getattr(self.server, "is_syncing", False) or getattr(self.server, "sync_in_progress", False)
                 health["sync_state"] = getattr(self.server, "sync_state", "IDLE")
+                health["pod_ready"] = self.server.is_pod_ready()
+                health["scan_state"] = getattr(self.server, "current_scan_state", "idle")
                 self._send_json_response(200, health)
+                return
+
+            # Route: GET /api/v1/scan/status (Stage 1 / Spec §1.3)
+            if path == "/api/v1/scan/status":
+                status = self.server.get_scan_status()
+                self._send_json_response(200, status)
                 return
 
             # Route: GET /api/v1/sync/status (L7.3, M3.3)
@@ -300,7 +678,7 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                     raw_body = self.rfile.read(length)
                     body_json = json.loads(raw_body.decode("utf-8"))
                 except Exception as ex:
-                    self._send_error_json(400, "bad_request", f"Malformed JSON: {ex}")
+                    self._send_error_json(400, "bad_request", "Malformed JSON: %s" % ex)
                     return
 
                 # Accepts {"upto": "<id>"}, {"advisory_id": "<id>"}, or {"seq": <int>}
@@ -443,6 +821,112 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                     "timestamp": get_utc_iso_now(),
                     "expected_ap_downtime_s": 30,
                 })
+            # Route: POST /api/v1/scan/start (Spec §1.2)
+            if path == "/api/v1/scan/start":
+                content_length = self.headers.get("Content-Length")
+                if not content_length:
+                    self._send_error_json(400, "bad_request", "Missing Content-Length header")
+                    return
+                try:
+                    length = int(content_length)
+                    raw_body = self.rfile.read(length)
+                    body_json = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+                except Exception as ex:
+                    self._send_error_json(400, "bad_request", "Malformed JSON: %s" % ex)
+                    return
+
+                crop = body_json.get("crop")
+                field_id = body_json.get("field_id")
+                source = body_json.get("source", "camera")
+                phone_utc = body_json.get("phone_utc")
+
+                if not crop or crop not in ("wheat", "rice", "sugarcane"):
+                    self._send_error_json(400, "bad_request", "crop is required and must be one of: wheat, rice, sugarcane")
+                    return
+                if not field_id or not isinstance(field_id, str) or not field_id.strip():
+                    self._send_error_json(400, "bad_request", "field_id is required and must be a non-empty string")
+                    return
+                if source not in ("camera", "replay"):
+                    self._send_error_json(400, "bad_request", "source must be 'camera' or 'replay'")
+                    return
+                if phone_utc is not None:
+                    if not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$", phone_utc):
+                        self._send_error_json(400, "bad_request", "phone_utc must be ISO-8601 UTC with Z suffix (YYYY-MM-DDTHH:MM:SSZ)")
+                        return
+                    try:
+                        yr = int(phone_utc[:4])
+                        if not (2025 <= yr <= 2035):
+                            self._send_error_json(400, "bad_request", "phone_utc year out of valid range (2025-2035)")
+                            return
+                    except Exception:
+                        self._send_error_json(400, "bad_request", "invalid phone_utc year")
+                        return
+
+                code, resp = self.server.start_scan(
+                    field_id=field_id.strip(),
+                    crop=crop,
+                    source=source,
+                    phone_utc=phone_utc,
+                )
+                self._send_json_response(code, resp)
+                return
+
+            # Route: POST /api/v1/scan/stop (Spec §1.5)
+            if path == "/api/v1/scan/stop":
+                reason = "user"
+                content_length = self.headers.get("Content-Length")
+                if content_length:
+                    try:
+                        length = int(content_length)
+                        raw_body = self.rfile.read(length)
+                        if raw_body:
+                            body_json = json.loads(raw_body.decode("utf-8"))
+                            if isinstance(body_json, dict) and "reason" in body_json:
+                                reason = str(body_json["reason"])
+                    except Exception:
+                        pass
+
+                code, resp = self.server.stop_scan(reason=reason)
+                self._send_json_response(code, resp)
+                return
+
+            # Route: POST /api/v1/pod/shutdown (Spec §1.6 / Point F)
+            if path == "/api/v1/pod/shutdown":
+                content_length = self.headers.get("Content-Length")
+                if not content_length:
+                    self._send_error_json(400, "missing_confirm", "confirm: true is required")
+                    return
+                try:
+                    length = int(content_length)
+                    raw_body = self.rfile.read(length)
+                    body_json = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+                except Exception as ex:
+                    self._send_error_json(400, "bad_request", "Malformed JSON: %s" % ex)
+                    return
+
+                if not isinstance(body_json, dict) or body_json.get("confirm") is not True:
+                    self._send_error_json(400, "missing_confirm", "confirm: true is required")
+                    return
+
+                self._send_json_response(202, {"state": "shutting_down", "shutting_down_in_s": 5})
+
+                def _async_shutdown():
+                    if getattr(self.server, "current_scan_proc", None) is not None:
+                        self.server.stop_scan(reason="shutdown")
+                        t0 = time.monotonic()
+                        while time.monotonic() - t0 < 10.0:
+                            if self.server.current_scan_proc is None or self.server.current_scan_proc.poll() is not None:
+                                break
+                            time.sleep(0.5)
+                    time.sleep(1.0)
+                    try:
+                        subprocess.call(["sudo", "/usr/local/sbin/aegis-shutdown"])
+                    except Exception:
+                        pass
+
+                t = threading.Thread(target=_async_shutdown)
+                t.daemon = True
+                t.start()
                 return
 
             self._send_json_response(404, {"error": "not_found", "path": path})

@@ -1,0 +1,12 @@
+[Unit]
+Description=AEGIS Handheld Pod MAXN Power and Clock Lock (Jetson Nano)
+After=local-fs.target
+Before=aegis-gateway.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c "/usr/sbin/nvpmodel -m 0; /usr/bin/jetson_clocks"
+
+[Install]
+WantedBy=multi-user.target

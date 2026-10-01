@@ -25,6 +25,7 @@ import datetime
 import json
 import os
 from pathlib import Path
+import signal
 import sys
 import threading
 import time
@@ -321,6 +322,7 @@ class CaptureThread(threading.Thread):
         camera_width: int = 1920,
         camera_height: int = 1080,
         camera_framerate: int = 30,
+        until_stopped: bool = False,
     ):
         super(CaptureThread, self).__init__(name="CaptureThread")
         self.source = source
@@ -331,6 +333,7 @@ class CaptureThread(threading.Thread):
         self.camera_width = int(camera_width)
         self.camera_height = int(camera_height)
         self.camera_framerate = int(camera_framerate)
+        self.until_stopped = bool(until_stopped)
 
         self.is_camera = is_camera_source(self.source)
         self.capture_backend = "gstreamer_nvarguscamerasrc" if self.is_camera else "opencv_file"
@@ -408,7 +411,7 @@ class CaptureThread(threading.Thread):
         frame_idx = 0
         try:
             while self.running:
-                if self.max_frames is not None and frame_idx >= self.max_frames:
+                if not self.until_stopped and self.max_frames is not None and frame_idx >= self.max_frames:
                     break
 
                 t_rd0 = time.time()
@@ -823,6 +826,12 @@ class DecisionAggregateStoreThread(threading.Thread):
         capture_backend: Optional[str] = None,
         capture_resolution: Optional[str] = None,
         source: Optional[str] = None,
+        field_id: str = "F01",
+        crop: str = "wheat",
+        until_stopped: bool = False,
+        status_file: Optional[Union[str, Path]] = None,
+        max_duration_s: int = 1800,
+        t1_capture: Optional[CaptureThread] = None,
     ):
         super(DecisionAggregateStoreThread, self).__init__(name="DecisionAggregateStoreThread")
         self.in_queue = in_queue
@@ -835,6 +844,15 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.capture_backend = capture_backend
         self.capture_resolution = capture_resolution
         self.source = source
+        self.field_id = str(field_id) if field_id else "F01"
+        self.crop = str(crop) if crop else "wheat"
+        self.until_stopped = bool(until_stopped)
+        self.status_file = Path(status_file) if status_file else None
+        self.max_duration_s = int(max_duration_s)
+        self.t1_capture = t1_capture
+        self.stop_reason = None
+        self.started_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.thermal_c_latest = None
 
         if isinstance(storage, (str, Path)):
             self.storage = EdgeStorage(db_path=storage)
@@ -859,8 +877,64 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.t_advisory_s = 0.0
         self.t_total_s = 0.0
 
+    def _write_status(
+        self,
+        state: str,
+        elapsed_s: int,
+        frames_seen: int,
+        frames_used: int,
+        thermal_c_latest: Optional[float] = None,
+        advisory_id: Optional[str] = None,
+        stop_reason: Optional[str] = None,
+    ) -> None:
+        if not self.status_file:
+            return
+        payload = {
+            "state": state,
+            "scan_id": self.scan_id,
+            "field_id": self.field_id,
+            "crop": self.crop,
+            "replay": not is_camera_source(self.source),
+            "started_utc": self.started_utc,
+            "elapsed_s": int(elapsed_s),
+            "max_duration_s": int(self.max_duration_s),
+            "counts": {
+                "frames_seen": int(frames_seen),
+                "frames_used": int(frames_used),
+                "stretches": 0,
+                "healthy": 0,
+                "need_look": 0,
+                "unclear": 0,
+                "not_crop": 0,
+            },
+            "thermal_c_latest": thermal_c_latest,
+            "field_station": {
+                "reachable": None,
+                "readings_collected": None,
+                "last_reading_utc": None,
+            },
+            "warnings": [],
+            "alerts": [],
+            "advisory_id": advisory_id,
+            "stop_reason": stop_reason,
+        }
+        tmp = Path(str(self.status_file) + (".tmp.%d" % os.getpid()))
+        try:
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+            with open(str(tmp), "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(str(tmp), str(self.status_file))
+        except Exception:
+            pass
+
     def run(self) -> None:
         t_start = time.time()
+        start_mono = time.monotonic()
+        last_status_write_mono = start_mono
+        last_sqlite_flush_mono = start_mono
+
         scan_meta = {}
         if self.days_since_planting is not None:
             scan_meta["days_since_planting"] = self.days_since_planting
@@ -874,8 +948,22 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.storage.record_scan_start(
             scan_id=self.scan_id,
             source=self.source,
+            mode="walk",
             metadata=scan_meta if scan_meta else None,
+            pid=os.getpid(),
+            status="running",
+            crop=self.crop,
+            field_id=self.field_id,
         )
+
+        if self.status_file:
+            self._write_status(
+                state="scanning",
+                elapsed_s=0,
+                frames_seen=0,
+                frames_used=0,
+                thermal_c_latest=None,
+            )
 
         jsonl_file = None
         if self.output_jsonl:
@@ -884,6 +972,38 @@ class DecisionAggregateStoreThread(threading.Thread):
 
         try:
             while True:
+                now_mono = time.monotonic()
+                elapsed_s = int(now_mono - start_mono)
+
+                # 1. Periodic status file write (every 1s)
+                if self.status_file and (now_mono - last_status_write_mono >= 1.0):
+                    self._write_status(
+                        state="scanning",
+                        elapsed_s=elapsed_s,
+                        frames_seen=getattr(self.t1_capture, "frames_read", self.events_written),
+                        frames_used=self.events_written,
+                        thermal_c_latest=self.thermal_c_latest,
+                    )
+                    last_status_write_mono = now_mono
+
+                # 2. Incremental SQLite progress flush (every 2s)
+                if now_mono - last_sqlite_flush_mono >= 2.0:
+                    self.storage.update_scan_progress(
+                        scan_id=self.scan_id,
+                        frames_seen=getattr(self.t1_capture, "frames_read", self.events_written),
+                        frames_evaluated=self.events_written,
+                        tiles_classified=self.events_written * N_TILES,
+                        status="running",
+                    )
+                    last_sqlite_flush_mono = now_mono
+
+                # 3. Max duration ceiling check (time.monotonic())
+                if self.until_stopped and (now_mono - start_mono >= self.max_duration_s):
+                    if not self.stop_reason:
+                        self.stop_reason = "time_limit"
+                    if self.t1_capture:
+                        self.t1_capture.running = False
+
                 t_q0 = time.time()
                 item = self.in_queue.get()
                 self.t_queue_wait_s += (time.time() - t_q0)
@@ -1020,12 +1140,18 @@ class DecisionAggregateStoreThread(threading.Thread):
                     self.t_jsonl_write_s += (time.time() - t_jw0)
 
             # End of scan: record completion and assemble Advisory JSON document only if not aborted
-            if not self.aborted and self.events_written > 0:
+            if not self.aborted and (self.events_written > 0 or self.until_stopped):
                 t_adv0 = time.time()
+                total_duration_s = round(time.monotonic() - start_mono, 2)
+                effective_stop_reason = self.stop_reason or ("error" if self.aborted else "user")
                 self.storage.record_scan_end(
                     scan_id=self.scan_id,
+                    frames_captured=getattr(self.t1_capture, "frames_read", self.events_written),
                     frames_evaluated=self.events_written,
                     tiles_classified=self.events_written * N_TILES,
+                    status="complete" if not self.aborted else "error",
+                    stop_reason=effective_stop_reason,
+                    duration_s=total_duration_s,
                 )
                 replay_flag = not is_camera_source(self.source)
                 self.last_advisory = self.storage.create_advisory(
@@ -1034,9 +1160,24 @@ class DecisionAggregateStoreThread(threading.Thread):
                     days_since_planting=self.days_since_planting,
                     total_cycle_days=self.total_cycle_days,
                     inference_backend=self.inference_backend,
+                    stop_reason=effective_stop_reason,
+                    crop_declared=self.crop,
+                    duration_s=total_duration_s,
+                    mode="walk",
                 )
                 self.storage.prune_retained_data()
                 self.t_advisory_s = (time.time() - t_adv0)
+
+                if self.status_file:
+                    self._write_status(
+                        state="done" if not self.aborted else "error",
+                        elapsed_s=int(time.monotonic() - start_mono),
+                        frames_seen=getattr(self.t1_capture, "frames_read", self.events_written),
+                        frames_used=self.events_written,
+                        thermal_c_latest=self.thermal_c_latest,
+                        advisory_id=self.last_advisory.get("advisory_id") if self.last_advisory else None,
+                        stop_reason=effective_stop_reason,
+                    )
 
         finally:
             if jsonl_file is not None:
@@ -1080,6 +1221,11 @@ class EdgePipeline(object):
         camera_width: int = 1920,
         camera_height: int = 1080,
         camera_framerate: int = 30,
+        field_id: Optional[str] = "F01",
+        crop: Optional[str] = "wheat",
+        until_stopped: bool = False,
+        status_file: Optional[Union[str, Path]] = None,
+        max_duration_s: int = 1800,
     ):
         self.source = source
         self.backend = "mock" if dry_run else str(backend).lower()
@@ -1102,6 +1248,12 @@ class EdgePipeline(object):
         self.camera_width = int(camera_width)
         self.camera_height = int(camera_height)
         self.camera_framerate = int(camera_framerate)
+        self.field_id = field_id or "F01"
+        self.crop = crop or "wheat"
+        self.until_stopped = bool(until_stopped)
+        self.status_file = Path(status_file) if status_file else None
+        self.max_duration_s = int(max_duration_s)
+        self.stop_requested = False
         self.storage = EdgeStorage(db_path=self.db_path)
         self.queue_size = int(queue_size)
         self.realtime = bool(realtime)
@@ -1148,6 +1300,7 @@ class EdgePipeline(object):
             camera_width=self.camera_width,
             camera_height=self.camera_height,
             camera_framerate=self.camera_framerate,
+            until_stopped=self.until_stopped,
         )
         self.t2_gate_tile = GateTileThread(
             in_queue=self.raw_queue,
@@ -1176,19 +1329,53 @@ class EdgePipeline(object):
             capture_backend=self.capture_backend,
             capture_resolution=self.capture_resolution,
             source=str(self.source),
+            field_id=self.field_id,
+            crop=self.crop,
+            until_stopped=self.until_stopped,
+            status_file=self.status_file,
+            max_duration_s=self.max_duration_s,
+            t1_capture=self.t1_capture,
         )
 
         self.threads = [self.t1_capture, self.t2_gate_tile, self.t3_inference, self.t4_decision]
+
+    def stop(self, reason: str = "user") -> None:
+        """Triggers graceful teardown across all pipeline threads."""
+        self.stop_requested = True
+        if hasattr(self, "t4_decision") and self.t4_decision:
+            self.t4_decision.stop_reason = reason
+        if hasattr(self, "t1_capture") and self.t1_capture:
+            self.t1_capture.running = False
 
     def run(self) -> Dict[str, Any]:
         """Runs the pipeline to completion and returns performance metrics."""
         t_start = time.time()
 
-        for t in self.threads:
-            t.start()
+        def _signal_handler(signum, frame):
+            self.stop(reason="user")
 
-        for t in self.threads:
-            t.join()
+        prev_sigterm = None
+        prev_sigint = None
+        try:
+            prev_sigterm = signal.signal(signal.SIGTERM, _signal_handler)
+            prev_sigint = signal.signal(signal.SIGINT, _signal_handler)
+        except Exception:
+            pass
+
+        try:
+            for t in self.threads:
+                t.start()
+
+            for t in self.threads:
+                t.join()
+        finally:
+            try:
+                if prev_sigterm is not None:
+                    signal.signal(signal.SIGTERM, prev_sigterm)
+                if prev_sigint is not None:
+                    signal.signal(signal.SIGINT, prev_sigint)
+            except Exception:
+                pass
 
         # Fail fast if capture, inference or other worker encountered a fatal error
         if getattr(self.t1_capture, "error", None) is not None:
@@ -1369,7 +1556,24 @@ def main():
     parser.add_argument("--camera-width", type=int, default=1920, help="CSI camera capture width (default: 1920)")
     parser.add_argument("--camera-height", type=int, default=1080, help="CSI camera capture height (default: 1080)")
     parser.add_argument("--camera-framerate", type=int, default=30, help="CSI camera capture framerate (default: 30)")
+    parser.add_argument("--until-stopped", action="store_true", help="Process frames continuously until stopped by signal or max duration")
+    parser.add_argument("--scan-id", type=str, default=None, help="Scan session ID (required with --until-stopped)")
+    parser.add_argument("--field-id", type=str, default=None, help="Field identifier (required with --until-stopped)")
+    parser.add_argument("--crop", type=str, choices=["wheat", "rice", "sugarcane"], default=None, help="Declared crop (required with --until-stopped)")
+    parser.add_argument("--status-file", type=str, default=None, help="Atomic status JSON file path")
+    parser.add_argument("--max-duration-s", type=int, default=1800, help="Maximum scan duration in seconds before safety stop (default 1800)")
     args = parser.parse_args()
+
+    if args.until_stopped:
+        missing = []
+        if not args.scan_id:
+            missing.append("--scan-id")
+        if not args.field_id:
+            missing.append("--field-id")
+        if not args.crop:
+            missing.append("--crop")
+        if missing:
+            parser.error("The following arguments are required with --until-stopped: %s" % ", ".join(missing))
 
     backend_choice = "mock" if args.dry_run else args.backend
 
@@ -1382,6 +1586,7 @@ def main():
         max_frames=args.max_frames,
         output_jsonl=args.output,
         db_path=args.db_path,
+        scan_id=args.scan_id,
         queue_size=args.queue_size,
         realtime=not args.no_realtime,
         days_since_planting=args.days_since_planting,
@@ -1389,6 +1594,11 @@ def main():
         camera_width=args.camera_width,
         camera_height=args.camera_height,
         camera_framerate=args.camera_framerate,
+        field_id=args.field_id,
+        crop=args.crop,
+        until_stopped=args.until_stopped,
+        status_file=args.status_file,
+        max_duration_s=args.max_duration_s,
     )
 
     metrics = pipeline.run()

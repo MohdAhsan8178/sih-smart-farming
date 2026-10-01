@@ -1,0 +1,3 @@
+# Sudoers rule for AEGIS handheld pod
+# Restricts nvidia user strictly to aegis-set-time and aegis-shutdown
+nvidia ALL=(ALL) NOPASSWD: /usr/local/sbin/aegis-set-time, /usr/local/sbin/aegis-shutdown
