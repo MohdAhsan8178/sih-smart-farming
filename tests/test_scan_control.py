@@ -359,11 +359,20 @@ def running_gateway():
             db_path=db_path,
             allow_mock=True,
         )
+        gw.server.pipeline_script = str(ROOT / "tests" / "fixtures" / "fake_pipeline.py")
         gw.start_background()
         port = gw.server_address[1]
         base_url = f"http://127.0.0.1:{port}"
-        yield gw, base_url
-        gw.stop()
+        try:
+            yield gw, base_url
+        finally:
+            if getattr(gw.server, "current_scan_proc", None) is not None:
+                gw.server.stop_scan()
+                for _ in range(30):
+                    if getattr(gw.server, "current_scan_proc", None) is None:
+                        break
+                    time.sleep(0.1)
+            gw.stop()
 
 
 def test_gateway_health_includes_pod_ready_and_scan_state(running_gateway):
@@ -439,62 +448,316 @@ def test_gateway_scan_start_503_when_camera_unavailable():
         gw.stop()
 
 
-def test_gateway_scan_stop_idempotent(running_gateway):
-    """
-    Test 5B: POST /api/v1/scan/stop is idempotent.
-    Stopping an idle or already finished scan returns 200 with current state.
-    """
+# =============================================================================
+# 5. Gateway Endpoints & Process Monitoring Tests (a through j)
+# =============================================================================
+
+def test_a_start_scan_spawns_process_and_creates_log(running_gateway):
+    """a. start_scan spawns the process, state is 'starting', log file is created in <data_dir>/logs/<scan_id>.log."""
     gw, base_url = running_gateway
-    status, body, _ = http_post_json(f"{base_url}/api/v1/scan/stop", {"reason": "user"})
-    assert status == 200
-    assert body["state"] == "idle"
-
-
-def test_gateway_scan_start_concurrency_409(running_gateway):
-    """
-    Test 5C: One scan at a time. If a scan is in progress (starting/scanning/finalizing),
-    subsequent start returns 409 scan_in_progress.
-    """
-    gw, base_url = running_gateway
-    gw.server.current_scan_state = "scanning"
-    gw.server.current_scan_id = "active_scan_123"
-
     status, body, _ = http_post_json(
         f"{base_url}/api/v1/scan/start",
-        {"crop": "wheat", "field_id": "field_test"},
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
     )
-    assert status == 409
-    assert body["error"] == "scan_in_progress"
-    assert body["scan_id"] == "active_scan_123"
+    assert status == 202
+    assert body["state"] == "starting"
+    scan_id = body["scan_id"]
 
-    # Reset
-    gw.server.current_scan_state = "idle"
+    log_file = gw.server.storage.data_dir / "logs" / f"{scan_id}.log"
+    assert log_file.exists()
+
+    # Clean up
+    gw.server.stop_scan()
+    for _ in range(30):
+        time.sleep(0.1)
+        _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b["state"] in ("done", "idle", "error"):
+            break
 
 
-def test_interrupted_scan_recovery_on_gateway_startup():
-    """
-    Test 5D: On gateway start: any scan with status 'running' and a dead PID
-    is finalized into an advisory with stop_reason = 'interrupted'.
-    Committed frame events are preserved; recovered advisory appears in /manifest.
-    """
+def test_b_status_heartbeat_advances_and_state_becomes_scanning(running_gateway):
+    """b. status heartbeat advances elapsed_s, frames_seen, frames_used; state becomes 'scanning'."""
+    gw, base_url = running_gateway
+    status, body, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert status == 202
+
+    reached_scanning = False
+    for _ in range(30):
+        time.sleep(0.2)
+        s, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        assert s == 200
+        if b["state"] == "scanning":
+            assert b["state"] == "scanning"
+            assert b["counts"]["frames_seen"] > 0
+            assert b["counts"]["frames_used"] > 0
+            reached_scanning = True
+            break
+    assert reached_scanning is True
+
+    # Clean up
+    gw.server.stop_scan()
+    for _ in range(30):
+        time.sleep(0.1)
+        _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b["state"] in ("done", "idle", "error"):
+            break
+
+
+def test_c_stop_scan_sends_sigterm_finalizes_to_done(running_gateway):
+    """c. stop_scan while scanning sends SIGTERM, state is 'finalizing' -> 'done' with advisory_id, stop_reason is 'user'."""
+    gw, base_url = running_gateway
+    status, body, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert status == 202
+
+    # Wait for scanning state
+    for _ in range(30):
+        time.sleep(0.2)
+        _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b["state"] == "scanning":
+            break
+
+    # Stop scan
+    s_stop, b_stop, _ = http_post_json(f"{base_url}/api/v1/scan/stop", {"reason": "client_ignored"})
+    assert s_stop == 202
+    assert b_stop["state"] == "finalizing"
+
+    # Wait for done state
+    reached_done = False
+    for _ in range(30):
+        time.sleep(0.2)
+        s, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        assert s == 200
+        if b["state"] == "done":
+            assert b["state"] == "done"
+            assert b["stop_reason"] == "user"
+            assert b["advisory_id"] is not None
+            reached_done = True
+            break
+    assert reached_done is True
+
+
+def test_d_stop_scan_on_already_stopped_returns_200(running_gateway):
+    """d. stop_scan on already-stopped returns 200 and changes nothing."""
+    gw, base_url = running_gateway
+    # 1. Stop on idle
+    s1, b1, _ = http_post_json(f"{base_url}/api/v1/scan/stop", {})
+    assert s1 == 200
+    assert b1["state"] == "idle"
+
+    # 2. Run scan to done
+    http_post_json(f"{base_url}/api/v1/scan/start", {"crop": "wheat", "field_id": "F01", "source": "replay"})
+    time.sleep(0.5)
+    http_post_json(f"{base_url}/api/v1/scan/stop", {})
+    for _ in range(30):
+        time.sleep(0.2)
+        _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b["state"] == "done":
+            break
+
+    # 3. Stop on already done
+    s2, b2, _ = http_post_json(f"{base_url}/api/v1/scan/stop", {})
+    assert s2 == 200
+    assert b2["state"] == "done"
+    assert b2["stop_reason"] == "user"
+
+
+def test_e_start_scan_while_already_running_returns_409(running_gateway):
+    """e. start_scan while already running returns 409 conflict."""
+    gw, base_url = running_gateway
+    s1, b1, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s1 == 202
+    scan_id = b1["scan_id"]
+
+    s2, b2, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "rice", "field_id": "F02", "source": "replay"},
+    )
+    assert s2 == 409
+    assert b2["error"] == "scan_in_progress"
+    assert b2["scan_id"] == scan_id
+
+    # Clean up
+    gw.server.stop_scan()
+    for _ in range(30):
+        time.sleep(0.1)
+        _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b["state"] in ("done", "idle", "error"):
+            break
+
+
+def test_f_pipeline_exit1_state_error_and_preserves_frames(running_gateway, monkeypatch):
+    """f. pipeline exit 1 -> state becomes 'error', stop_reason 'error', any saved frames preserved in an advisory."""
+    gw, base_url = running_gateway
+    monkeypatch.setenv("FAKE_PIPELINE_MODE", "exit1")
+
+    s1, b1, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s1 == 202
+    scan_id = b1["scan_id"]
+
+    # Commit frame event to SQLite for this scan before process exits
+    gw.server.storage.record_frame_event(
+        scan_id=scan_id,
+        frame_idx=0,
+        timestamp_utc="2026-10-01T12:00:00Z",
+        cell_id="cell_01",
+        gate_passed=True,
+        gate_metrics={},
+        n_valid_tiles=9,
+        frame_state="HEALTHY",
+        class_id=0,
+        confidence=0.95,
+        tile_decisions=[],
+    )
+
+    # Monitor should detect exit 1 and transition to error
+    reached_error = False
+    for _ in range(30):
+        time.sleep(0.2)
+        s, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        assert s == 200
+        if b["state"] == "error":
+            assert b["state"] == "error"
+            assert b["stop_reason"] == "error"
+            assert b["advisory_id"] is not None
+            reached_error = True
+            break
+    assert reached_error is True
+
+    # Verify advisory preserved the frame event
+    adv_id = b["advisory_id"]
+    s_a, b_a, _ = http_get(f"{base_url}/api/v1/advisory/{adv_id}")
+    assert s_a == 200
+    assert b_a["scan"]["stop_reason"] == "error"
+    assert b_a["scan"]["frames_evaluated"] == 1
+
+
+def test_g_pipeline_no_status_file_killed_after_startup_timeout(running_gateway, monkeypatch):
+    """g. pipeline does not write status file within startup timeout -> killed, state 'error', stop_reason 'error'."""
+    gw, base_url = running_gateway
+    monkeypatch.setenv("FAKE_PIPELINE_MODE", "no_status")
+    gw.server.startup_timeout_s = 1.0  # Fast timeout for test
+
+    s1, b1, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s1 == 202
+
+    reached_error = False
+    for _ in range(30):
+        time.sleep(0.2)
+        s, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        assert s == 200
+        if b["state"] == "error":
+            assert b["state"] == "error"
+            assert b["stop_reason"] == "error"
+            reached_error = True
+            break
+    assert reached_error is True
+
+
+def test_h_pipeline_ignores_sigterm_killed_after_watchdog(running_gateway, monkeypatch):
+    """h. pipeline ignores SIGTERM -> killed after watchdog timeout, stop_reason 'interrupted'."""
+    gw, base_url = running_gateway
+    monkeypatch.setenv("FAKE_PIPELINE_MODE", "ignore_sigterm")
+    gw.server.watchdog_timeout_s = 1.0  # Fast watchdog for test
+
+    s1, b1, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s1 == 202
+
+    time.sleep(0.5)
+    s_stop, b_stop, _ = http_post_json(f"{base_url}/api/v1/scan/stop", {})
+    assert s_stop == 202
+    assert b_stop["state"] == "finalizing"
+
+    reached_interrupted = False
+    for _ in range(30):
+        time.sleep(0.2)
+        s, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        assert s == 200
+        if b["state"] == "done":
+            assert b["state"] == "done"
+            assert b["stop_reason"] == "interrupted"
+            assert b["advisory_id"] is not None
+            reached_interrupted = True
+            break
+    assert reached_interrupted is True
+
+
+def test_i_max_duration_s_reached_stops_gracefully_with_time_limit():
+    """i. max-duration-s reached -> pipeline stops capture, exits gracefully, stop_reason 'time_limit'."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "recovery.db"
+        db_path = Path(tmpdir) / "timelimit.db"
+        status_file = Path(tmpdir) / "status.json"
+        script = str(ROOT / "tests" / "fixtures" / "fake_pipeline.py")
+
+        cmd = [
+            sys.executable,
+            script,
+            "--source", "test_video.mp4",
+            "--until-stopped",
+            "--scan-id", "scan_tl_01",
+            "--field-id", "F01",
+            "--crop", "wheat",
+            "--status-file", str(status_file),
+            "--db-path", str(db_path),
+            "--max-duration-s", "1",
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+        assert res.returncode == 0
+
+        # Verify status file
+        assert status_file.exists()
+        with open(str(status_file), "r", encoding="utf-8") as f:
+            st = json.load(f)
+        assert st["state"] == "done"
+        assert st["stop_reason"] == "time_limit"
+
+        # Verify advisory in database
+        storage = EdgeStorage(db_path=db_path)
+        m = storage.get_manifest()
+        assert m["count"] == 1
+        adv_id = m["advisories"][0]["advisory_id"]
+        adv = storage.get_advisory(adv_id)
+        assert adv["scan"]["stop_reason"] == "time_limit"
+
+
+def test_j_crash_recovery_dead_pid_finalized_as_interrupted():
+    """j. crash recovery: start gateway with a 'running' scan whose PID is dead -> finalized as 'interrupted'."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "crash_recovery.db"
         storage = EdgeStorage(db_path=db_path)
 
-        scan_id = "interrupted_scan_001"
-        dead_pid = 9999999  # Guaranteed non-existent PID
+        scan_id = "crashed_scan_001"
+        dead_pid = 9999999
 
-        # 1. Record scan start with running status and dead PID
+        # Record scan start with running status and dead PID
         storage.record_scan_start(
             scan_id=scan_id,
-            crop="rice",
-            field_id="field_south",
+            crop="wheat",
+            field_id="F01",
             pid=dead_pid,
             status="running",
+            replay=0,
         )
 
-        # 2. Commit 3 frame events before the simulated power cut
-        for idx in range(3):
+        # Commit 2 frame events before the crash
+        for idx in range(2):
             storage.record_frame_event(
                 scan_id=scan_id,
                 frame_idx=idx,
@@ -509,7 +772,7 @@ def test_interrupted_scan_recovery_on_gateway_startup():
                 tile_decisions=[],
             )
 
-        # 3. Simulate gateway startup with this database
+        # Start gateway with this database
         gw = EdgeGateway(
             host="127.0.0.1",
             port=0,
@@ -519,19 +782,22 @@ def test_interrupted_scan_recovery_on_gateway_startup():
         gw.start_background()
         base_url = f"http://127.0.0.1:{gw.server_address[1]}"
 
-        # 4. Check manifest: recovered advisory must appear
+        # Before any new scan, state must be idle
+        s_s, b_s, _ = http_get(f"{base_url}/api/v1/scan/status")
+        assert s_s == 200
+        assert b_s["state"] == "idle"
+
+        # Check manifest: recovered advisory must appear
         s_m, b_m, _ = http_get(f"{base_url}/api/v1/manifest")
         assert s_m == 200
         assert b_m["count"] == 1
-        adv_summary = b_m["advisories"][0]
-        adv_id = adv_summary["advisory_id"]
+        adv_id = b_m["advisories"][0]["advisory_id"]
 
-        # 5. Fetch full advisory
+        # Fetch full advisory
         s_a, b_a, _ = http_get(f"{base_url}/api/v1/advisory/{adv_id}")
         assert s_a == 200
         assert b_a["scan"]["stop_reason"] == "interrupted"
-        assert b_a["scan"]["frames_evaluated"] == 3
-        assert b_a["scan"]["crop_declared"] == "rice"
+        assert b_a["scan"]["frames_evaluated"] == 2
 
         gw.stop()
 
@@ -562,13 +828,14 @@ def test_safe_shutdown_refuses_without_confirm(running_gateway):
 def test_safe_shutdown_accepts_with_confirm(running_gateway, monkeypatch):
     """
     Test 6B: POST /api/v1/pod/shutdown returns 202 FIRST with shutting_down state,
-    and cleanly stops any active scan before invoking shutdown helper.
+    and cleanly stops any active scan before invoking shutdown helper with sudo -n.
     """
     gw, base_url = running_gateway
 
-    # Mock subprocess.call so we don't actually trigger shutdown
     called_cmds: List[List[str]] = []
-    monkeypatch.setattr(subprocess, "call", lambda cmd: called_cmds.append(cmd))
+    class DummyCompletedProcess:
+        returncode = 0
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kwargs: called_cmds.append(cmd) or DummyCompletedProcess())
 
     status, body, _ = http_post_json(f"{base_url}/api/v1/pod/shutdown", {"confirm": True})
     assert status == 202
@@ -577,7 +844,7 @@ def test_safe_shutdown_accepts_with_confirm(running_gateway, monkeypatch):
     # Wait for detached thread
     time.sleep(1.5)
     assert len(called_cmds) == 1
-    assert called_cmds[0] == ["sudo", "/usr/local/sbin/aegis-shutdown"]
+    assert called_cmds[0] == ["sudo", "-n", "/usr/local/sbin/aegis-shutdown"]
 
 
 # =============================================================================

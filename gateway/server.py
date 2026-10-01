@@ -19,7 +19,7 @@ Endpoints (9 total):
 Key Architectural Properties:
 1. Python 3.6 stdlib only (http.server + socketserver.ThreadingMixIn) — zero external dependencies.
 2. Concurrent-safe with edge/pipeline.py writes via SQLite WAL mode and thread-isolated connections.
-3. Binds to 192.168.4.1:8080 (plain HTTP, no TLS) by default.
+3. Binds to 0.0.0.0:8080 (plain HTTP, no TLS) by default.
 4. Clean seam for Subsystem 7 AR9271 AP/STA mode-switching ("syncing" status flag).
 5. 503 boot window support with Retry-After: 5 header during startup/initialization.
 """
@@ -47,7 +47,7 @@ if str(ROOT) not in sys.path:
 
 from edge.storage import DEFAULT_DB_PATH, EdgeStorage, _parse_iso_timestamp, get_utc_iso_now
 
-DEFAULT_GATEWAY_HOST = "192.168.4.1"
+DEFAULT_GATEWAY_HOST = "0.0.0.0"
 DEFAULT_GATEWAY_PORT = 8080
 
 
@@ -89,11 +89,15 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
         self.engine_path = ROOT / "artifacts" / "engines" / "model_a_fp16.engine"
         self.camera_device = Path("/dev/video0")
         self.replay_source = ROOT / "test_video_from_dataset_images.mp4"
+        self.pipeline_script = str(ROOT / "edge" / "pipeline.py")
+        self.startup_timeout_s = 60.0
+        self.watchdog_timeout_s = 30.0
         self.clock_source = "filesystem"
         self.init_utc = get_utc_iso_now()
         self.current_scan_state = "idle"
         self.current_scan_id = None
         self.current_scan_proc = None
+        self.current_scan_monitor_thread = None
         self.current_scan_info = None
         self.current_scan_status_file = None
         self.current_scan_started_mono = 0.0
@@ -109,13 +113,10 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
 
     def is_pod_ready(self) -> bool:
         """
-        pod_ready = gateway up AND engine file exists AND /dev/video0 exists
-        AND no scan in 'error' state that has not been cleared by the next start.
+        pod_ready = gateway up AND (allow_mock OR (engine file exists AND /dev/video0 exists)).
         It is cheap: never open the camera or load the engine for health.
         """
         if not getattr(self, "is_ready", True):
-            return False
-        if getattr(self, "current_scan_state", "idle") == "error":
             return False
         if getattr(self, "allow_mock", False):
             return True
@@ -132,12 +133,14 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
             except Exception:
                 st = None
 
-        if st is not None:
-            if self.current_scan_state not in ("done", "error") and "state" in st:
-                self.current_scan_state = st["state"]
-            status = st
-        elif self.last_scan_status is not None and self.current_scan_state in ("done", "error"):
+        if self.current_scan_state in ("done", "error") and self.last_scan_status is not None:
             status = dict(self.last_scan_status)
+        elif st is not None:
+            if self.current_scan_state not in ("done", "error", "finalizing") and "state" in st:
+                self.current_scan_state = st["state"]
+            status = dict(st)
+            if self.current_scan_state == "finalizing":
+                status["state"] = "finalizing"
         else:
             scan_id = self.current_scan_id
             elapsed_s = 0
@@ -237,13 +240,25 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                             phone_dt = _parse_iso_timestamp(phone_utc)
                             if phone_dt:
                                 drift = abs((datetime.datetime.now(datetime.timezone.utc) - phone_dt).total_seconds())
-                                if drift > 2.0:
-                                    try:
-                                        subprocess.call(["sudo", "/usr/local/sbin/aegis-set-time", phone_utc])
-                                    except Exception:
-                                        pass
+                                if drift <= 2.0:
                                     self.clock_source = "phone"
                                     self.storage.clock_source = "phone"
+                                else:
+                                    try:
+                                        res = subprocess.run(
+                                            ["sudo", "-n", "/usr/local/sbin/aegis-set-time", phone_utc],
+                                            stdout=subprocess.PIPE,
+                                            stderr=subprocess.PIPE,
+                                            timeout=10,
+                                        )
+                                        print("[Gateway] aegis-set-time returncode=%d" % res.returncode)
+                                        if res.returncode == 0:
+                                            self.clock_source = "phone"
+                                            self.storage.clock_source = "phone"
+                                        else:
+                                            print("[Gateway] WARNING: aegis-set-time failed (rc=%d), clock_source remains '%s'" % (res.returncode, self.clock_source))
+                                    except Exception as exc:
+                                        print("[Gateway] WARNING: aegis-set-time exception: %s" % exc)
                     except Exception:
                         pass
 
@@ -270,9 +285,10 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
             }
 
             # 5. Build pipeline subprocess command
+            pipeline_script = getattr(self, "pipeline_script", str(ROOT / "edge" / "pipeline.py"))
             cmd = [
                 sys.executable,
-                str(ROOT / "edge" / "pipeline.py"),
+                pipeline_script,
                 "--source", "0" if source == "camera" else str(self.replay_source),
                 "--until-stopped",
                 "--scan-id", scan_id,
@@ -280,6 +296,7 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                 "--crop", crop,
                 "--status-file", str(status_file_path),
                 "--db-path", str(self.storage.db_path),
+                "--time-source", self.clock_source,
             ]
             if source == "camera":
                 backend_type = "mock" if self.allow_mock else "trt"
@@ -292,10 +309,19 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                 if not self.allow_mock:
                     cmd.extend(["--engine", str(self.engine_path)])
 
+            log_dir = self.storage.data_dir / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file_path = log_dir / ("%s.log" % scan_id)
+            log_f = open(str(log_file_path), "a", encoding="utf-8")
+
             try:
-                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                proc = subprocess.Popen(cmd, stdout=log_f, stderr=log_f)
                 self.current_scan_proc = proc
             except Exception as e:
+                try:
+                    log_f.close()
+                except Exception:
+                    pass
                 self.current_scan_state = "error"
                 self.current_stop_reason = "error"
                 return 503, {"error": "camera_unavailable", "detail": str(e)}
@@ -311,14 +337,16 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                 crop=crop,
                 field_id=field_id,
                 time_source=self.clock_source,
+                replay=1 if replay_flag else 0,
             )
 
             # Spawn background monitor thread
             t = threading.Thread(
                 target=self._monitor_scan_process,
-                args=(scan_id, proc, status_file_path, self.current_scan_started_mono),
+                args=(scan_id, proc, status_file_path, self.current_scan_started_mono, log_f),
             )
             t.daemon = True
+            self.current_scan_monitor_thread = t
             t.start()
 
             return 202, {"scan_id": scan_id, "state": "starting", "replay": replay_flag}
@@ -329,25 +357,174 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
         proc: subprocess.Popen,
         status_file: Path,
         started_mono: float,
+        log_f: Any = None,
     ) -> None:
         """Background thread monitoring the pipeline subprocess."""
         status_file_seen = False
-        while True:
-            time.sleep(0.5)
+        try:
+            while True:
+                time.sleep(0.5)
 
-            # Check if process exited
-            ret = proc.poll()
-            if ret is not None:
+                with self.scan_lock:
+                    if self.current_scan_proc is not proc and self.current_scan_id != scan_id:
+                        break
+
+                    # Check if process exited
+                    ret = proc.poll()
+                    if ret is not None:
+                        if self.current_scan_state == "finalizing":
+                            eff_reason = self.current_stop_reason if self.current_stop_reason == "interrupted" else "user"
+                            self.current_scan_state = "done"
+                            self.current_stop_reason = eff_reason
+                            adv_id = None
+                            if status_file.exists():
+                                try:
+                                    with open(str(status_file), "r", encoding="utf-8") as f:
+                                        sdata = json.load(f)
+                                        adv_id = sdata.get("advisory_id")
+                                except Exception:
+                                    pass
+                            if not adv_id:
+                                try:
+                                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason=eff_reason)
+                                    adv_id = adv.get("advisory_id")
+                                except Exception:
+                                    pass
+                            try:
+                                status_name = "interrupted" if eff_reason == "interrupted" else "complete"
+                                self.storage.record_scan_end(scan_id=scan_id, status=status_name, stop_reason=eff_reason)
+                            except Exception:
+                                pass
+                            st = self.get_scan_status()
+                            st["state"] = "done"
+                            st["stop_reason"] = eff_reason
+                            st["advisory_id"] = adv_id
+                            self.last_scan_status = st
+                        elif ret != 0:
+                            self.current_scan_state = "error"
+                            self.current_stop_reason = "error"
+                            adv_id = None
+                            try:
+                                adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
+                                adv_id = adv.get("advisory_id")
+                            except Exception:
+                                pass
+                            try:
+                                self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
+                            except Exception:
+                                pass
+                            st = self.get_scan_status()
+                            st["state"] = "error"
+                            st["stop_reason"] = "error"
+                            st["advisory_id"] = adv_id
+                            self.last_scan_status = st
+                        else:
+                            self.current_scan_state = "done"
+                            if self.current_stop_reason is None:
+                                self.current_stop_reason = "user"
+                            adv_id = None
+                            if status_file.exists():
+                                try:
+                                    with open(str(status_file), "r", encoding="utf-8") as f:
+                                        sdata = json.load(f)
+                                        adv_id = sdata.get("advisory_id")
+                                except Exception:
+                                    pass
+                            if not adv_id:
+                                try:
+                                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason=self.current_stop_reason)
+                                    adv_id = adv.get("advisory_id")
+                                except Exception:
+                                    pass
+                            try:
+                                self.storage.record_scan_end(scan_id=scan_id, status="complete", stop_reason=self.current_stop_reason)
+                            except Exception:
+                                pass
+                            st = self.get_scan_status()
+                            st["state"] = "done"
+                            st["stop_reason"] = self.current_stop_reason
+                            st["advisory_id"] = adv_id
+                            self.last_scan_status = st
+
+                        self.current_scan_proc = None
+                        break
+
+                    # Check status file
+                    if status_file.exists():
+                        status_file_seen = True
+                        try:
+                            with open(str(status_file), "r", encoding="utf-8") as f:
+                                data = json.load(f)
+                            if data.get("state") == "scanning":
+                                self.current_scan_state = "scanning"
+                            elif data.get("state") in ("done", "error"):
+                                self.current_scan_state = data.get("state")
+                        except Exception:
+                            pass
+
+                    # Timeout check: if no status file written within startup_timeout_s of spawn
+                    now_mono = time.monotonic()
+                    timeout_limit = getattr(self, "startup_timeout_s", 60.0)
+                    if not status_file_seen and (now_mono - started_mono > timeout_limit):
+                        try:
+                            proc.terminate()
+                            time.sleep(1.0)
+                            if proc.poll() is None:
+                                proc.kill()
+                        except Exception:
+                            pass
+                        self.current_scan_state = "error"
+                        self.current_stop_reason = "error"
+                        adv_id = None
+                        try:
+                            adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
+                            adv_id = adv.get("advisory_id")
+                        except Exception:
+                            pass
+                        try:
+                            self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
+                        except Exception:
+                            pass
+                        st = self.get_scan_status()
+                        st["state"] = "error"
+                        st["stop_reason"] = "error"
+                        st["advisory_id"] = adv_id
+                        self.last_scan_status = st
+                        self.current_scan_proc = None
+                        break
+        finally:
+            if log_f is not None:
+                try:
+                    log_f.close()
+                except Exception:
+                    pass
+
+    def stop_scan(self, reason: str = "user", wait_timeout: float = 30.0) -> Tuple[int, Dict[str, Any]]:
+        with self.scan_lock:
+            # Fix 12: Ignore client reason; always "user"
+            effective_reason = "user"
+
+            if self.current_scan_state in ("idle", "done", "error"):
+                return 200, self.get_scan_status()
+            if self.current_scan_state == "finalizing":
+                return 200, self.get_scan_status()
+
+            proc = self.current_scan_proc
+            active_scan_id = self.current_scan_id
+
+            if proc is None or proc.poll() is not None:
+                # Process is already gone! Finalize immediately, never leave state at finalizing without a process
+                ret = proc.poll() if proc is not None else -1
                 if ret != 0:
                     self.current_scan_state = "error"
                     self.current_stop_reason = "error"
                     adv_id = None
                     try:
-                        adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
+                        adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason="error")
                         adv_id = adv.get("advisory_id")
                     except Exception:
                         pass
-                    self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
+                    self.storage.record_scan_end(scan_id=active_scan_id, status="error", stop_reason="error")
                     st = self.get_scan_status()
                     st["state"] = "error"
                     st["stop_reason"] = "error"
@@ -355,100 +532,67 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                     self.last_scan_status = st
                 else:
                     self.current_scan_state = "done"
-                    if self.current_stop_reason is None:
-                        self.current_stop_reason = "user"
-                    self.last_scan_status = self.get_scan_status()
-
-                self.current_scan_proc = None
-                break
-
-            # Check status file
-            if status_file.exists():
-                status_file_seen = True
-                try:
-                    with open(str(status_file), "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    if data.get("state") == "scanning":
-                        self.current_scan_state = "scanning"
-                    elif data.get("state") in ("done", "error"):
-                        self.current_scan_state = data.get("state")
-                except Exception:
-                    pass
-
-            # Timeout check: if no status file written within 20s of spawn
-            now_mono = time.monotonic()
-            if not status_file_seen and (now_mono - started_mono > 20.0):
-                try:
-                    proc.terminate()
-                    time.sleep(1.0)
-                    if proc.poll() is None:
-                        proc.kill()
-                except Exception:
-                    pass
-                self.current_scan_state = "error"
-                self.current_stop_reason = "error"
-                adv_id = None
-                try:
-                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
-                    adv_id = adv.get("advisory_id")
-                except Exception:
-                    pass
-                self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
-                st = self.get_scan_status()
-                st["state"] = "error"
-                st["stop_reason"] = "error"
-                st["advisory_id"] = adv_id
-                self.last_scan_status = st
-                self.current_scan_proc = None
-                break
-
-    def stop_scan(self, reason: str = "user", wait_timeout: float = 30.0) -> Tuple[int, Dict[str, Any]]:
-        with self.scan_lock:
-            if self.current_scan_state in ("done", "idle"):
-                return 200, self.get_scan_status()
-            if self.current_scan_state == "finalizing":
-                return 200, self.get_scan_status()
-
-            self.current_scan_state = "finalizing"
-            self.current_stop_reason = reason
-            proc = self.current_scan_proc
-            active_scan_id = self.current_scan_id
-
-            if proc is not None and proc.poll() is None:
-                try:
-                    proc.send_signal(signal.SIGTERM)
-                except Exception:
-                    pass
-
-                def _watchdog():
-                    t0 = time.monotonic()
-                    while time.monotonic() - t0 < wait_timeout:
-                        if proc.poll() is not None:
-                            return
-                        time.sleep(0.5)
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
-                    self.current_stop_reason = "interrupted"
-                    self.current_scan_state = "done"
+                    self.current_stop_reason = effective_reason
                     adv_id = None
                     try:
-                        adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason="interrupted")
+                        adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason=effective_reason)
                         adv_id = adv.get("advisory_id")
                     except Exception:
                         pass
-                    self.storage.record_scan_end(scan_id=active_scan_id, status="interrupted", stop_reason="interrupted")
+                    self.storage.record_scan_end(scan_id=active_scan_id, status="complete", stop_reason=effective_reason)
                     st = self.get_scan_status()
                     st["state"] = "done"
-                    st["stop_reason"] = "interrupted"
+                    st["stop_reason"] = effective_reason
                     st["advisory_id"] = adv_id
                     self.last_scan_status = st
-                    self.current_scan_proc = None
 
-                wd = threading.Thread(target=_watchdog)
-                wd.daemon = True
-                wd.start()
+                self.current_scan_proc = None
+                return 200, self.get_scan_status()
+
+            self.current_scan_state = "finalizing"
+            self.current_stop_reason = effective_reason
+            try:
+                proc.send_signal(signal.SIGTERM)
+            except Exception:
+                pass
+
+            effective_wait = getattr(self, "watchdog_timeout_s", wait_timeout)
+
+            def _watchdog():
+                t0 = time.monotonic()
+                while time.monotonic() - t0 < effective_wait:
+                    if proc.poll() is not None:
+                        return
+                    time.sleep(0.1)
+                with self.scan_lock:
+                    if self.current_scan_proc == proc and proc.poll() is None:
+                        self.current_stop_reason = "interrupted"
+                        try:
+                            proc.kill()
+                            proc.wait(timeout=1.0)
+                        except Exception:
+                            pass
+                        self.current_scan_state = "done"
+                        adv_id = None
+                        try:
+                            adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason="interrupted")
+                            adv_id = adv.get("advisory_id")
+                        except Exception:
+                            pass
+                        try:
+                            self.storage.record_scan_end(scan_id=active_scan_id, status="interrupted", stop_reason="interrupted")
+                        except Exception:
+                            pass
+                        st = self.get_scan_status()
+                        st["state"] = "done"
+                        st["stop_reason"] = "interrupted"
+                        st["advisory_id"] = adv_id
+                        self.last_scan_status = st
+                        self.current_scan_proc = None
+
+            wd = threading.Thread(target=_watchdog)
+            wd.daemon = True
+            wd.start()
 
             return 202, {"state": "finalizing"}
 
@@ -912,17 +1056,37 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
 
                 def _async_shutdown():
                     if getattr(self.server, "current_scan_proc", None) is not None:
-                        self.server.stop_scan(reason="shutdown")
+                        self.server.stop_scan(reason="user")
                         t0 = time.monotonic()
-                        while time.monotonic() - t0 < 10.0:
+                        while time.monotonic() - t0 < 30.0:
                             if self.server.current_scan_proc is None or self.server.current_scan_proc.poll() is not None:
                                 break
                             time.sleep(0.5)
+                        if self.server.current_scan_proc is not None and self.server.current_scan_proc.poll() is None:
+                            try:
+                                self.server.current_scan_proc.kill()
+                            except Exception:
+                                pass
+                            active_id = self.server.current_scan_id
+                            self.server.current_stop_reason = "interrupted"
+                            self.server.current_scan_state = "done"
+                            try:
+                                self.server.storage.create_advisory(scan_id=active_id, stop_reason="interrupted")
+                                self.server.storage.record_scan_end(scan_id=active_id, status="interrupted", stop_reason="interrupted")
+                            except Exception:
+                                pass
+                            self.server.current_scan_proc = None
                     time.sleep(1.0)
                     try:
-                        subprocess.call(["sudo", "/usr/local/sbin/aegis-shutdown"])
-                    except Exception:
-                        pass
+                        res = subprocess.run(
+                            ["sudo", "-n", "/usr/local/sbin/aegis-shutdown"],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            timeout=10,
+                        )
+                        print("[Gateway] aegis-shutdown returncode=%d" % res.returncode)
+                    except Exception as exc:
+                        print("[Gateway] WARNING: aegis-shutdown exception: %s" % exc)
 
                 t = threading.Thread(target=_async_shutdown)
                 t.daemon = True
@@ -977,6 +1141,19 @@ class EdgeGateway(object):
 
     def stop(self) -> None:
         """Stops the gateway server and joins thread."""
+        proc = getattr(self.server, "current_scan_proc", None)
+        if proc is not None:
+            try:
+                proc.kill()
+                proc.wait(timeout=2.0)
+            except Exception:
+                pass
+        t_mon = getattr(self.server, "current_scan_monitor_thread", None)
+        if t_mon is not None and t_mon.is_alive():
+            try:
+                t_mon.join(timeout=3.0)
+            except Exception:
+                pass
         self.server.shutdown()
         self.server.server_close()
         if self._thread and self._thread.is_alive():

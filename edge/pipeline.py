@@ -365,51 +365,45 @@ class CaptureThread(threading.Thread):
         t_start = time.time()
         source_arg = self.source
         t_op0 = time.time()
+        cap = None
 
-        if self.is_camera:
-            sensor_id = int(source_arg)
-            pipeline_str = build_csi_gstreamer_pipeline(
-                sensor_id=sensor_id,
-                width=self.camera_width,
-                height=self.camera_height,
-                framerate=self.camera_framerate,
-            )
-            cap = cv2.VideoCapture(pipeline_str, cv2.CAP_GSTREAMER)
-        else:
-            pipeline_str = str(source_arg)
-            cap = cv2.VideoCapture(pipeline_str)
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
-            fps_val = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
-            self.capture_width = w
-            self.capture_height = h
-            self.capture_framerate = int(fps_val) if fps_val > 0 else 0
-            self.capture_resolution = ("%dx%d" % (w, h)) if (w > 0 and h > 0) else None
-
-        self.t_open_s = time.time() - t_op0
-
-        if not cap.isOpened():
-            err_msg = "[CaptureThread] ERROR: Could not open source '%s' (backend: %s, target: %s)" % (
-                str(self.source),
-                self.capture_backend,
-                pipeline_str,
-            )
-            print(err_msg)
-            self.error = RuntimeError(err_msg)
-            if self.gps is not None:
-                try:
-                    self.gps.stop()
-                except Exception:
-                    pass
-            self.out_queue.put(None)
-            self.t_total_s = time.time() - t_start
-            return
-
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        frame_interval = (1.0 / float(fps)) if (fps and fps > 0 and fps <= 120) else 0.05
-
-        frame_idx = 0
         try:
+            if self.is_camera:
+                sensor_id = int(source_arg)
+                pipeline_str = build_csi_gstreamer_pipeline(
+                    sensor_id=sensor_id,
+                    width=self.camera_width,
+                    height=self.camera_height,
+                    framerate=self.camera_framerate,
+                )
+                cap = cv2.VideoCapture(pipeline_str, cv2.CAP_GSTREAMER)
+            else:
+                pipeline_str = str(source_arg)
+                cap = cv2.VideoCapture(pipeline_str)
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                fps_val = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+                self.capture_width = w
+                self.capture_height = h
+                self.capture_framerate = int(fps_val) if fps_val > 0 else 0
+                self.capture_resolution = ("%dx%d" % (w, h)) if (w > 0 and h > 0) else None
+
+            self.t_open_s = time.time() - t_op0
+
+            if not cap.isOpened():
+                err_msg = "[CaptureThread] ERROR: Could not open source '%s' (backend: %s, target: %s)" % (
+                    str(self.source),
+                    self.capture_backend,
+                    pipeline_str,
+                )
+                print(err_msg)
+                self.error = RuntimeError(err_msg)
+                return
+
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            frame_interval = (1.0 / float(fps)) if (fps and fps > 0 and fps <= 120) else 0.05
+
+            frame_idx = 0
             while self.running:
                 if not self.until_stopped and self.max_frames is not None and frame_idx >= self.max_frames:
                     break
@@ -501,7 +495,11 @@ class CaptureThread(threading.Thread):
                     self.gps.stop()
                 except Exception:
                     pass
-            cap.release()
+            if cap is not None:
+                try:
+                    cap.release()
+                except Exception:
+                    pass
             self.out_queue.put(None)
             self.t_total_s = time.time() - t_start
 
@@ -806,6 +804,141 @@ class InferenceThread(threading.Thread):
         }
 
 
+def write_pipeline_status(
+    status_file: Optional[Path],
+    state: str,
+    scan_id: str,
+    field_id: Optional[str],
+    crop: Optional[str],
+    source: Any,
+    started_utc: str,
+    elapsed_s: int,
+    max_duration_s: int,
+    frames_seen: int,
+    frames_used: int,
+    thermal_c_latest: Optional[float] = None,
+    advisory_id: Optional[str] = None,
+    stop_reason: Optional[str] = None,
+) -> None:
+    if not status_file:
+        return
+    payload = {
+        "state": state,
+        "scan_id": scan_id,
+        "field_id": field_id,
+        "crop": crop,
+        "replay": not is_camera_source(source),
+        "started_utc": started_utc,
+        "elapsed_s": int(elapsed_s),
+        "max_duration_s": int(max_duration_s),
+        "counts": {
+            "frames_seen": int(frames_seen),
+            "frames_used": int(frames_used),
+            "stretches": 0,
+            "healthy": 0,
+            "need_look": 0,
+            "unclear": 0,
+            "not_crop": 0,
+        },
+        "thermal_c_latest": thermal_c_latest,
+        "field_station": {
+            "reachable": None,
+            "readings_collected": None,
+            "last_reading_utc": None,
+        },
+        "warnings": [],
+        "alerts": [],
+        "advisory_id": advisory_id,
+        "stop_reason": stop_reason,
+    }
+    tmp = Path(str(status_file) + (".tmp.%d" % os.getpid()))
+    try:
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        with open(str(tmp), "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(str(tmp), str(status_file))
+    except Exception:
+        pass
+
+
+class StatusHeartbeatThread(threading.Thread):
+    """
+    Independent daemon heartbeat thread that writes status file every 1s
+    and enforces --max-duration-s cutoff independently of queue activity.
+    """
+
+    def __init__(
+        self,
+        status_file: Optional[Path],
+        scan_id: str,
+        field_id: Optional[str],
+        crop: Optional[str],
+        source: Any,
+        started_utc: str,
+        max_duration_s: int,
+        t1_capture: Optional[CaptureThread],
+        t4_decision: Optional["DecisionAggregateStoreThread"],
+    ):
+        super(StatusHeartbeatThread, self).__init__(name="StatusHeartbeatThread")
+        self.daemon = True
+        self.status_file = Path(status_file) if status_file else None
+        self.scan_id = scan_id
+        self.field_id = field_id
+        self.crop = crop
+        self.source = source
+        self.started_utc = started_utc
+        self.max_duration_s = int(max_duration_s)
+        self.t1_capture = t1_capture
+        self.t4_decision = t4_decision
+        self.stop_event = threading.Event()
+        self.start_mono = time.monotonic()
+
+    def run(self) -> None:
+        self._write_heartbeat()
+        while not self.stop_event.wait(1.0):
+            if self.stop_event.is_set():
+                break
+
+            now_mono = time.monotonic()
+            elapsed_s = now_mono - self.start_mono
+
+            if self.max_duration_s > 0 and elapsed_s >= self.max_duration_s:
+                if self.t4_decision is not None:
+                    self.t4_decision.stop_reason = "time_limit"
+                if self.t1_capture is not None:
+                    self.t1_capture.running = False
+
+            self._write_heartbeat()
+
+    def _write_heartbeat(self) -> None:
+        if not self.status_file or self.stop_event.is_set():
+            return
+        frames_seen = getattr(self.t1_capture, "frames_read", 0)
+        frames_used = getattr(self.t4_decision, "events_written", 0)
+        thermal_c = getattr(self.t4_decision, "thermal_c_latest", None)
+        elapsed_s = int(time.monotonic() - self.start_mono)
+        state = "scanning" if frames_seen > 0 else "starting"
+
+        write_pipeline_status(
+            status_file=self.status_file,
+            state=state,
+            scan_id=self.scan_id,
+            field_id=self.field_id,
+            crop=self.crop,
+            source=self.source,
+            started_utc=self.started_utc,
+            elapsed_s=elapsed_s,
+            max_duration_s=self.max_duration_s,
+            frames_seen=frames_seen,
+            frames_used=frames_used,
+            thermal_c_latest=thermal_c,
+            advisory_id=None,
+            stop_reason=None,
+        )
+
+
 class DecisionAggregateStoreThread(threading.Thread):
     """
     Thread 4: Rejection, Spatial & Temporal Aggregation, and Storage Stub.
@@ -826,12 +959,13 @@ class DecisionAggregateStoreThread(threading.Thread):
         capture_backend: Optional[str] = None,
         capture_resolution: Optional[str] = None,
         source: Optional[str] = None,
-        field_id: str = "F01",
-        crop: str = "wheat",
+        field_id: Optional[str] = None,
+        crop: Optional[str] = None,
         until_stopped: bool = False,
         status_file: Optional[Union[str, Path]] = None,
         max_duration_s: int = 1800,
         t1_capture: Optional[CaptureThread] = None,
+        time_source: str = "filesystem",
     ):
         super(DecisionAggregateStoreThread, self).__init__(name="DecisionAggregateStoreThread")
         self.in_queue = in_queue
@@ -844,13 +978,15 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.capture_backend = capture_backend
         self.capture_resolution = capture_resolution
         self.source = source
-        self.field_id = str(field_id) if field_id else "F01"
-        self.crop = str(crop) if crop else "wheat"
+        self.field_id = field_id
+        self.crop = crop
         self.until_stopped = bool(until_stopped)
         self.status_file = Path(status_file) if status_file else None
         self.max_duration_s = int(max_duration_s)
         self.t1_capture = t1_capture
+        self.time_source = time_source
         self.stop_reason = None
+        self.heartbeat_thread = None
         self.started_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.thermal_c_latest = None
 
@@ -887,52 +1023,26 @@ class DecisionAggregateStoreThread(threading.Thread):
         advisory_id: Optional[str] = None,
         stop_reason: Optional[str] = None,
     ) -> None:
-        if not self.status_file:
-            return
-        payload = {
-            "state": state,
-            "scan_id": self.scan_id,
-            "field_id": self.field_id,
-            "crop": self.crop,
-            "replay": not is_camera_source(self.source),
-            "started_utc": self.started_utc,
-            "elapsed_s": int(elapsed_s),
-            "max_duration_s": int(self.max_duration_s),
-            "counts": {
-                "frames_seen": int(frames_seen),
-                "frames_used": int(frames_used),
-                "stretches": 0,
-                "healthy": 0,
-                "need_look": 0,
-                "unclear": 0,
-                "not_crop": 0,
-            },
-            "thermal_c_latest": thermal_c_latest,
-            "field_station": {
-                "reachable": None,
-                "readings_collected": None,
-                "last_reading_utc": None,
-            },
-            "warnings": [],
-            "alerts": [],
-            "advisory_id": advisory_id,
-            "stop_reason": stop_reason,
-        }
-        tmp = Path(str(self.status_file) + (".tmp.%d" % os.getpid()))
-        try:
-            tmp.parent.mkdir(parents=True, exist_ok=True)
-            with open(str(tmp), "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(str(tmp), str(self.status_file))
-        except Exception:
-            pass
+        write_pipeline_status(
+            status_file=self.status_file,
+            state=state,
+            scan_id=self.scan_id,
+            field_id=self.field_id,
+            crop=self.crop,
+            source=self.source,
+            started_utc=self.started_utc,
+            elapsed_s=elapsed_s,
+            max_duration_s=self.max_duration_s,
+            frames_seen=frames_seen,
+            frames_used=frames_used,
+            thermal_c_latest=thermal_c_latest,
+            advisory_id=advisory_id,
+            stop_reason=stop_reason,
+        )
 
     def run(self) -> None:
         t_start = time.time()
         start_mono = time.monotonic()
-        last_status_write_mono = start_mono
         last_sqlite_flush_mono = start_mono
 
         scan_meta = {}
@@ -945,25 +1055,19 @@ class DecisionAggregateStoreThread(threading.Thread):
         if self.capture_resolution:
             scan_meta["capture_resolution"] = self.capture_resolution
 
+        mode_val = "walk" if self.until_stopped else "handheld_pod"
         self.storage.record_scan_start(
             scan_id=self.scan_id,
             source=self.source,
-            mode="walk",
+            mode=mode_val,
             metadata=scan_meta if scan_meta else None,
             pid=os.getpid(),
             status="running",
             crop=self.crop,
             field_id=self.field_id,
+            time_source=self.time_source,
+            replay=not is_camera_source(self.source),
         )
-
-        if self.status_file:
-            self._write_status(
-                state="scanning",
-                elapsed_s=0,
-                frames_seen=0,
-                frames_used=0,
-                thermal_c_latest=None,
-            )
 
         jsonl_file = None
         if self.output_jsonl:
@@ -975,18 +1079,7 @@ class DecisionAggregateStoreThread(threading.Thread):
                 now_mono = time.monotonic()
                 elapsed_s = int(now_mono - start_mono)
 
-                # 1. Periodic status file write (every 1s)
-                if self.status_file and (now_mono - last_status_write_mono >= 1.0):
-                    self._write_status(
-                        state="scanning",
-                        elapsed_s=elapsed_s,
-                        frames_seen=getattr(self.t1_capture, "frames_read", self.events_written),
-                        frames_used=self.events_written,
-                        thermal_c_latest=self.thermal_c_latest,
-                    )
-                    last_status_write_mono = now_mono
-
-                # 2. Incremental SQLite progress flush (every 2s)
+                # Incremental SQLite progress flush (every 2s)
                 if now_mono - last_sqlite_flush_mono >= 2.0:
                     self.storage.update_scan_progress(
                         scan_id=self.scan_id,
@@ -996,13 +1089,6 @@ class DecisionAggregateStoreThread(threading.Thread):
                         status="running",
                     )
                     last_sqlite_flush_mono = now_mono
-
-                # 3. Max duration ceiling check (time.monotonic())
-                if self.until_stopped and (now_mono - start_mono >= self.max_duration_s):
-                    if not self.stop_reason:
-                        self.stop_reason = "time_limit"
-                    if self.t1_capture:
-                        self.t1_capture.running = False
 
                 t_q0 = time.time()
                 item = self.in_queue.get()
@@ -1139,11 +1225,15 @@ class DecisionAggregateStoreThread(threading.Thread):
                     jsonl_file.flush()
                     self.t_jsonl_write_s += (time.time() - t_jw0)
 
+            if self.heartbeat_thread is not None:
+                self.heartbeat_thread.stop_event.set()
+
             # End of scan: record completion and assemble Advisory JSON document only if not aborted
             if not self.aborted and (self.events_written > 0 or self.until_stopped):
                 t_adv0 = time.time()
                 total_duration_s = round(time.monotonic() - start_mono, 2)
-                effective_stop_reason = self.stop_reason or ("error" if self.aborted else "user")
+                effective_stop_reason = (self.stop_reason or "user") if self.until_stopped else None
+                mode_val = "walk" if self.until_stopped else "handheld_pod"
                 self.storage.record_scan_end(
                     scan_id=self.scan_id,
                     frames_captured=getattr(self.t1_capture, "frames_read", self.events_written),
@@ -1157,13 +1247,15 @@ class DecisionAggregateStoreThread(threading.Thread):
                 self.last_advisory = self.storage.create_advisory(
                     scan_id=self.scan_id,
                     replay=replay_flag,
+                    field_id=self.field_id,
                     days_since_planting=self.days_since_planting,
                     total_cycle_days=self.total_cycle_days,
                     inference_backend=self.inference_backend,
                     stop_reason=effective_stop_reason,
                     crop_declared=self.crop,
                     duration_s=total_duration_s,
-                    mode="walk",
+                    mode=mode_val,
+                    time_source=self.time_source,
                 )
                 self.storage.prune_retained_data()
                 self.t_advisory_s = (time.time() - t_adv0)
@@ -1221,11 +1313,12 @@ class EdgePipeline(object):
         camera_width: int = 1920,
         camera_height: int = 1080,
         camera_framerate: int = 30,
-        field_id: Optional[str] = "F01",
-        crop: Optional[str] = "wheat",
+        field_id: Optional[str] = None,
+        crop: Optional[str] = None,
         until_stopped: bool = False,
         status_file: Optional[Union[str, Path]] = None,
         max_duration_s: int = 1800,
+        time_source: str = "filesystem",
     ):
         self.source = source
         self.backend = "mock" if dry_run else str(backend).lower()
@@ -1248,11 +1341,12 @@ class EdgePipeline(object):
         self.camera_width = int(camera_width)
         self.camera_height = int(camera_height)
         self.camera_framerate = int(camera_framerate)
-        self.field_id = field_id or "F01"
-        self.crop = crop or "wheat"
+        self.field_id = field_id
+        self.crop = crop
         self.until_stopped = bool(until_stopped)
         self.status_file = Path(status_file) if status_file else None
         self.max_duration_s = int(max_duration_s)
+        self.time_source = time_source
         self.stop_requested = False
         self.storage = EdgeStorage(db_path=self.db_path)
         self.queue_size = int(queue_size)
@@ -1335,7 +1429,24 @@ class EdgePipeline(object):
             status_file=self.status_file,
             max_duration_s=self.max_duration_s,
             t1_capture=self.t1_capture,
+            time_source=self.time_source,
         )
+
+        if self.status_file:
+            self.t_heartbeat = StatusHeartbeatThread(
+                status_file=self.status_file,
+                scan_id=self.scan_id,
+                field_id=self.field_id,
+                crop=self.crop,
+                source=str(self.source),
+                started_utc=self.t4_decision.started_utc,
+                max_duration_s=self.max_duration_s,
+                t1_capture=self.t1_capture,
+                t4_decision=self.t4_decision,
+            )
+            self.t4_decision.heartbeat_thread = self.t_heartbeat
+        else:
+            self.t_heartbeat = None
 
         self.threads = [self.t1_capture, self.t2_gate_tile, self.t3_inference, self.t4_decision]
 
@@ -1346,6 +1457,8 @@ class EdgePipeline(object):
             self.t4_decision.stop_reason = reason
         if hasattr(self, "t1_capture") and self.t1_capture:
             self.t1_capture.running = False
+        if getattr(self, "t_heartbeat", None) is not None:
+            self.t_heartbeat.stop_event.set()
 
     def run(self) -> Dict[str, Any]:
         """Runs the pipeline to completion and returns performance metrics."""
@@ -1362,6 +1475,9 @@ class EdgePipeline(object):
         except Exception:
             pass
 
+        if self.t_heartbeat is not None:
+            self.t_heartbeat.start()
+
         try:
             for t in self.threads:
                 t.start()
@@ -1369,6 +1485,9 @@ class EdgePipeline(object):
             for t in self.threads:
                 t.join()
         finally:
+            if self.t_heartbeat is not None:
+                self.t_heartbeat.stop_event.set()
+                self.t_heartbeat.join(timeout=1.0)
             try:
                 if prev_sigterm is not None:
                     signal.signal(signal.SIGTERM, prev_sigterm)
@@ -1562,6 +1681,7 @@ def main():
     parser.add_argument("--crop", type=str, choices=["wheat", "rice", "sugarcane"], default=None, help="Declared crop (required with --until-stopped)")
     parser.add_argument("--status-file", type=str, default=None, help="Atomic status JSON file path")
     parser.add_argument("--max-duration-s", type=int, default=1800, help="Maximum scan duration in seconds before safety stop (default 1800)")
+    parser.add_argument("--time-source", type=str, choices=["gps", "phone", "filesystem"], default="filesystem", help="Time source used for timestamping")
     args = parser.parse_args()
 
     if args.until_stopped:
@@ -1599,6 +1719,7 @@ def main():
         until_stopped=args.until_stopped,
         status_file=args.status_file,
         max_duration_s=args.max_duration_s,
+        time_source=args.time_source,
     )
 
     metrics = pipeline.run()

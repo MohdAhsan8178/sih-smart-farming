@@ -197,7 +197,7 @@ class EdgeStorage(object):
                         scan_id TEXT PRIMARY KEY,
                         started_utc TEXT NOT NULL,
                         ended_utc TEXT,
-                        mode TEXT DEFAULT 'walk',
+                        mode TEXT DEFAULT 'handheld_pod',
                         source TEXT,
                         frames_captured INTEGER DEFAULT 0,
                         frames_evaluated INTEGER DEFAULT 0,
@@ -211,7 +211,8 @@ class EdgeStorage(object):
                         field_id TEXT,
                         stop_reason TEXT,
                         duration_s REAL,
-                        time_source TEXT
+                        time_source TEXT,
+                        replay INTEGER DEFAULT 0
                     );
                     """
                 )
@@ -227,6 +228,7 @@ class EdgeStorage(object):
                         ("stop_reason", "TEXT"),
                         ("duration_s", "REAL"),
                         ("time_source", "TEXT"),
+                        ("replay", "INTEGER DEFAULT 0"),
                     ]:
                         if scan_cols and col_name not in scan_cols:
                             conn.execute("ALTER TABLE scans ADD COLUMN %s %s;" % (col_name, col_type))
@@ -445,38 +447,78 @@ class EdgeStorage(object):
         scan_id: str,
         started_utc: Optional[str] = None,
         source: Optional[str] = None,
-        mode: str = "walk",
+        mode: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         pid: Optional[int] = None,
         status: str = "running",
         crop: Optional[str] = None,
         field_id: Optional[str] = None,
         time_source: Optional[str] = None,
+        replay: Optional[Union[bool, int]] = None,
     ) -> None:
-        """Records the beginning of a scanning session."""
+        """Records the beginning of a scanning session safely without wiping gateway columns."""
         started_utc = started_utc or get_utc_iso_now()
         conn = self._get_connection()
+        initial_mode = mode or "handheld_pod"
+        replay_int = int(replay) if replay is not None else 0
+
         with conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO scans (
+                INSERT OR IGNORE INTO scans (
                     scan_id, started_utc, mode, source, metadata_json,
-                    pid, status, crop, field_id, time_source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    pid, status, crop, field_id, time_source, replay
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     scan_id,
                     started_utc,
-                    mode,
-                    str(source) if source else None,
-                    json.dumps(metadata or {}),
+                    initial_mode,
+                    str(source) if source is not None else None,
+                    json.dumps(metadata or {}) if metadata is not None else None,
                     int(pid) if pid is not None else None,
                     str(status),
-                    str(crop) if crop else None,
-                    str(field_id) if field_id else None,
-                    str(time_source) if time_source else None,
+                    str(crop) if crop is not None else None,
+                    str(field_id) if field_id is not None else None,
+                    str(time_source) if time_source is not None else None,
+                    replay_int,
                 ),
             )
+            # If the row already exists, update ONLY columns explicitly provided (not None)
+            updates: List[str] = []
+            vals: List[Any] = []
+            if mode is not None:
+                updates.append("mode = ?")
+                vals.append(str(mode))
+            if source is not None:
+                updates.append("source = ?")
+                vals.append(str(source))
+            if metadata is not None:
+                updates.append("metadata_json = ?")
+                vals.append(json.dumps(metadata))
+            if pid is not None:
+                updates.append("pid = ?")
+                vals.append(int(pid))
+            if status is not None:
+                updates.append("status = ?")
+                vals.append(str(status))
+            if crop is not None:
+                updates.append("crop = ?")
+                vals.append(str(crop))
+            if field_id is not None:
+                updates.append("field_id = ?")
+                vals.append(str(field_id))
+            if time_source is not None:
+                updates.append("time_source = ?")
+                vals.append(str(time_source))
+            if replay is not None:
+                updates.append("replay = ?")
+                vals.append(replay_int)
+
+            if updates:
+                sql = "UPDATE scans SET " + ", ".join(updates) + " WHERE scan_id = ?;"
+                vals.append(scan_id)
+                conn.execute(sql, tuple(vals))
 
     def update_scan_progress(
         self,
@@ -756,8 +798,8 @@ class EdgeStorage(object):
         self,
         scan_id: str,
         advisory_id: Optional[str] = None,
-        replay: bool = True,
-        field_id: str = "F01",
+        replay: Optional[bool] = None,
+        field_id: Optional[str] = None,
         days_since_planting: Optional[int] = None,
         total_cycle_days: Optional[int] = None,
         pest_data: Optional[Dict[str, Any]] = None,
@@ -780,6 +822,9 @@ class EdgeStorage(object):
         if not scan_row:
             raise ValueError(f"Scan '{scan_id}' not found in database")
 
+        resolved_field_id = field_id or (scan_row["field_id"] if "field_id" in scan_row.keys() and scan_row["field_id"] else None)
+        resolved_replay = replay if replay is not None else (bool(scan_row["replay"]) if "replay" in scan_row.keys() and scan_row["replay"] is not None else False)
+
         # Resolve planting date and variety cycle days from scan metadata if omitted
         if scan_row["metadata_json"]:
             try:
@@ -794,14 +839,15 @@ class EdgeStorage(object):
 
         now_utc = get_utc_iso_now()
         if not advisory_id:
-            candidate_id = f"{now_utc}_{field_id}"
+            candidate_suffix = ("_%s" % resolved_field_id) if resolved_field_id else ""
+            candidate_id = "%s%s" % (now_utc, candidate_suffix)
             existing = conn.execute("SELECT 1 FROM advisories WHERE advisory_id = ?;", (candidate_id,)).fetchone()
             if existing:
                 ms = datetime.datetime.now(datetime.timezone.utc).strftime("%f")[:3]
-                candidate_id = f"{now_utc[:-1]}.{ms}Z_{field_id}"
+                candidate_id = "%s.%sZ%s" % (now_utc[:-1], ms, candidate_suffix)
                 idx = 2
                 while conn.execute("SELECT 1 FROM advisories WHERE advisory_id = ?;", (candidate_id,)).fetchone():
-                    candidate_id = f"{now_utc[:-1]}.{ms}Z_{field_id}_{idx}"
+                    candidate_id = "%s.%sZ%s_%d" % (now_utc[:-1], ms, candidate_suffix, idx)
                     idx += 1
             advisory_id = candidate_id
 
@@ -1327,21 +1373,21 @@ class EdgeStorage(object):
             "seq": 0,  # initial value, updated to monotonic rowid during SQLite insert
             "generated_at_utc": now_utc,
             "inference_backend": str(inference_backend),
-            "replay": bool(replay),
+            "replay": bool(resolved_replay),
             "scan": {
                 "started_utc": scan_row["started_utc"],
                 "ended_utc": scan_row["ended_utc"] or now_utc,
-                "mode": mode or scan_row["mode"] or "walk",
-                "crop_declared": crop_declared or (scan_row["crop"] if "crop" in scan_row.keys() else None),
+                "mode": mode or (scan_row["mode"] if "mode" in scan_row.keys() and scan_row["mode"] else "handheld_pod"),
+                "crop_declared": crop_declared if crop_declared is not None else (scan_row["crop"] if "crop" in scan_row.keys() and scan_row["crop"] else None),
                 "duration_s": duration_s if duration_s is not None else (scan_row["duration_s"] if "duration_s" in scan_row.keys() and scan_row["duration_s"] is not None else int(round(abs(((_parse_iso_timestamp(scan_row["ended_utc"] or now_utc) or _parse_iso_timestamp(now_utc)) - (_parse_iso_timestamp(scan_row["started_utc"]) or _parse_iso_timestamp(now_utc))).total_seconds())))),
-                "stop_reason": stop_reason or (scan_row["stop_reason"] if "stop_reason" in scan_row.keys() and scan_row["stop_reason"] is not None else "user"),
+                "stop_reason": (stop_reason if stop_reason in ("user", "time_limit", "error", "interrupted") else (scan_row["stop_reason"] if "stop_reason" in scan_row.keys() and scan_row["stop_reason"] in ("user", "time_limit", "error", "interrupted") else None)),
                 "frames_captured": int(scan_row["frames_captured"] or len(events)),
                 "frames_evaluated": len(events),
                 "tiles_classified": int(scan_row["tiles_classified"] or len(events) * train_config.N_TILES),
                 "distance_walked_m": scan_row["distance_walked_m"],
                 "distance_reason": scan_row["distance_reason"] or ("GPS_TRACK_NOT_RECORDED" if gps_points == 0 else None),
             },
-            "time_source": time_source or (scan_row["time_source"] if "time_source" in scan_row.keys() and scan_row["time_source"] is not None else getattr(self, "clock_source", "filesystem")),
+            "time_source": (scan_row["time_source"] if "time_source" in scan_row.keys() and scan_row["time_source"] else time_source) or getattr(self, "clock_source", "filesystem"),
             "summary": {
                 "stretches_total": 0,
                 "healthy": 0,
@@ -1365,7 +1411,7 @@ class EdgeStorage(object):
                 "soil2_v": None,
                 "battery_v": None,
                 "soil_units": "raw_volts_uncalibrated",
-                "source": "measured",
+                "source": None,
             },
             "crop_health": {
                 "state": overall_state,
@@ -1680,10 +1726,11 @@ class EdgeStorage(object):
                 continue
 
             try:
+                is_replay = bool(row["replay"]) if ("replay" in row.keys() and row["replay"] is not None) else False
                 advisory = self.create_advisory(
                     scan_id=scan_id,
                     stop_reason="interrupted",
-                    replay=False if row["source"] and "0" in str(row["source"]) else True,
+                    replay=is_replay,
                 )
                 with conn:
                     conn.execute(
