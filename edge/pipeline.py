@@ -412,7 +412,13 @@ class CaptureThread(threading.Thread):
                 ret, frame = cap.read()
                 self.t_read_s += (time.time() - t_rd0)
                 if not ret or frame is None:
-                    break
+                    if self.until_stopped and not self.is_camera:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        ret, frame = cap.read()
+                        if not ret or frame is None:
+                            break
+                    else:
+                        break
 
                 # Fail loudly on degenerate frames from live camera sources
                 if self.is_camera and frame_idx < 5:
@@ -897,7 +903,7 @@ class StatusHeartbeatThread(threading.Thread):
 
     def run(self) -> None:
         self._write_heartbeat()
-        while not self.stop_event.wait(1.0):
+        while not self.stop_event.wait(0.2):
             if self.stop_event.is_set():
                 break
 
@@ -909,6 +915,7 @@ class StatusHeartbeatThread(threading.Thread):
                     self.t4_decision.stop_reason = "time_limit"
                 if self.t1_capture is not None:
                     self.t1_capture.running = False
+                break
 
             self._write_heartbeat()
 

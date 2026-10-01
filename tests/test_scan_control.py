@@ -679,24 +679,26 @@ def test_h_pipeline_ignores_sigterm_killed_after_watchdog(running_gateway, monke
         {"crop": "wheat", "field_id": "F01", "source": "replay"},
     )
     assert s1 == 202
+    scan_id = b1["scan_id"]
 
     time.sleep(0.5)
     s_stop, b_stop, _ = http_post_json(f"{base_url}/api/v1/scan/stop", {})
     assert s_stop == 202
     assert b_stop["state"] == "finalizing"
 
-    reached_interrupted = False
-    for _ in range(30):
-        time.sleep(0.2)
-        s, b, _ = http_get(f"{base_url}/api/v1/scan/status")
-        assert s == 200
-        if b["state"] == "done":
-            assert b["state"] == "done"
-            assert b["stop_reason"] == "interrupted"
-            assert b["advisory_id"] is not None
-            reached_interrupted = True
-            break
-    assert reached_interrupted is True
+    # Wait for forced kill (1s timeout) + 3s more to verify stability
+    time.sleep(4.0)
+
+    s, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+    assert s == 200
+    assert b["state"] == "done"
+    assert b["stop_reason"] == "interrupted"
+    assert b["advisory_id"] is not None
+
+    # Verify number of advisories for that scan_id in SQLite == 1
+    conn = gw.server.storage._get_connection()
+    rows = conn.execute("SELECT advisory_id FROM advisories WHERE scan_id = ?;", (scan_id,)).fetchall()
+    assert len(rows) == 1
 
 
 def test_i_max_duration_s_reached_stops_gracefully_with_time_limit():
@@ -798,6 +800,7 @@ def test_j_crash_recovery_dead_pid_finalized_as_interrupted():
         assert s_a == 200
         assert b_a["scan"]["stop_reason"] == "interrupted"
         assert b_a["scan"]["frames_evaluated"] == 2
+        assert b_a["replay"] is False
 
         gw.stop()
 
@@ -899,3 +902,226 @@ def test_gateway_scan_start_phone_utc_validation(running_gateway):
     )
     assert s2 == 400
     assert b2["error"] == "bad_request"
+
+
+# =============================================================================
+# 8. Regression & Seam Verification Tests (Tests 2, 3, 4, 5, 7)
+# =============================================================================
+
+def test_two_scans_back_to_back_final_status(running_gateway):
+    """Test 2: Two scans back-to-back with fake pipeline: scan 2's final status has scan_id == scan 2's id, and advisory_id == scan 2's advisory."""
+    gw, base_url = running_gateway
+
+    # 1. Scan 1
+    s1, b1, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s1 == 202
+    scan_id_1 = b1["scan_id"]
+
+    for _ in range(30):
+        time.sleep(0.2)
+        _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b["state"] == "scanning":
+            break
+
+    http_post_json(f"{base_url}/api/v1/scan/stop", {})
+    time.sleep(2.0)
+    s_st1, b_st1, _ = http_get(f"{base_url}/api/v1/scan/status")
+    assert s_st1 == 200
+    assert b_st1["state"] == "done"
+    assert b_st1["scan_id"] == scan_id_1
+    adv_id_1 = b_st1["advisory_id"]
+    assert adv_id_1 is not None
+
+    # 2. Scan 2
+    s2, b2, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "rice", "field_id": "F02", "source": "replay"},
+    )
+    assert s2 == 202
+    scan_id_2 = b2["scan_id"]
+    assert scan_id_2 != scan_id_1
+
+    for _ in range(30):
+        time.sleep(0.2)
+        _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b["state"] == "scanning":
+            break
+
+    http_post_json(f"{base_url}/api/v1/scan/stop", {})
+    time.sleep(2.0)
+    s_st2, b_st2, _ = http_get(f"{base_url}/api/v1/scan/status")
+    assert s_st2 == 200
+    assert b_st2["state"] == "done"
+    assert b_st2["scan_id"] == scan_id_2
+    adv_id_2 = b_st2["advisory_id"]
+    assert adv_id_2 is not None
+    assert adv_id_2 != adv_id_1
+
+
+def test_time_limit_real_pipeline_all_rejected():
+    """Test 3: Time limit with REAL pipeline: --dry-run --until-stopped --max-duration-s 3 on all-black video."""
+    import cv2
+    import numpy as np
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "real_timelimit.db"
+        status_file = Path(tmpdir) / "status.json"
+        video_path = Path(tmpdir) / "all_black.mp4"
+
+        # Generate a 60-frame all-black video (each frame will be rejected by frame gate)
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out = cv2.VideoWriter(str(video_path), fourcc, 10.0, (640, 480))
+        for _ in range(60):
+            black_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            out.write(black_frame)
+        out.release()
+
+        cmd = [
+            sys.executable,
+            str(ROOT / "edge" / "pipeline.py"),
+            "--source", str(video_path),
+            "--dry-run",
+            "--until-stopped",
+            "--scan-id", "scan_real_tl_01",
+            "--field-id", "F01",
+            "--crop", "wheat",
+            "--status-file", str(status_file),
+            "--db-path", str(db_path),
+            "--max-duration-s", "3",
+            "--no-realtime",
+        ]
+
+        t0 = time.monotonic()
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        seen_elapsed_increase = False
+        frames_used_stayed_zero = True
+
+        while proc.poll() is None:
+            time.sleep(0.3)
+            if status_file.exists():
+                try:
+                    with open(str(status_file), "r", encoding="utf-8") as f:
+                        st = json.load(f)
+                    if st.get("elapsed_s", 0) > 0:
+                        seen_elapsed_increase = True
+                    if st.get("counts", {}).get("frames_used", 0) != 0:
+                        frames_used_stayed_zero = False
+                except Exception:
+                    pass
+            if time.monotonic() - t0 > 15.0:
+                proc.kill()
+                pytest.fail("Pipeline did not exit within 15 seconds")
+
+        ret = proc.wait(timeout=5.0)
+        assert ret == 0
+
+        assert status_file.exists()
+        with open(str(status_file), "r", encoding="utf-8") as f:
+            st = json.load(f)
+        assert st["state"] == "done"
+        assert st["stop_reason"] == "time_limit"
+        assert seen_elapsed_increase is True
+        assert frames_used_stayed_zero is True
+
+
+def test_old_cli_real_pipeline_defaults():
+    """Test 4: Old CLI with REAL pipeline: --dry-run --max-frames N, no --until-stopped."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "old_cli.db"
+        video_path = str(ROOT / "test_video_from_dataset_images.mp4")
+
+        cmd = [
+            sys.executable,
+            str(ROOT / "edge" / "pipeline.py"),
+            "--source", video_path,
+            "--dry-run",
+            "--max-frames", "5",
+            "--db-path", str(db_path),
+            "--no-realtime",
+        ]
+
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+        assert res.returncode == 0
+
+        storage = EdgeStorage(db_path=db_path)
+        m = storage.get_manifest()
+        assert m["count"] == 1
+        adv_id = m["advisories"][0]["advisory_id"]
+        assert adv_id.endswith("_F01")
+        adv = storage.get_advisory(adv_id)
+        assert adv["scan"]["mode"] == "handheld_pod"
+        assert adv["scan"]["crop_declared"] is None
+        assert adv["scan"]["stop_reason"] is None
+
+
+def test_sudo_set_time_failure_retains_clock_source(running_gateway, monkeypatch):
+    """Test 5: sudo failure for aegis-set-time (returncode 1) -> clock_source != 'phone', advisory time_source != 'phone'."""
+    gw, base_url = running_gateway
+
+    class MockFailedProcess:
+        returncode = 1
+        stdout = b""
+        stderr = b"sudo: permission denied"
+
+    orig_run = subprocess.run
+    def mock_run(cmd, *args, **kwargs):
+        if isinstance(cmd, list) and len(cmd) > 2 and "aegis-set-time" in cmd[2]:
+            return MockFailedProcess()
+        return orig_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", mock_run)
+
+    phone_time = "2026-10-01T15:00:00Z"
+    s, b, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay", "phone_utc": phone_time},
+    )
+    assert s == 202
+
+    s_h, b_h, _ = http_get(f"{base_url}/api/v1/health")
+    assert s_h == 200
+    assert b_h.get("clock_source") != "phone"
+
+    http_post_json(f"{base_url}/api/v1/scan/stop", {})
+    for _ in range(30):
+        time.sleep(0.2)
+        _, b_st, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b_st["state"] == "done":
+            break
+
+    assert b_st["state"] == "done"
+    adv_id = b_st["advisory_id"]
+    assert adv_id is not None
+    s_a, b_a, _ = http_get(f"{base_url}/api/v1/advisory/{adv_id}")
+    assert s_a == 200
+    assert b_a["time_source"] != "phone"
+
+
+def test_pod_ready_stays_true_after_scan_error(running_gateway, monkeypatch):
+    """Test 7: pod_ready stays True after a scan ended in 'error' (mock mode)."""
+    gw, base_url = running_gateway
+    monkeypatch.setenv("FAKE_PIPELINE_MODE", "exit1")
+
+    s, b, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s == 202
+
+    for _ in range(30):
+        time.sleep(0.2)
+        _, b_st, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b_st["state"] == "error":
+            break
+
+    assert b_st["state"] == "error"
+
+    s_h, b_h, _ = http_get(f"{base_url}/api/v1/health")
+    assert s_h == 200
+    assert b_h["scan_state"] == "error"
+    assert b_h["pod_ready"] is True
+

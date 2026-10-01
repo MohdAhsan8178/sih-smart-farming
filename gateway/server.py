@@ -269,6 +269,7 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
             self.current_scan_id = scan_id
             self.current_scan_state = "starting"
             self.current_stop_reason = None
+            self.last_scan_status = None
             self.current_scan_started_mono = time.monotonic()
             status_file_path = self.storage.data_dir / "status" / ("scan_status_%s.json" % scan_id)
             status_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -351,6 +352,27 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
 
             return 202, {"scan_id": scan_id, "state": "starting", "replay": replay_flag}
 
+    def _has_advisory_for_scan(self, scan_id):
+        """Check if an advisory already exists for a scan_id. Must be called under scan_lock."""
+        try:
+            conn = self.storage._get_connection()
+            row = conn.execute("SELECT advisory_id FROM advisories WHERE scan_id = ?;", (scan_id,)).fetchone()
+            return row is not None
+        except Exception:
+            return False
+
+    def _build_final_status(self, final_st, scan_id, state, stop_reason, adv_id):
+        """Build the final status dict, preferring pipeline's own status file."""
+        if final_st and final_st.get("scan_id") == scan_id:
+            st = dict(final_st)
+        else:
+            st = self.get_scan_status()
+        st["state"] = state
+        st["stop_reason"] = stop_reason
+        st["advisory_id"] = adv_id
+        st["scan_id"] = scan_id
+        return st
+
     def _monitor_scan_process(
         self,
         scan_id: str,
@@ -366,28 +388,40 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                 time.sleep(0.5)
 
                 with self.scan_lock:
-                    if self.current_scan_proc is not proc and self.current_scan_id != scan_id:
+                    if self.current_scan_proc is not proc:
                         break
 
                     # Check if process exited
                     ret = proc.poll()
                     if ret is not None:
+                        # Read the pipeline's final status file for this scan
+                        final_st = None
+                        if status_file.exists():
+                            try:
+                                with open(str(status_file), "r", encoding="utf-8") as f:
+                                    final_st = json.load(f)
+                                if final_st.get("scan_id") != scan_id:
+                                    final_st = None
+                            except Exception:
+                                final_st = None
+
                         if self.current_scan_state == "finalizing":
                             eff_reason = self.current_stop_reason if self.current_stop_reason == "interrupted" else "user"
                             self.current_scan_state = "done"
                             self.current_stop_reason = eff_reason
-                            adv_id = None
-                            if status_file.exists():
+                            adv_id = final_st.get("advisory_id") if final_st else None
+                            if not adv_id and not self._has_advisory_for_scan(scan_id):
                                 try:
-                                    with open(str(status_file), "r", encoding="utf-8") as f:
-                                        sdata = json.load(f)
-                                        adv_id = sdata.get("advisory_id")
+                                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason=eff_reason)
+                                    adv_id = adv.get("advisory_id")
                                 except Exception:
                                     pass
                             if not adv_id:
                                 try:
-                                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason=eff_reason)
-                                    adv_id = adv.get("advisory_id")
+                                    conn = self.storage._get_connection()
+                                    row = conn.execute("SELECT advisory_id FROM advisories WHERE scan_id = ?;", (scan_id,)).fetchone()
+                                    if row:
+                                        adv_id = row["advisory_id"]
                                 except Exception:
                                     pass
                             try:
@@ -395,55 +429,62 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                                 self.storage.record_scan_end(scan_id=scan_id, status=status_name, stop_reason=eff_reason)
                             except Exception:
                                 pass
-                            st = self.get_scan_status()
-                            st["state"] = "done"
-                            st["stop_reason"] = eff_reason
-                            st["advisory_id"] = adv_id
+                            st = self._build_final_status(final_st, scan_id, "done", eff_reason, adv_id)
                             self.last_scan_status = st
                         elif ret != 0:
                             self.current_scan_state = "error"
                             self.current_stop_reason = "error"
                             adv_id = None
-                            try:
-                                adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
-                                adv_id = adv.get("advisory_id")
-                            except Exception:
-                                pass
-                            try:
-                                self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
-                            except Exception:
-                                pass
-                            st = self.get_scan_status()
-                            st["state"] = "error"
-                            st["stop_reason"] = "error"
-                            st["advisory_id"] = adv_id
-                            self.last_scan_status = st
-                        else:
-                            self.current_scan_state = "done"
-                            if self.current_stop_reason is None:
-                                self.current_stop_reason = "user"
-                            adv_id = None
-                            if status_file.exists():
+                            if not self._has_advisory_for_scan(scan_id):
                                 try:
-                                    with open(str(status_file), "r", encoding="utf-8") as f:
-                                        sdata = json.load(f)
-                                        adv_id = sdata.get("advisory_id")
+                                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
+                                    adv_id = adv.get("advisory_id")
                                 except Exception:
                                     pass
                             if not adv_id:
                                 try:
-                                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason=self.current_stop_reason)
-                                    adv_id = adv.get("advisory_id")
+                                    conn = self.storage._get_connection()
+                                    row = conn.execute("SELECT advisory_id FROM advisories WHERE scan_id = ?;", (scan_id,)).fetchone()
+                                    if row:
+                                        adv_id = row["advisory_id"]
                                 except Exception:
                                     pass
                             try:
-                                self.storage.record_scan_end(scan_id=scan_id, status="complete", stop_reason=self.current_stop_reason)
+                                self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
                             except Exception:
                                 pass
-                            st = self.get_scan_status()
-                            st["state"] = "done"
-                            st["stop_reason"] = self.current_stop_reason
-                            st["advisory_id"] = adv_id
+                            st = self._build_final_status(final_st, scan_id, "error", "error", adv_id)
+                            self.last_scan_status = st
+                        else:
+                            # Exit 0: prefer pipeline's own final status file
+                            if final_st and final_st.get("stop_reason"):
+                                eff_reason = final_st["stop_reason"]
+                            elif self.current_stop_reason:
+                                eff_reason = self.current_stop_reason
+                            else:
+                                eff_reason = "user"
+                            self.current_scan_state = "done"
+                            self.current_stop_reason = eff_reason
+                            adv_id = final_st.get("advisory_id") if final_st else None
+                            if not adv_id and not self._has_advisory_for_scan(scan_id):
+                                try:
+                                    adv = self.storage.create_advisory(scan_id=scan_id, stop_reason=eff_reason)
+                                    adv_id = adv.get("advisory_id")
+                                except Exception:
+                                    pass
+                            if not adv_id:
+                                try:
+                                    conn = self.storage._get_connection()
+                                    row = conn.execute("SELECT advisory_id FROM advisories WHERE scan_id = ?;", (scan_id,)).fetchone()
+                                    if row:
+                                        adv_id = row["advisory_id"]
+                                except Exception:
+                                    pass
+                            try:
+                                self.storage.record_scan_end(scan_id=scan_id, status="complete", stop_reason=eff_reason)
+                            except Exception:
+                                pass
+                            st = self._build_final_status(final_st, scan_id, "done", eff_reason, adv_id)
                             self.last_scan_status = st
 
                         self.current_scan_proc = None
@@ -476,11 +517,12 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                         self.current_scan_state = "error"
                         self.current_stop_reason = "error"
                         adv_id = None
-                        try:
-                            adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
-                            adv_id = adv.get("advisory_id")
-                        except Exception:
-                            pass
+                        if not self._has_advisory_for_scan(scan_id):
+                            try:
+                                adv = self.storage.create_advisory(scan_id=scan_id, stop_reason="error")
+                                adv_id = adv.get("advisory_id")
+                            except Exception:
+                                pass
                         try:
                             self.storage.record_scan_end(scan_id=scan_id, status="error", stop_reason="error")
                         except Exception:
@@ -519,12 +561,16 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                     self.current_scan_state = "error"
                     self.current_stop_reason = "error"
                     adv_id = None
+                    if not self._has_advisory_for_scan(active_scan_id):
+                        try:
+                            adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason="error")
+                            adv_id = adv.get("advisory_id")
+                        except Exception:
+                            pass
                     try:
-                        adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason="error")
-                        adv_id = adv.get("advisory_id")
+                        self.storage.record_scan_end(scan_id=active_scan_id, status="error", stop_reason="error")
                     except Exception:
                         pass
-                    self.storage.record_scan_end(scan_id=active_scan_id, status="error", stop_reason="error")
                     st = self.get_scan_status()
                     st["state"] = "error"
                     st["stop_reason"] = "error"
@@ -534,12 +580,16 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                     self.current_scan_state = "done"
                     self.current_stop_reason = effective_reason
                     adv_id = None
+                    if not self._has_advisory_for_scan(active_scan_id):
+                        try:
+                            adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason=effective_reason)
+                            adv_id = adv.get("advisory_id")
+                        except Exception:
+                            pass
                     try:
-                        adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason=effective_reason)
-                        adv_id = adv.get("advisory_id")
+                        self.storage.record_scan_end(scan_id=active_scan_id, status="complete", stop_reason=effective_reason)
                     except Exception:
                         pass
-                    self.storage.record_scan_end(scan_id=active_scan_id, status="complete", stop_reason=effective_reason)
                     st = self.get_scan_status()
                     st["state"] = "done"
                     st["stop_reason"] = effective_reason
@@ -574,11 +624,20 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                             pass
                         self.current_scan_state = "done"
                         adv_id = None
-                        try:
-                            adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason="interrupted")
-                            adv_id = adv.get("advisory_id")
-                        except Exception:
-                            pass
+                        if not self._has_advisory_for_scan(active_scan_id):
+                            try:
+                                adv = self.storage.create_advisory(scan_id=active_scan_id, stop_reason="interrupted")
+                                adv_id = adv.get("advisory_id")
+                            except Exception:
+                                pass
+                        if not adv_id:
+                            try:
+                                conn = self.storage._get_connection()
+                                row = conn.execute("SELECT advisory_id FROM advisories WHERE scan_id = ?;", (active_scan_id,)).fetchone()
+                                if row:
+                                    adv_id = row["advisory_id"]
+                            except Exception:
+                                pass
                         try:
                             self.storage.record_scan_end(scan_id=active_scan_id, status="interrupted", stop_reason="interrupted")
                         except Exception:
@@ -587,6 +646,7 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                         st["state"] = "done"
                         st["stop_reason"] = "interrupted"
                         st["advisory_id"] = adv_id
+                        st["scan_id"] = active_scan_id
                         self.last_scan_status = st
                         self.current_scan_proc = None
 
@@ -1062,20 +1122,35 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                             if self.server.current_scan_proc is None or self.server.current_scan_proc.poll() is not None:
                                 break
                             time.sleep(0.5)
-                        if self.server.current_scan_proc is not None and self.server.current_scan_proc.poll() is None:
-                            try:
-                                self.server.current_scan_proc.kill()
-                            except Exception:
-                                pass
-                            active_id = self.server.current_scan_id
-                            self.server.current_stop_reason = "interrupted"
-                            self.server.current_scan_state = "done"
-                            try:
-                                self.server.storage.create_advisory(scan_id=active_id, stop_reason="interrupted")
-                                self.server.storage.record_scan_end(scan_id=active_id, status="interrupted", stop_reason="interrupted")
-                            except Exception:
-                                pass
-                            self.server.current_scan_proc = None
+                        with self.server.scan_lock:
+                            if self.server.current_scan_proc is not None and self.server.current_scan_proc.poll() is None:
+                                try:
+                                    self.server.current_scan_proc.kill()
+                                    self.server.current_scan_proc.wait(timeout=1.0)
+                                except Exception:
+                                    pass
+                                active_id = self.server.current_scan_id
+                                self.server.current_stop_reason = "interrupted"
+                                self.server.current_scan_state = "done"
+                                adv_id = None
+                                if not self.server._has_advisory_for_scan(active_id):
+                                    try:
+                                        adv = self.server.storage.create_advisory(scan_id=active_id, stop_reason="interrupted")
+                                        adv_id = adv.get("advisory_id")
+                                    except Exception:
+                                        pass
+                                try:
+                                    self.server.storage.record_scan_end(scan_id=active_id, status="interrupted", stop_reason="interrupted")
+                                except Exception:
+                                    pass
+                                st = self.server.get_scan_status()
+                                st["state"] = "done"
+                                st["stop_reason"] = "interrupted"
+                                if adv_id:
+                                    st["advisory_id"] = adv_id
+                                st["scan_id"] = active_id
+                                self.server.last_scan_status = st
+                                self.server.current_scan_proc = None
                     time.sleep(1.0)
                     try:
                         res = subprocess.run(

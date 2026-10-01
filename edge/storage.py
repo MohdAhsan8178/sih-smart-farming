@@ -822,7 +822,7 @@ class EdgeStorage(object):
         if not scan_row:
             raise ValueError(f"Scan '{scan_id}' not found in database")
 
-        resolved_field_id = field_id or (scan_row["field_id"] if "field_id" in scan_row.keys() and scan_row["field_id"] else None)
+        resolved_field_id = field_id or (scan_row["field_id"] if "field_id" in scan_row.keys() and scan_row["field_id"] else "F01")
         resolved_replay = replay if replay is not None else (bool(scan_row["replay"]) if "replay" in scan_row.keys() and scan_row["replay"] is not None else False)
 
         # Resolve planting date and variety cycle days from scan metadata if omitted
@@ -1211,7 +1211,7 @@ class EdgeStorage(object):
         }
 
         # 3. Sentinel-2 Satellite NDVI block (M4.6)
-        sat_record = self.get_latest_satellite_ndvi(field_id=field_id)
+        sat_record = self.get_latest_satellite_ndvi(field_id=resolved_field_id)
         if sat_record:
             ndvi_satellite_block = {
                 "available": True,
