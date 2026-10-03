@@ -50,9 +50,10 @@ from edge.storage import (
     resolve_data_directory,
     _parse_iso_timestamp,
     is_declared_disease_class,
+    evaluate_stretch_verdict,
 )
 from configs.classes import IDX
-from gateway.server import EdgeGateway, ThreadedHTTPServer
+from gateway.server import EdgeGateway, ThreadedHTTPServer, discover_field_station_url
 
 
 def http_get(url: str) -> Tuple[int, Dict[str, Any], Dict[str, str]]:
@@ -2155,8 +2156,8 @@ def test_stage2_addendum_a1_timestamp_parsing():
     Verifies support for:
       - Fractional seconds with timezone offset: '2026-10-03T17:58:45.750722+00:00'
       - Standard UTC with Z: '2026-10-03T17:58:45Z'
-      - Unparseable strings must raise ValueError (never fall back to 0.0)
-      - Advisory generation correctly buckets fractional timestamps into stretches.
+      - Unparseable strings must return None (never raise in production, never fall back to 0.0)
+      - Advisory generation correctly buckets valid timestamps into stretches and skips unparseable ones.
     """
     real_nano_timestamps = [
         "2026-10-03T17:58:45.750722+00:00",
@@ -2172,9 +2173,10 @@ def test_stage2_addendum_a1_timestamp_parsing():
         assert dt is not None
         assert dt.tzinfo == datetime.timezone.utc
 
-    # Verify ValueError is raised on invalid non-empty strings
-    with pytest.raises(ValueError):
-        _parse_iso_timestamp("not_a_valid_timestamp_123")
+    # Unparseable strings return None (not raise in production)
+    assert _parse_iso_timestamp("not_a_valid_timestamp_123") is None
+    assert _parse_iso_timestamp("") is None
+    assert _parse_iso_timestamp(None) is None
 
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "nano_ts.db"
@@ -2208,11 +2210,27 @@ def test_stage2_addendum_a1_timestamp_parsing():
                 source_image="frame_%d.jpg" % i,
             )
 
+        # Ingest 1 event with unparseable timestamp
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=3,
+            timestamp_utc="corrupted_timestamp_garbage",
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="DISEASE",
+            class_id=IDX["sugarcane__red_rot"],
+            confidence=0.99,
+            tile_decisions=[],
+            source_image="frame_3.jpg",
+        )
+
         storage.record_scan_end(
             scan_id=scan_id,
-            frames_captured=3,
-            frames_evaluated=3,
-            tiles_classified=27,
+            frames_captured=4,
+            frames_evaluated=4,
+            tiles_classified=36,
             status="complete",
             stop_reason="user",
             duration_s=30.0,
@@ -2227,8 +2245,13 @@ def test_stage2_addendum_a1_timestamp_parsing():
             mode="walk",
         )
 
+        # Advisory must be produced without error
         assert len(adv["stretches"]) >= 1
-        # Stretches must not be empty/NO_DATA because timestamps parsed accurately
+        # The unparseable event is in NO stretch
+        assert adv["stretches"][0]["frames_used"] == 3
+        # The unparseable event is in NO alert
+        assert len(adv["alerts"]) == 0
+        # The other events are bucketed correctly
         assert adv["summary"]["healthy"] >= 1
         assert adv["crop_health"]["state"] == "HEALTHY"
 
@@ -2485,6 +2508,128 @@ def test_stage2_addendum_a4_gps_source_and_inputs(running_gateway):
     assert inputs_map["phone_gps"]["source_node"] == "PHONE"
     assert inputs_map["phone_gps"]["status"] == "OK"
     assert inputs_map["pod_gps"]["status"] == "ABSENT"
+
+
+def test_stage2_evaluate_stretch_verdict_rules():
+    """
+    Test Item 2: evaluate_stretch_verdict restored rules:
+      - 1 red_rot + 1 mosaic -> UNCERTAIN
+      - 3 red_rot of 10 used -> DISEASE red_rot 3
+      - 2 healthy of 3 -> UNCERTAIN
+      - 3 healthy of 5 -> HEALTHY
+    """
+    # 1. 1 red_rot + 1 mosaic -> UNCERTAIN
+    events_1 = [
+        {"class_name": "sugarcane__red_rot", "frame_state": "DISEASE"},
+        {"class_name": "sugarcane__mosaic", "frame_state": "DISEASE"},
+    ]
+    v1, top_c1, agree1 = evaluate_stretch_verdict(events_1, declared_crop="sugarcane")
+    assert v1 == "UNCERTAIN"
+    assert top_c1 is None
+    assert agree1 == 0
+
+    # 2. 3 red_rot of 10 used -> DISEASE red_rot 3
+    events_2 = [
+        {"class_name": "sugarcane__red_rot", "frame_state": "DISEASE"} for _ in range(3)
+    ] + [
+        {"class_name": "sugarcane__healthy", "frame_state": "HEALTHY"} for _ in range(2)
+    ] + [
+        {"class_name": "sugarcane__mosaic", "frame_state": "DISEASE"} for _ in range(2)
+    ] + [
+        {"class_name": "sugarcane__healthy", "frame_state": "HEALTHY"} for _ in range(3)
+    ]
+    assert len(events_2) == 10
+    v2, top_c2, agree2 = evaluate_stretch_verdict(events_2, declared_crop="sugarcane")
+    assert v2 == "DISEASE"
+    assert top_c2 == "sugarcane__red_rot"
+    assert agree2 == 3
+
+    # 3. 2 healthy of 3 -> UNCERTAIN
+    events_3 = [
+        {"class_name": "sugarcane__healthy", "frame_state": "HEALTHY"} for _ in range(2)
+    ] + [
+        {"class_name": "sugarcane__red_rot", "frame_state": "DISEASE"}
+    ]
+    v3, top_c3, agree3 = evaluate_stretch_verdict(events_3, declared_crop="sugarcane")
+    assert v3 == "UNCERTAIN"
+    assert top_c3 is None
+    assert agree3 == 0
+
+    # 4. 3 healthy of 5 -> HEALTHY
+    events_4 = [
+        {"class_name": "sugarcane__healthy", "frame_state": "HEALTHY"} for _ in range(3)
+    ] + [
+        {"class_name": "sugarcane__red_rot", "frame_state": "DISEASE"} for _ in range(2)
+    ]
+    v4, top_c4, agree4 = evaluate_stretch_verdict(events_4, declared_crop="sugarcane")
+    assert v4 == "HEALTHY"
+    assert top_c4 is None
+    assert agree4 == 3
+
+
+def test_stage2_field_station_stale_cache_and_probe_fallback():
+    """
+    Test Item 3: Field station stale cached URL handling.
+    When cached URL in <data_dir>/field_station.json is unreachable:
+    - Runs probe once.
+    - If found on another address, updates <data_dir>/field_station.json and returns it.
+    - /etc/sih/field_station.json is never overwritten.
+    """
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+
+    class MockESP32Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/api/v1/health" or self.path == "/health":
+                body = json.dumps({
+                    "node_id": "SIH-NODE-01",
+                    "log_epoch": 1,
+                    "rtc_valid": True,
+                    "utc": "2026-10-03T20:00:00Z",
+                    "battery_v": 3.28,
+                }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def log_message(self, format, *args):
+            pass
+
+    mock_server = HTTPServer(("127.0.0.1", 0), MockESP32Handler)
+    mock_port = mock_server.server_address[1]
+    mock_thread = threading.Thread(target=mock_server.serve_forever, daemon=True)
+    mock_thread.start()
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_dir = Path(tmpdir)
+            cache_file = data_dir / "field_station.json"
+            # Write stale cache pointing to dead port
+            with open(str(cache_file), "w", encoding="utf-8") as f:
+                json.dump({"base_url": "http://127.0.0.1:59997/api/v1"}, f)
+
+            # Discover with candidate host pointing to the mock server port
+            target_url = "http://127.0.0.1:%d/api/v1" % mock_port
+            found = discover_field_station_url(
+                data_dir=data_dir,
+                candidate_hosts=["127.0.0.1:%d" % mock_port],
+            )
+            assert found == target_url
+
+            # Cache file must be updated to the new working URL
+            with open(str(cache_file), "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            assert saved.get("base_url") == target_url
+
+            # /etc/sih/field_station.json must never exist or be overwritten in tmpdir
+            assert not (data_dir / "etc_field_station.json").exists()
+    finally:
+        mock_server.shutdown()
+        mock_server.server_close()
 
 
 

@@ -69,22 +69,61 @@ def _get_wlan_subnet_prefix():
     return "192.168.43"
 
 
-def probe_for_field_station(subnet_prefix="192.168.43", timeout_per_host=0.5, max_workers=32, total_timeout=8.0):
-    """Probes /24 subnet in parallel for ESP32 Field Station node_id == 'SIH-NODE-01'."""
-    def _probe_host(host_ip):
-        url = "http://%s/api/v1/health" % host_ip
+def check_field_station_health(base_url, timeout=0.5):
+    """Checks GET /api/v1/health on base_url and returns True if node_id is SIH-NODE-01."""
+    if not base_url:
+        return False
+    try:
+        url = "%s/health" % base_url.rstrip("/")
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                if isinstance(data, dict) and data.get("node_id") == "SIH-NODE-01":
+                    return True
+    except Exception:
+        pass
+    return False
+
+
+def probe_for_field_station(subnet_prefix=None, timeout_per_host=0.5, max_workers=32, total_timeout=8.0, candidate_hosts=None, probe_port=80):
+    """Probes /24 subnet (or candidate hosts) in parallel for ESP32 Field Station node_id == 'SIH-NODE-01'."""
+    if candidate_hosts is not None:
+        hosts = list(candidate_hosts)
+    else:
+        prefix = subnet_prefix or _get_wlan_subnet_prefix()
+        hosts = ["%s.%d" % (prefix, i) for i in range(1, 255)]
+
+    def _probe_host(host_entry):
+        if str(host_entry).startswith("http://") or str(host_entry).startswith("https://"):
+            url = "%s/health" % str(host_entry).rstrip("/")
+            if "/api/v1" not in url:
+                url = "%s/api/v1/health" % str(host_entry).rstrip("/")
+            ret_base = str(host_entry).rstrip("/")
+            if not ret_base.endswith("/api/v1"):
+                ret_base = "%s/api/v1" % ret_base
+        elif ":" in str(host_entry):
+            url = "http://%s/api/v1/health" % host_entry
+            ret_base = "http://%s/api/v1" % host_entry
+        else:
+            if probe_port != 80:
+                url = "http://%s:%d/api/v1/health" % (host_entry, probe_port)
+                ret_base = "http://%s:%d/api/v1" % (host_entry, probe_port)
+            else:
+                url = "http://%s/api/v1/health" % host_entry
+                ret_base = "http://%s/api/v1" % host_entry
+
         req = urllib.request.Request(url)
         try:
             with urllib.request.urlopen(req, timeout=timeout_per_host) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
                     if isinstance(data, dict) and data.get("node_id") == "SIH-NODE-01":
-                        return "http://%s/api/v1" % host_ip
+                        return ret_base
         except Exception:
             pass
         return None
 
-    hosts = ["%s.%d" % (subnet_prefix, i) for i in range(1, 255)]
     found_url = None
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_host = {executor.submit(_probe_host, h): h for h in hosts}
@@ -99,17 +138,21 @@ def probe_for_field_station(subnet_prefix="192.168.43", timeout_per_host=0.5, ma
     return found_url
 
 
-def discover_field_station_url(data_dir, mast_base_url_override=None):
+def discover_field_station_url(data_dir, mast_base_url_override=None, candidate_hosts=None, probe_port=80):
     """
-    Discovery fallback order (Spec §1.2 / Fix 1):
-      a) /etc/sih/field_station.json
-      b) <data_dir>/field_station.json
-      c) parallel wlan0 /24 subnet probe (max 32 threads, 0.5s timeout, whole probe <= 8s)
+    Discovery fallback order (Spec §1.2 / Fix 1 & Fix 3):
+      a) mast_base_url_override (if set)
+      b) /etc/sih/field_station.json (if exists, never overwritten)
+      c) <data_dir>/field_station.json (cache)
+         - If healthy, return it.
+         - If health check fails, run /24 probe once; if found, update cache and return it.
+      d) parallel wlan0 /24 subnet probe (if no cache)
+         - If found, save to <data_dir>/field_station.json and return it.
     """
     if mast_base_url_override:
         return mast_base_url_override
 
-    # a) /etc/sih/field_station.json
+    # a) /etc/sih/field_station.json (configuration, never overwritten)
     etc_path = Path("/etc/sih/field_station.json")
     if etc_path.exists():
         try:
@@ -120,20 +163,52 @@ def discover_field_station_url(data_dir, mast_base_url_override=None):
         except Exception:
             pass
 
-    # b) <data_dir>/field_station.json
+    # b) <data_dir>/field_station.json (cache)
     data_path = Path(data_dir) / "field_station.json"
+    cached_url = None
     if data_path.exists():
         try:
             with open(str(data_path), "r", encoding="utf-8") as f:
                 d = json.load(f)
                 if isinstance(d, dict) and d.get("base_url"):
-                    return d["base_url"].rstrip("/")
+                    cached_url = d["base_url"].rstrip("/")
         except Exception:
             pass
 
-    # c) probe subnet in parallel
     prefix = _get_wlan_subnet_prefix()
-    found = probe_for_field_station(subnet_prefix=prefix, timeout_per_host=0.5, max_workers=32, total_timeout=8.0)
+
+    if cached_url:
+        if check_field_station_health(cached_url, timeout=0.5):
+            return cached_url
+        # Cached URL failed health check: run /24 probe once
+        found = probe_for_field_station(
+            subnet_prefix=prefix,
+            timeout_per_host=0.5,
+            max_workers=32,
+            total_timeout=8.0,
+            candidate_hosts=candidate_hosts,
+            probe_port=probe_port,
+        )
+        if found:
+            # Update cache (<data_dir>/field_station.json); /etc/sih/field_station.json is NEVER overwritten
+            try:
+                data_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(str(data_path), "w", encoding="utf-8") as f:
+                    json.dump({"base_url": found}, f)
+            except Exception:
+                pass
+            return found
+        return None
+
+    # c) probe subnet in parallel
+    found = probe_for_field_station(
+        subnet_prefix=prefix,
+        timeout_per_host=0.5,
+        max_workers=32,
+        total_timeout=8.0,
+        candidate_hosts=candidate_hosts,
+        probe_port=probe_port,
+    )
     if found:
         try:
             data_path.parent.mkdir(parents=True, exist_ok=True)
@@ -474,7 +549,44 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                         return
 
                     collector = MastCollector(base_url=base_url, storage=self.storage, timeout=1.5, max_retries=0)
-                    res = collector.collect()
+                    try:
+                        res = collector.collect()
+                    except Exception:
+                        res = None
+
+                    # If collect failed and base_url came from cache, run /24 probe once
+                    if not isinstance(res, dict) or res.get("status") != "ok":
+                        data_path = Path(self.storage.data_dir) / "field_station.json"
+                        is_cached = False
+                        if data_path.exists():
+                            try:
+                                with open(str(data_path), "r", encoding="utf-8") as f:
+                                    d = json.load(f)
+                                    if isinstance(d, dict) and d.get("base_url") == base_url:
+                                        is_cached = True
+                            except Exception:
+                                pass
+                        if is_cached:
+                            prefix = _get_wlan_subnet_prefix()
+                            found = probe_for_field_station(
+                                subnet_prefix=prefix,
+                                timeout_per_host=0.5,
+                                max_workers=32,
+                                total_timeout=8.0,
+                            )
+                            if found and found != base_url:
+                                try:
+                                    with open(str(data_path), "w", encoding="utf-8") as f:
+                                        json.dump({"base_url": found}, f)
+                                except Exception:
+                                    pass
+                                base_url = found
+                                collector = MastCollector(base_url=base_url, storage=self.storage, timeout=1.5, max_retries=0)
+                                try:
+                                    res = collector.collect()
+                                except Exception:
+                                    res = None
+
                     if isinstance(res, dict) and res.get("status") == "ok":
                         latest = self.storage.get_latest_mast_telemetry()
                         last_utc = latest.get("utc") if latest else None

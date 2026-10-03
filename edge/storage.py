@@ -24,7 +24,10 @@ Key Architectural Properties:
 import collections
 import datetime
 import json
+import logging
 import math
+
+logger = logging.getLogger(__name__)
 import os
 from pathlib import Path
 import shutil
@@ -149,7 +152,8 @@ def _parse_iso_timestamp(ts_str: Optional[str]) -> Optional[datetime.datetime]:
         except ValueError:
             continue
 
-    raise ValueError("Unparseable ISO timestamp: %r" % ts_str)
+    logger.warning("Unparseable ISO timestamp: %r", ts_str)
+    return None
 
 
 def _extract_iso_from_scan_id(scan_id: Optional[str]) -> Optional[str]:
@@ -258,7 +262,7 @@ def evaluate_alerts(
 
         dt = _parse_iso_timestamp(ts_utc)
         if dt is None:
-            raise ValueError("Unparseable timestamp_utc in alert evaluation: %r" % ts_utc)
+            continue
         t_sec = dt.timestamp()
         parsed_events.append((t_sec, f_st, cname, f_idx, ts_utc, e_lat, e_lon))
 
@@ -362,7 +366,7 @@ def evaluate_stretch_verdict(
                 continue
             if cname in healthy_set or f_st == "HEALTHY":
                 hl_cnt += 1
-            elif cname != "not_crop":
+            elif is_declared_disease_class(cname, declared_crop):
                 dis_counts[cname] += 1
         else:
             if "healthy" in cname or "normal" in cname or "dried" in cname or f_st == "HEALTHY":
@@ -373,12 +377,12 @@ def evaluate_stretch_verdict(
     if (not_crop_cnt / float(total_used)) >= 0.80:
         return "NOT_CROP", None, not_crop_cnt
 
-    total_diseased = sum(dis_counts.values())
-    if total_diseased >= 2 and (float(total_diseased) / float(total_used)) >= 0.20:
+    if dis_counts:
         top_d, top_c = max(dis_counts.items(), key=lambda x: x[1])
-        return "DISEASE", top_d, top_c
+        if top_c >= 3 and (float(top_c) / float(total_used)) >= 0.20:
+            return "DISEASE", top_d, top_c
 
-    if hl_cnt >= 2 and (float(hl_cnt) / float(total_used)) >= 0.50:
+    if hl_cnt >= 3 and (float(hl_cnt) / float(total_used)) >= 0.50:
         return "HEALTHY", None, hl_cnt
 
     return "UNCERTAIN", None, 0
@@ -1400,16 +1404,23 @@ class EdgeStorage(object):
         if is_walk_mode:
             start_dt = _parse_iso_timestamp(scan_row["started_utc"])
             if events:
-                first_event_dt = _parse_iso_timestamp(events[0]["timestamp_utc"])
-                if first_event_dt and (not start_dt or first_event_dt < start_dt):
-                    start_dt = first_event_dt
+                for ev in events:
+                    first_event_dt = _parse_iso_timestamp(ev["timestamp_utc"])
+                    if first_event_dt is not None:
+                        if not start_dt or first_event_dt < start_dt:
+                            start_dt = first_event_dt
+                        break
             start_ts = start_dt.timestamp() if start_dt else 0.0
             dur = resolved_duration_s if resolved_duration_s is not None else 0.0
             if dur > 0:
                 num_stretches = max(1, min(int(math.ceil(dur / 20.0)), 90))
             elif len(events) > 0:
-                last_dt = _parse_iso_timestamp(events[-1]["timestamp_utc"])
-                last_ts = last_dt.timestamp() if last_dt else start_ts
+                last_ts = start_ts
+                for ev in reversed(events):
+                    last_dt = _parse_iso_timestamp(ev["timestamp_utc"])
+                    if last_dt is not None:
+                        last_ts = last_dt.timestamp()
+                        break
                 num_stretches = max(1, min(int(math.ceil(max(1.0, last_ts - start_ts) / 20.0)), 90))
             else:
                 num_stretches = 1
@@ -1424,7 +1435,9 @@ class EdgeStorage(object):
                 s_events = []
                 for e in events:
                     e_dt = _parse_iso_timestamp(e["timestamp_utc"])
-                    e_ts = e_dt.timestamp() if e_dt else 0.0
+                    if e_dt is None:
+                        continue
+                    e_ts = e_dt.timestamp()
                     if i == num_stretches - 1:
                         if s_start_ts <= e_ts:
                             s_events.append(e)
@@ -1440,7 +1453,9 @@ class EdgeStorage(object):
                     s_t_vals = []
                     for ts_item, t_val in thermal_samples:
                         t_dt = _parse_iso_timestamp(ts_item) if isinstance(ts_item, str) else None
-                        t_sec = t_dt.timestamp() if t_dt else (float(ts_item) if isinstance(ts_item, (int, float)) else 0.0)
+                        if t_dt is None and not isinstance(ts_item, (int, float)):
+                            continue
+                        t_sec = t_dt.timestamp() if t_dt else float(ts_item)
                         if s_start_ts <= t_sec <= s_end_ts:
                             s_t_vals.append(float(t_val))
                     if s_t_vals:
