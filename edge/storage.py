@@ -119,17 +119,37 @@ def get_utc_iso_now() -> str:
 
 
 def _parse_iso_timestamp(ts_str: Optional[str]) -> Optional[datetime.datetime]:
-    """Parses ISO timestamp string into timezone-aware datetime in a Python 3.6 compatible manner."""
+    """
+    Parses ISO timestamp string into timezone-aware UTC datetime in a Python 3.6 compatible manner.
+    Accepts fractional seconds, Z suffix, +00:00 offset, and space separators.
+    Raises ValueError on non-empty unparseable string (never falls back to 0.0).
+    """
     if not ts_str:
         return None
     clean = str(ts_str).strip()
-    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+    if not clean:
+        return None
+
+    # Strip timezone suffixes (+00:00, +0000, +00, Z, z)
+    if clean.endswith("Z") or clean.endswith("z"):
+        clean = clean[:-1]
+    elif "+00:00" in clean:
+        clean = clean.replace("+00:00", "")
+    elif "+0000" in clean:
+        clean = clean.replace("+0000", "")
+    elif clean.endswith("+00"):
+        clean = clean[:-3]
+
+    clean = clean.replace(" ", "T")
+
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            naive = datetime.datetime.strptime(clean.replace("+00:00", "").replace("Z", ""), fmt)
+            naive = datetime.datetime.strptime(clean, fmt)
             return naive.replace(tzinfo=datetime.timezone.utc)
         except ValueError:
             continue
-    return None
+
+    raise ValueError("Unparseable ISO timestamp: %r" % ts_str)
 
 
 def _extract_iso_from_scan_id(scan_id: Optional[str]) -> Optional[str]:
@@ -137,9 +157,12 @@ def _extract_iso_from_scan_id(scan_id: Optional[str]) -> Optional[str]:
     if not scan_id:
         return None
     part = str(scan_id).split("_")[0]
-    dt = _parse_iso_timestamp(part)
-    if dt:
-        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        dt = _parse_iso_timestamp(part)
+        if dt:
+            return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        pass
     return None
 
 
@@ -162,6 +185,119 @@ HEALTHY_CLASSES_BY_CROP: Dict[str, Set[str]] = {
     "sugarcane": {"sugarcane__healthy", "sugarcane__dried_leaf"},
     "wheat": {"wheat__healthy"},
 }
+
+
+def is_declared_disease_class(class_name: str, declared_crop: Optional[str] = None) -> bool:
+    """Returns True if class_name represents a disease for declared_crop (or any disease if crop is None)."""
+    if not class_name or class_name == "not_crop":
+        return False
+    if declared_crop:
+        healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set())
+        return class_name.startswith(declared_crop + "__") and (class_name not in healthy_set)
+    else:
+        return not ("healthy" in class_name or "normal" in class_name or "dried" in class_name)
+
+
+def evaluate_alerts(
+    events: List[Any],
+    declared_crop: Optional[str] = None,
+    event_positions: Optional[Dict[int, Tuple[Optional[float], Optional[float], Optional[float], Optional[str]]]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Computes alerts from an event sequence.
+    Rule:
+      A frame counts toward disease X if frame_state != "NOT_CROP" and class_name == X and X is a disease class of declared_crop.
+      >= 3 such frames within 6 s -> alert.
+      15 s cooldown per class.
+    """
+    parsed_events = []
+    for e in events:
+        cname = ""
+        f_st = ""
+        f_idx = 0
+        ts_utc = ""
+        e_lat = None
+        e_lon = None
+
+        if isinstance(e, sqlite3.Row) or hasattr(e, "keys"):
+            keys = set(e.keys())
+            f_st = e["frame_state"] if "frame_state" in keys and e["frame_state"] else ""
+            cname = e["class_name"] if "class_name" in keys and e["class_name"] else ""
+            if not cname and "class_id" in keys and e["class_id"] is not None:
+                cid = e["class_id"]
+                if 0 <= cid < len(CLASS_NAMES):
+                    cname = CLASS_NAMES[cid]
+            f_idx = e["frame_idx"] if "frame_idx" in keys else 0
+            ts_utc = e["timestamp_utc"] if "timestamp_utc" in keys else ""
+            e_lat = e["lat"] if "lat" in keys else None
+            e_lon = e["lon"] if "lon" in keys else None
+        elif isinstance(e, dict):
+            f_st = e.get("frame_state") or ""
+            cname = e.get("class_name") or ""
+            if not cname and "class_id" in e and e["class_id"] is not None:
+                cid = e["class_id"]
+                if 0 <= cid < len(CLASS_NAMES):
+                    cname = CLASS_NAMES[cid]
+            f_idx = e.get("frame_idx", 0)
+            ts_utc = e.get("timestamp_utc", "")
+            e_lat = e.get("lat")
+            e_lon = e.get("lon")
+        elif isinstance(e, (list, tuple)):
+            # Pipeline history format: (t_sec, frame_state, cname_top, lat, lon, acc, is_used)
+            t_sec = float(e[0])
+            f_st = e[1] if len(e) > 1 and e[1] else ""
+            cname = e[2] if len(e) > 2 and e[2] else ""
+            e_lat = e[3] if len(e) > 3 else None
+            e_lon = e[4] if len(e) > 4 else None
+            parsed_events.append((t_sec, f_st, cname, 0, "", e_lat, e_lon))
+            continue
+        else:
+            cname = getattr(e, "class_name", "") or ""
+            f_st = getattr(e, "frame_state", "") or ""
+            ts_utc = getattr(e, "timestamp_utc", "") or ""
+
+        dt = _parse_iso_timestamp(ts_utc)
+        if dt is None:
+            raise ValueError("Unparseable timestamp_utc in alert evaluation: %r" % ts_utc)
+        t_sec = dt.timestamp()
+        parsed_events.append((t_sec, f_st, cname, f_idx, ts_utc, e_lat, e_lon))
+
+    parsed_events.sort(key=lambda x: x[0])
+    alerts = []
+    last_alert_time = {}
+
+    for i, (t_curr, f_st, cname, f_idx, ts_utc, e_lat, e_lon) in enumerate(parsed_events):
+        if f_st == "NOT_CROP" or not is_declared_disease_class(cname, declared_crop):
+            continue
+
+        agreeing = [
+            ev for ev in parsed_events[: i + 1]
+            if (t_curr - 6.0 <= ev[0] <= t_curr and ev[1] != "NOT_CROP" and ev[2] == cname)
+        ]
+        if len(agreeing) >= 3:
+            if t_curr - last_alert_time.get(cname, -999.0) >= 15.0:
+                last_alert_time[cname] = t_curr
+                a_lat = e_lat
+                a_lon = e_lon
+                a_acc = None
+                if event_positions and f_idx in event_positions:
+                    pos = event_positions[f_idx]
+                    a_lat = pos[0] if pos[0] is not None else a_lat
+                    a_lon = pos[1] if pos[1] is not None else a_lon
+                    a_acc = pos[2]
+
+                alert_id = len(alerts) + 1
+                alerts.append({
+                    "alert_id": alert_id,
+                    "utc": ts_utc if ts_utc else get_utc_iso_now(),
+                    "class": cname,
+                    "frames_agreeing": len(agreeing),
+                    "lat": a_lat,
+                    "lon": a_lon,
+                    "pos_accuracy_m": a_acc,
+                })
+
+    return alerts
 
 
 def evaluate_stretch_verdict(
@@ -1260,85 +1396,215 @@ class EdgeStorage(object):
                     "source": "measured",
                 })
 
-        # Overall dominant crop derivation
+        # Construct stretches, summary, alerts
+        if is_walk_mode:
+            start_dt = _parse_iso_timestamp(scan_row["started_utc"])
+            if events:
+                first_event_dt = _parse_iso_timestamp(events[0]["timestamp_utc"])
+                if first_event_dt and (not start_dt or first_event_dt < start_dt):
+                    start_dt = first_event_dt
+            start_ts = start_dt.timestamp() if start_dt else 0.0
+            dur = resolved_duration_s if resolved_duration_s is not None else 0.0
+            if dur > 0:
+                num_stretches = max(1, min(int(math.ceil(dur / 20.0)), 90))
+            elif len(events) > 0:
+                last_dt = _parse_iso_timestamp(events[-1]["timestamp_utc"])
+                last_ts = last_dt.timestamp() if last_dt else start_ts
+                num_stretches = max(1, min(int(math.ceil(max(1.0, last_ts - start_ts) / 20.0)), 90))
+            else:
+                num_stretches = 1
+
+            stretches = []
+            for i in range(num_stretches):
+                s_start_ts = start_ts + 20.0 * i
+                s_end_ts = start_ts + 20.0 * (i + 1)
+                s_start_utc = datetime.datetime.fromtimestamp(s_start_ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                s_end_utc = datetime.datetime.fromtimestamp(s_end_ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                s_events = []
+                for e in events:
+                    e_dt = _parse_iso_timestamp(e["timestamp_utc"])
+                    e_ts = e_dt.timestamp() if e_dt else 0.0
+                    if i == num_stretches - 1:
+                        if s_start_ts <= e_ts:
+                            s_events.append(e)
+                    else:
+                        if s_start_ts <= e_ts < s_end_ts:
+                            s_events.append(e)
+
+                s_verdict, s_top_class, s_agreeing = evaluate_stretch_verdict(s_events, declared_crop=declared_crop)
+
+                # Thermal median calculation for stretch
+                s_thermal_median = None
+                if not resolved_replay and thermal_samples:
+                    s_t_vals = []
+                    for ts_item, t_val in thermal_samples:
+                        t_dt = _parse_iso_timestamp(ts_item) if isinstance(ts_item, str) else None
+                        t_sec = t_dt.timestamp() if t_dt else (float(ts_item) if isinstance(ts_item, (int, float)) else 0.0)
+                        if s_start_ts <= t_sec <= s_end_ts:
+                            s_t_vals.append(float(t_val))
+                    if s_t_vals:
+                        s_thermal_median = round(float(np.median(s_t_vals)), 1)
+
+                s_lats = []
+                s_lons = []
+                s_accs = []
+                s_srcs = []
+                for ev in s_events:
+                    pos = event_positions.get(ev["frame_idx"])
+                    if pos and pos[0] is not None and pos[1] is not None:
+                        s_lats.append(pos[0])
+                        s_lons.append(pos[1])
+                        if pos[2] is not None:
+                            s_accs.append(pos[2])
+                        if pos[3] is not None:
+                            s_srcs.append(pos[3])
+
+                if s_lats:
+                    str_lat = round(float(np.mean(s_lats)), 6)
+                    str_lon = round(float(np.mean(s_lons)), 6)
+                    str_acc = round(float(np.mean(s_accs)), 1) if s_accs else None
+                    str_src = s_srcs[0] if s_srcs else "pod_gps"
+                elif track_points:
+                    # Match stretch midpoint within ±10s
+                    s_mid_ts = (s_start_ts + s_end_ts) / 2.0
+                    best_diff = 10.01
+                    best_tp = None
+                    for tp in track_points:
+                        diff = abs(tp[0] - s_mid_ts)
+                        if diff <= 10.0 and diff < best_diff:
+                            best_diff = diff
+                            best_tp = tp
+                    if best_tp is not None:
+                        str_lat = round(best_tp[1], 6)
+                        str_lon = round(best_tp[2], 6)
+                        str_acc = best_tp[3]
+                        str_src = "phone_gps"
+                    else:
+                        str_lat = None
+                        str_lon = None
+                        str_acc = None
+                        str_src = None
+                else:
+                    str_lat = None
+                    str_lon = None
+                    str_acc = None
+                    str_src = None
+
+                stretches.append({
+                    "index": i,
+                    "start_utc": s_start_utc,
+                    "end_utc": s_end_utc,
+                    "frames_used": len(s_events),
+                    "verdict": s_verdict,
+                    "top_class": s_top_class,
+                    "frames_agreeing": s_agreeing,
+                    "thermal_median_c": s_thermal_median,
+                    "lat": str_lat,
+                    "lon": str_lon,
+                    "pos_accuracy_m": str_acc,
+                    "pos_source": str_src,
+                })
+
+            summary = {
+                "stretches_total": len(stretches),
+                "healthy": sum(1 for s in stretches if s["verdict"] == "HEALTHY"),
+                "need_look": sum(1 for s in stretches if s["verdict"] == "DISEASE"),
+                "unclear": sum(1 for s in stretches if s["verdict"] == "UNCERTAIN"),
+                "not_crop": sum(1 for s in stretches if s["verdict"] == "NOT_CROP"),
+                "no_data": sum(1 for s in stretches if s["verdict"] == "NO_DATA"),
+            }
+            alerts = evaluate_alerts(events, declared_crop=declared_crop, event_positions=event_positions)
+        else:
+            stretches = []
+            summary = {
+                "stretches_total": 0,
+                "healthy": 0,
+                "need_look": 0,
+                "unclear": 0,
+                "not_crop": 0,
+                "no_data": 0,
+            }
+            alerts = []
+
+        # Overall dominant crop and state derivation
         dominant_crop = None
         crop_health_reason = None
         crop_source = None
-
-        if is_walk_mode and declared_crop:
-            dominant_crop = declared_crop
-            crop_source = "declared"
 
         max_agree = max([c["n_agree"] for c in cells] or [0])
         cell_states = set(c["state"] for c in cells)
         overall_state = "NO_DATA"
 
-        if not events:
-            overall_state = "NO_DATA"
-            crop_health_reason = "NO_USABLE_FRAMES"
-        else:
-            if is_walk_mode and declared_crop:
-                declared_events = [e for e in events if (e["class_name"] or "").startswith(declared_crop + "__")]
-                declared_healthy = [e for e in declared_events if (e["class_name"] in healthy_set or e["frame_state"] == "HEALTHY")]
-                declared_disease = [e for e in declared_events if (e["class_name"] not in healthy_set and e["frame_state"] != "HEALTHY" and e["class_name"] != "not_crop")]
-                not_crop_events = [e for e in events if (e["class_name"] == "not_crop" or e["frame_state"] == "NOT_CROP")]
+        if is_walk_mode:
+            dominant_crop = declared_crop
+            crop_source = "declared" if declared_crop else None
 
-                # Only cells matching declared crop state affect overall state
-                if len(declared_events) == 0 and len(not_crop_events) == len(events):
-                    overall_state = "NOT_CROP"
-                    crop_health_reason = None
-                elif len(declared_events) == 0:
-                    overall_state = "UNCERTAIN"
-                    crop_health_reason = "HIGH_UNCERTAINTY"
-                elif len(declared_disease) > 0:
-                    overall_state = "DISEASE"
-                    crop_health_reason = None
-                elif len(declared_healthy) > 0:
-                    overall_state = "HEALTHY"
-                    crop_health_reason = None
-                else:
-                    overall_state = "UNCERTAIN"
-                    crop_health_reason = "HIGH_UNCERTAINTY"
+            if not events:
+                overall_state = "NO_DATA"
+                crop_health_reason = "NO_USABLE_FRAMES"
+            elif summary["need_look"] >= 1:
+                overall_state = "DISEASE"
+                crop_health_reason = None
+            elif summary["healthy"] >= 1:
+                overall_state = "HEALTHY"
+                crop_health_reason = None
+            elif summary["not_crop"] == summary["stretches_total"] and summary["stretches_total"] > 0:
+                overall_state = "NOT_CROP"
+                crop_health_reason = None
             else:
-                if crop_counts:
-                    total_crop_detections = sum(crop_counts.values())
-                    sorted_crops = sorted(crop_counts.items(), key=lambda x: x[1], reverse=True)
-                    top_crop, top_count = sorted_crops[0]
+                overall_state = "UNCERTAIN"
+                has_detections = any(e["frame_state"] in ("DISEASE", "HEALTHY") for e in events) or any(c["state"] in ("DISEASE", "HEALTHY") for c in cells)
+                if has_detections:
+                    crop_health_reason = "UNCONFIRMED_DETECTIONS"
+                else:
+                    crop_health_reason = "HIGH_UNCERTAINTY"
+        else:
+            if crop_counts:
+                total_crop_detections = sum(crop_counts.values())
+                sorted_crops = sorted(crop_counts.items(), key=lambda x: x[1], reverse=True)
+                top_crop, top_count = sorted_crops[0]
 
-                    if len(sorted_crops) == 1:
+                if len(sorted_crops) == 1:
+                    dominant_crop = top_crop
+                else:
+                    if (top_count / float(total_crop_detections)) >= 0.85:
                         dominant_crop = top_crop
                     else:
-                        if (top_count / float(total_crop_detections)) >= 0.85:
-                            dominant_crop = top_crop
-                        else:
-                            dominant_crop = None
-                            crop_health_reason = "MULTIPLE_CROPS_DETECTED"
+                        dominant_crop = None
+                        crop_health_reason = "MULTIPLE_CROPS_DETECTED"
 
-                if cells:
-                    if "DISEASE" in cell_states:
-                        overall_state = "DISEASE"
-                    elif "HEALTHY" in cell_states:
-                        overall_state = "HEALTHY"
-                    elif state_counts["NOT_CROP"] == len(events):
-                        overall_state = "NOT_CROP"
-                    else:
-                        overall_state = "UNCERTAIN"
-                        if not crop_health_reason:
-                            if max_agree == 0 and (state_counts["DISEASE"] > 0 or state_counts["HEALTHY"] > 0):
-                                crop_health_reason = "UNCONFIRMED_DETECTIONS"
-                            else:
-                                crop_health_reason = "HIGH_UNCERTAINTY"
+            if not events:
+                overall_state = "NO_DATA"
+                crop_health_reason = "NO_USABLE_FRAMES"
+            elif cells:
+                if "DISEASE" in cell_states:
+                    overall_state = "DISEASE"
+                elif "HEALTHY" in cell_states:
+                    overall_state = "HEALTHY"
+                elif state_counts["NOT_CROP"] == len(events):
+                    overall_state = "NOT_CROP"
                 else:
-                    if state_counts["DISEASE"] > 0:
-                        overall_state = "DISEASE"
-                    elif state_counts["HEALTHY"] > 0:
-                        overall_state = "HEALTHY"
-                    elif state_counts["NOT_CROP"] == len(events):
-                        overall_state = "NOT_CROP"
-                    else:
-                        overall_state = "UNCERTAIN"
-                        if not crop_health_reason:
+                    overall_state = "UNCERTAIN"
+                    if not crop_health_reason:
+                        if max_agree == 0 and (state_counts["DISEASE"] > 0 or state_counts["HEALTHY"] > 0):
+                            crop_health_reason = "UNCONFIRMED_DETECTIONS"
+                        else:
                             crop_health_reason = "HIGH_UNCERTAINTY"
+            else:
+                if state_counts["DISEASE"] > 0:
+                    overall_state = "DISEASE"
+                elif state_counts["HEALTHY"] > 0:
+                    overall_state = "HEALTHY"
+                elif state_counts["NOT_CROP"] == len(events):
+                    overall_state = "NOT_CROP"
+                else:
+                    overall_state = "UNCERTAIN"
+                    if not crop_health_reason:
+                        crop_health_reason = "HIGH_UNCERTAINTY"
+
+        if overall_state == "NO_DATA" and not crop_health_reason:
+            crop_health_reason = "NO_USABLE_FRAMES"
 
         # Actions block: Evaluated deterministically by Step 27 (edge/rules_engine.py)
         from edge.rules_engine import evaluate_rules
@@ -1771,176 +2037,6 @@ class EdgeStorage(object):
         if resolved_pest is None:
             resolved_pest = []
 
-        # Construct stretches, summary, alerts
-        if is_walk_mode:
-            start_dt = _parse_iso_timestamp(scan_row["started_utc"])
-            if events:
-                first_event_dt = _parse_iso_timestamp(events[0]["timestamp_utc"])
-                if first_event_dt and (not start_dt or first_event_dt < start_dt):
-                    start_dt = first_event_dt
-            start_ts = start_dt.timestamp() if start_dt else 0.0
-            dur = resolved_duration_s if resolved_duration_s is not None else 0.0
-            if dur > 0:
-                num_stretches = max(1, min(int(math.ceil(dur / 20.0)), 90))
-            elif len(events) > 0:
-                last_dt = _parse_iso_timestamp(events[-1]["timestamp_utc"])
-                last_ts = last_dt.timestamp() if last_dt else start_ts
-                num_stretches = max(1, min(int(math.ceil(max(1.0, last_ts - start_ts) / 20.0)), 90))
-            else:
-                num_stretches = 1
-
-            stretches = []
-            for i in range(num_stretches):
-                s_start_ts = start_ts + 20.0 * i
-                s_end_ts = start_ts + 20.0 * (i + 1)
-                s_start_utc = datetime.datetime.fromtimestamp(s_start_ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                s_end_utc = datetime.datetime.fromtimestamp(s_end_ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-                s_events = []
-                for e in events:
-                    e_dt = _parse_iso_timestamp(e["timestamp_utc"])
-                    e_ts = e_dt.timestamp() if e_dt else 0.0
-                    if i == num_stretches - 1:
-                        if s_start_ts <= e_ts:
-                            s_events.append(e)
-                    else:
-                        if s_start_ts <= e_ts < s_end_ts:
-                            s_events.append(e)
-
-                s_verdict, s_top_class, s_agreeing = evaluate_stretch_verdict(s_events, declared_crop=declared_crop)
-
-                # Thermal median calculation for stretch (Fix 6)
-                s_thermal_median = None
-                if not resolved_replay and thermal_samples:
-                    s_t_vals = []
-                    for ts_item, t_val in thermal_samples:
-                        t_dt = _parse_iso_timestamp(ts_item) if isinstance(ts_item, str) else None
-                        t_sec = t_dt.timestamp() if t_dt else (float(ts_item) if isinstance(ts_item, (int, float)) else 0.0)
-                        if s_start_ts <= t_sec <= s_end_ts:
-                            s_t_vals.append(float(t_val))
-                    if s_t_vals:
-                        s_thermal_median = round(float(np.median(s_t_vals)), 1)
-
-                s_lats = []
-                s_lons = []
-                s_accs = []
-                s_srcs = []
-                for ev in s_events:
-                    pos = event_positions.get(ev["frame_idx"])
-                    if pos and pos[0] is not None and pos[1] is not None:
-                        s_lats.append(pos[0])
-                        s_lons.append(pos[1])
-                        if pos[2] is not None:
-                            s_accs.append(pos[2])
-                        if pos[3] is not None:
-                            s_srcs.append(pos[3])
-
-                if s_lats:
-                    str_lat = round(float(np.mean(s_lats)), 6)
-                    str_lon = round(float(np.mean(s_lons)), 6)
-                    str_acc = round(float(np.mean(s_accs)), 1) if s_accs else None
-                    str_src = s_srcs[0] if s_srcs else "pod_gps"
-                elif track_points:
-                    # Match stretch midpoint within ±10s
-                    s_mid_ts = (s_start_ts + s_end_ts) / 2.0
-                    best_diff = 10.01
-                    best_tp = None
-                    for tp in track_points:
-                        diff = abs(tp[0] - s_mid_ts)
-                        if diff <= 10.0 and diff < best_diff:
-                            best_diff = diff
-                            best_tp = tp
-                    if best_tp is not None:
-                        str_lat = round(best_tp[1], 6)
-                        str_lon = round(best_tp[2], 6)
-                        str_acc = best_tp[3]
-                        str_src = "phone_gps"
-                    else:
-                        str_lat = None
-                        str_lon = None
-                        str_acc = None
-                        str_src = None
-                else:
-                    str_lat = None
-                    str_lon = None
-                    str_acc = None
-                    str_src = None
-
-                stretches.append({
-                    "index": i,
-                    "start_utc": s_start_utc,
-                    "end_utc": s_end_utc,
-                    "frames_used": len(s_events),
-                    "verdict": s_verdict,
-                    "top_class": s_top_class,
-                    "frames_agreeing": s_agreeing,
-                    "thermal_median_c": s_thermal_median,
-                    "lat": str_lat,
-                    "lon": str_lon,
-                    "pos_accuracy_m": str_acc,
-                    "pos_source": str_src,
-                })
-
-            summary = {
-                "stretches_total": len(stretches),
-                "healthy": sum(1 for s in stretches if s["verdict"] == "HEALTHY"),
-                "need_look": sum(1 for s in stretches if s["verdict"] == "DISEASE"),
-                "unclear": sum(1 for s in stretches if s["verdict"] == "UNCERTAIN"),
-                "not_crop": sum(1 for s in stretches if s["verdict"] == "NOT_CROP"),
-                "no_data": sum(1 for s in stretches if s["verdict"] == "NO_DATA"),
-            }
-
-            all_alerts = []
-            last_alert_time = {}
-            parsed_events = []
-            for e in events:
-                dt = _parse_iso_timestamp(e["timestamp_utc"])
-                t = dt.timestamp() if dt else 0.0
-                parsed_events.append((t, e))
-            parsed_events.sort(key=lambda x: x[0])
-
-            for t_curr, e in parsed_events:
-                cname = e["class_name"] or ""
-                if declared_crop:
-                    if not cname.startswith(declared_crop + "__"):
-                        continue
-                    if cname in healthy_set:
-                        continue
-                else:
-                    if "healthy" in cname or "normal" in cname or "dried" in cname or cname == "not_crop":
-                        continue
-                if cname:
-                    agreeing = [ev for t_prev, ev in parsed_events if (t_curr - 6.0 <= t_prev <= t_curr and ev["class_name"] == cname)]
-                    if len(agreeing) >= 3:
-                        if t_curr - last_alert_time.get(cname, -999.0) >= 15.0:
-                            last_alert_time[cname] = t_curr
-                            pos = event_positions.get(e["frame_idx"])
-                            a_lat = pos[0] if pos else e["lat"]
-                            a_lon = pos[1] if pos else e["lon"]
-                            a_acc = pos[2] if pos else None
-                            alert_id = len(all_alerts) + 1
-                            all_alerts.append({
-                                "alert_id": alert_id,
-                                "utc": e["timestamp_utc"],
-                                "class": cname,
-                                "frames_agreeing": len(agreeing),
-                                "lat": a_lat,
-                                "lon": a_lon,
-                                "pos_accuracy_m": a_acc,
-                            })
-            alerts = all_alerts
-        else:
-            stretches = []
-            summary = {
-                "stretches_total": 0,
-                "healthy": 0,
-                "need_look": 0,
-                "unclear": 0,
-                "not_crop": 0,
-                "no_data": 0,
-            }
-            alerts = []
-
         if overall_state == "NO_DATA" and not crop_health_reason:
             crop_health_reason = "NO_USABLE_FRAMES"
 
@@ -2064,6 +2160,59 @@ class EdgeStorage(object):
             total_gps = len(track_points)
         gps_status = "OK" if total_gps > 0 else "ABSENT"
 
+        gps_src = None
+        if phone_gps_points > 0 or (len(track_points) > 0 and gps_points == 0):
+            gps_src = "phone_gps"
+        elif gps_points > 0:
+            gps_src = "pod_gps"
+
+        inputs_list = [
+            {
+                "name": "pod_camera_rgb",
+                "source_node": "POD",
+                "status": "OK" if int(scan_row["frames_captured"] or len(events)) > 0 else "ABSENT",
+            },
+            {
+                "name": "pod_gps",
+                "source_node": "POD",
+                "status": "OK" if gps_points > 0 else "ABSENT",
+            },
+            {
+                "name": "pod_thermal",
+                "source_node": "POD",
+                "status": (
+                    "MOCK_PROVISIONAL"
+                    if thermal_block.get("thermal_source") == "mock"
+                    else (
+                        "OK"
+                        if thermal_block.get("available")
+                        else (
+                            "PENDING_CALIBRATION"
+                            if (
+                                not replay
+                                and (
+                                    (thermal_frame_data and thermal_frame_data.get("available") and thermal_frame_data.get("thermal_source") == "hardware")
+                                    or (thermal_block.get("tc_c") is not None)
+                                    or (
+                                        thermal_block.get("reason")
+                                        and not str(thermal_block.get("reason")).startswith("HARDWARE_NOT_CONNECTED")
+                                        and not str(thermal_block.get("reason")).startswith("HARDWARE_CAPTURE_FAILED")
+                                    )
+                                )
+                            )
+                            else "ABSENT"
+                        )
+                    )
+                ),
+            },
+        ]
+        if gps_src == "phone_gps" or phone_gps_points > 0 or len(track_points) > 0:
+            inputs_list.append({
+                "name": "phone_gps",
+                "source_node": "PHONE",
+                "status": "OK",
+            })
+
         # Construct payload strictly according to ans_for_vitthal.md §8 and data_flow_architecture.md §7.3
         payload = {
             "schema_version": "1.0",
@@ -2088,6 +2237,7 @@ class EdgeStorage(object):
             "detections": detections,
             "gps": {
                 "status": gps_status,
+                "source": gps_src,
                 "point_count": total_gps,
                 "accuracy_note": "Point tagging only, approximately 2.5 m CEP. Not a survey-grade position.",
             },
@@ -2101,46 +2251,7 @@ class EdgeStorage(object):
                 for d in detections if "__" in d["class"] and "normal" not in d["class"] and "healthy" not in d["class"]
             ],
             "pest": resolved_pest,
-            "inputs": [
-                {
-                    "name": "pod_camera_rgb",
-                    "source_node": "POD",
-                    "status": "OK" if int(scan_row["frames_captured"] or len(events)) > 0 else "ABSENT",
-                },
-                {
-                    "name": "pod_gps",
-                    "source_node": "POD",
-                    "status": "OK" if gps_points > 0 else "ABSENT",
-                },
-                {
-                    "name": "pod_thermal",
-                    "source_node": "POD",
-                    "status": (
-                        "MOCK_PROVISIONAL"
-                        if thermal_block.get("thermal_source") == "mock"
-                        else (
-                            "OK"
-                            if thermal_block.get("available")
-                            else (
-                                "PENDING_CALIBRATION"
-                                if (
-                                    not replay
-                                    and (
-                                        (thermal_frame_data and thermal_frame_data.get("available") and thermal_frame_data.get("thermal_source") == "hardware")
-                                        or (thermal_block.get("tc_c") is not None)
-                                        or (
-                                            thermal_block.get("reason")
-                                            and not str(thermal_block.get("reason")).startswith("HARDWARE_NOT_CONNECTED")
-                                            and not str(thermal_block.get("reason")).startswith("HARDWARE_CAPTURE_FAILED")
-                                        )
-                                    )
-                                )
-                                else "ABSENT"
-                            )
-                        )
-                    ),
-                },
-            ],
+            "inputs": inputs_list,
             "actions": actions,
         }
 

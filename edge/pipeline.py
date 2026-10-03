@@ -104,6 +104,7 @@ from edge.storage import (
     EdgeStorage,
     _parse_iso_timestamp,
     evaluate_stretch_verdict,
+    is_declared_disease_class,
     get_storage_free_mb,
     get_utc_iso_now,
 )
@@ -1418,30 +1419,21 @@ class DecisionAggregateStoreThread(threading.Thread):
                 self.used_history.append((t_now_mono, frame_state, cname_top, lat_v, lon_v, None, True))
 
                 # Realtime Alert Tracking: ≥3 frames agree on the same disease of the declared crop within 6 s; 15 s cooldown per disease
-                if frame_state == "DISEASE" and cname_top:
-                    is_candidate_disease = False
-                    if self.crop:
-                        if cname_top.startswith(self.crop + "__") and cname_top not in HEALTHY_CLASSES_BY_CROP.get(self.crop, set()):
-                            is_candidate_disease = True
-                    else:
-                        if not ("healthy" in cname_top or "normal" in cname_top or "dried" in cname_top or cname_top == "not_crop"):
-                            is_candidate_disease = True
-
-                    if is_candidate_disease:
-                        agreeing = [e for e in self.used_history if (e[0] >= t_now_mono - 6.0 and e[2] == cname_top)]
-                        if len(agreeing) >= 3:
-                            if t_now_mono - self.last_alert_mono.get(cname_top, -999.0) >= 15.0:
-                                self.last_alert_mono[cname_top] = t_now_mono
-                                alert_id = len(self.alerts) + 1
-                                self.alerts.append({
-                                    "alert_id": alert_id,
-                                    "utc": timestamp_utc,
-                                    "class": cname_top,
-                                    "frames_agreeing": len(agreeing),
-                                    "lat": lat_v,
-                                    "lon": lon_v,
-                                    "pos_accuracy_m": None,
-                                })
+                if frame_state != "NOT_CROP" and cname_top and is_declared_disease_class(cname_top, self.crop):
+                    agreeing = [e for e in self.used_history if (e[0] >= t_now_mono - 6.0 and e[1] != "NOT_CROP" and e[2] == cname_top)]
+                    if len(agreeing) >= 3:
+                        if t_now_mono - self.last_alert_mono.get(cname_top, -999.0) >= 15.0:
+                            self.last_alert_mono[cname_top] = t_now_mono
+                            alert_id = len(self.alerts) + 1
+                            self.alerts.append({
+                                "alert_id": alert_id,
+                                "utc": timestamp_utc,
+                                "class": cname_top,
+                                "frames_agreeing": len(agreeing),
+                                "lat": lat_v,
+                                "lon": lon_v,
+                                "pos_accuracy_m": None,
+                            })
 
                 if jsonl_file is not None:
                     t_jw0 = time.time()

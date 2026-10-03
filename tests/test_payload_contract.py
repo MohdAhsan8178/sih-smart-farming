@@ -378,11 +378,12 @@ def assert_advisory_payload_schema_recursive(payload: dict):
         assert isinstance(payload["irrigation"]["reason"], str)
 
     # 10. GPS Scan Summary Block
-    expected_gps_keys = {"status", "point_count", "accuracy_note"}
+    expected_gps_keys = {"status", "point_count", "accuracy_note", "source"}
     assert set(payload["gps"].keys()) == expected_gps_keys, f"GPS keys mismatch: {set(payload['gps'].keys()) ^ expected_gps_keys}"
     assert payload["gps"]["status"] in ("OK", "ABSENT")
     assert isinstance(payload["gps"]["point_count"], int)
     assert isinstance(payload["gps"]["accuracy_note"], str)
+    assert payload["gps"]["source"] in ("pod_gps", "phone_gps", None)
 
     # 11. Detections List Elements
     expected_det_keys = {

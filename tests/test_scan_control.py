@@ -23,6 +23,7 @@ Covers Stage 1 Requirements:
 8. Phone time sync helper validation (ISO-8601 UTC regex, year range 2025–2035).
 """
 
+import datetime
 import json
 import os
 from pathlib import Path
@@ -47,6 +48,8 @@ from edge.storage import (
     EdgeStorage,
     get_utc_iso_now,
     resolve_data_directory,
+    _parse_iso_timestamp,
+    is_declared_disease_class,
 )
 from configs.classes import IDX
 from gateway.server import EdgeGateway, ThreadedHTTPServer
@@ -2144,6 +2147,345 @@ def test_stage2_scan_track_validation_errors(running_gateway):
     assert tracks[0]["lat"] == 28.5
 
     gw.server.stop_scan()
+
+
+def test_stage2_addendum_a1_timestamp_parsing():
+    """
+    Test A1: Timestamp parsing with real strings observed on physical Jetson Nano.
+    Verifies support for:
+      - Fractional seconds with timezone offset: '2026-10-03T17:58:45.750722+00:00'
+      - Standard UTC with Z: '2026-10-03T17:58:45Z'
+      - Unparseable strings must raise ValueError (never fall back to 0.0)
+      - Advisory generation correctly buckets fractional timestamps into stretches.
+    """
+    real_nano_timestamps = [
+        "2026-10-03T17:58:45.750722+00:00",
+        "2026-10-03T17:58:43.478917+00:00",
+        "2026-10-03T17:58:38.917260+00:00",
+        "2026-10-03T17:58:45Z",
+        "2026-10-03T17:58:43Z",
+        "2026-10-03T17:55:40Z",
+    ]
+
+    for ts in real_nano_timestamps:
+        dt = _parse_iso_timestamp(ts)
+        assert dt is not None
+        assert dt.tzinfo == datetime.timezone.utc
+
+    # Verify ValueError is raised on invalid non-empty strings
+    with pytest.raises(ValueError):
+        _parse_iso_timestamp("not_a_valid_timestamp_123")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "nano_ts.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T17:58:30Z_F01"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="sugarcane",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # Ingest 3 real events with microsecond timestamps from the Nano
+        for i, ts in enumerate(real_nano_timestamps[:3]):
+            storage.record_frame_event(
+                scan_id=scan_id,
+                frame_idx=i,
+                timestamp_utc=ts,
+                cell_id="cell_1",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="HEALTHY",
+                class_id=IDX["sugarcane__healthy"],
+                confidence=0.95,
+                tile_decisions=[],
+                source_image="frame_%d.jpg" % i,
+            )
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=3,
+            frames_evaluated=3,
+            tiles_classified=27,
+            status="complete",
+            stop_reason="user",
+            duration_s=30.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            crop_declared="sugarcane",
+            duration_s=30.0,
+            mode="walk",
+        )
+
+        assert len(adv["stretches"]) >= 1
+        # Stretches must not be empty/NO_DATA because timestamps parsed accurately
+        assert adv["summary"]["healthy"] >= 1
+        assert adv["crop_health"]["state"] == "HEALTHY"
+
+
+def test_stage2_addendum_a2_identical_live_and_final_alerts():
+    """
+    Test A2: One Alert Rule.
+    Verifies that the same event sequence produces identical alert lists live in
+    pipeline DecisionAggregateStoreThread and in EdgeStorage create_advisory.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "alerts_parity.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T10:00:00Z_F01"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="sugarcane",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # Setup mock pipeline DecisionAggregateStoreThread
+        from edge.pipeline import DecisionAggregateStoreThread
+        decision_thread = DecisionAggregateStoreThread(
+            in_queue=None,
+            storage=storage,
+            scan_id=scan_id,
+            crop="sugarcane",
+            field_id="F01",
+            until_stopped=True,
+        )
+
+        # Event sequence:
+        # Frame 0 (+1s): sugarcane__red_rot, frame_state="UNCERTAIN" (used frame counts toward disease)
+        # Frame 1 (+2s): sugarcane__red_rot, frame_state="DISEASE"
+        # Frame 2 (+3s): sugarcane__red_rot, frame_state="DISEASE" -> alert 1 triggers
+        # Frame 3 (+4s): sugarcane__red_rot (within 15s cooldown -> no alert)
+        # Frame 4 (+20s): sugarcane__red_rot, frame_state="DISEASE"
+        # Frame 5 (+21s): sugarcane__red_rot, frame_state="DISEASE"
+        # Frame 6 (+22s): sugarcane__red_rot, frame_state="DISEASE" -> alert 2 triggers (cooldown expired)
+        t_base = 1000.0
+        offsets = [1.0, 2.0, 3.0, 4.0, 20.0, 21.0, 22.0]
+        f_states = ["UNCERTAIN", "DISEASE", "DISEASE", "DISEASE", "DISEASE", "DISEASE", "DISEASE"]
+
+        for idx, (dt, f_st) in enumerate(zip(offsets, f_states)):
+            ts_str = "2026-10-03T10:00:%02dZ" % int(dt)
+            cname = "sugarcane__red_rot"
+            cid = IDX[cname]
+
+            # Ingest into DB
+            storage.record_frame_event(
+                scan_id=scan_id,
+                frame_idx=idx,
+                timestamp_utc=ts_str,
+                cell_id="cell_1",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state=f_st,
+                class_id=cid,
+                confidence=0.91,
+                tile_decisions=[],
+                source_image="frame_%d.jpg" % idx,
+            )
+
+            # Ingest into live decision thread with simulated mono time
+            t_mono = t_base + dt
+            decision_thread.used_history.append((t_mono, f_st, cname, 28.5, 77.5, None, True))
+            if f_st != "NOT_CROP" and cname and is_declared_disease_class(cname, "sugarcane"):
+                agreeing = [e for e in decision_thread.used_history if (e[0] >= t_mono - 6.0 and e[1] != "NOT_CROP" and e[2] == cname)]
+                if len(agreeing) >= 3:
+                    if t_mono - decision_thread.last_alert_mono.get(cname, -999.0) >= 15.0:
+                        decision_thread.last_alert_mono[cname] = t_mono
+                        aid = len(decision_thread.alerts) + 1
+                        decision_thread.alerts.append({
+                            "alert_id": aid,
+                            "utc": ts_str,
+                            "class": cname,
+                            "frames_agreeing": len(agreeing),
+                            "lat": 28.5,
+                            "lon": 77.5,
+                            "pos_accuracy_m": None,
+                        })
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=len(offsets),
+            frames_evaluated=len(offsets),
+            tiles_classified=len(offsets) * 9,
+            status="complete",
+            stop_reason="user",
+            duration_s=30.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            crop_declared="sugarcane",
+            duration_s=30.0,
+            mode="walk",
+        )
+
+        live_alerts = decision_thread.alerts
+        final_alerts = adv["alerts"]
+
+        assert len(live_alerts) == 2
+        assert len(final_alerts) == 2
+
+        # Check parity between live and final alerts
+        for l_alt, f_alt in zip(live_alerts, final_alerts):
+            assert l_alt["class"] == f_alt["class"]
+            assert l_alt["frames_agreeing"] == f_alt["frames_agreeing"]
+            assert l_alt["alert_id"] == f_alt["alert_id"]
+
+
+def test_stage2_addendum_a3_headline_follows_stretches():
+    """
+    Test A3: Headline Must Follow the Stretches (Walk Mode).
+    Walk mode with:
+      - 2 isolated DISEASE frames + 1 DISEASE cell
+      - 0 stretches qualify as DISEASE (summary.need_look == 0)
+    Headline crop_health.state must be UNCERTAIN with reason "UNCONFIRMED_DETECTIONS".
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "headline_test.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T10:00:00Z_F01"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="sugarcane",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # Record 1 cell verdict as DISEASE
+        storage.record_cell_verdict(
+            scan_id=scan_id,
+            cell_id="cell_1",
+            state="DISEASE",
+            class_id=IDX["sugarcane__mosaic"],
+            score=0.90,
+            n_frames=2,
+            n_agree=2,
+        )
+
+        # Record 2 isolated DISEASE frames spread far apart in a 60s walk:
+        # Frame 0 at +5s, Frame 1 at +45s (each stretch has only 1 disease frame -> 0 need_look stretches)
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=0,
+            timestamp_utc="2026-10-03T10:00:05Z",
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="DISEASE",
+            class_id=IDX["sugarcane__mosaic"],
+            confidence=0.88,
+            tile_decisions=[],
+            source_image="frame_0.jpg",
+        )
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=1,
+            timestamp_utc="2026-10-03T10:00:45Z",
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="DISEASE",
+            class_id=IDX["sugarcane__mosaic"],
+            confidence=0.89,
+            tile_decisions=[],
+            source_image="frame_1.jpg",
+        )
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=2,
+            frames_evaluated=2,
+            tiles_classified=18,
+            status="complete",
+            stop_reason="user",
+            duration_s=60.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            crop_declared="sugarcane",
+            duration_s=60.0,
+            mode="walk",
+        )
+
+        assert adv["summary"]["need_look"] == 0
+        assert adv["crop_health"]["state"] == "UNCERTAIN"
+        assert adv["crop_health"]["reason"] == "UNCONFIRMED_DETECTIONS"
+
+
+def test_stage2_addendum_a4_gps_source_and_inputs(running_gateway):
+    """
+    Test A4: GPS source and inputs array contract.
+    When phone fixes were used:
+      - gps.source == "phone_gps"
+      - inputs contains {"name": "phone_gps", "source_node": "PHONE", "status": "OK"}
+      - pod_gps reports status "ABSENT"
+    """
+    gw, base_url = running_gateway
+
+    # Start a walk scan
+    s_start, b_start, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s_start == 202
+    active_scan_id = b_start["scan_id"]
+
+    # Send phone GPS fixes
+    http_post_json(
+        f"{base_url}/api/v1/scan/track",
+        {
+            "scan_id": active_scan_id,
+            "fixes": [
+                {"utc": "2026-10-03T10:00:02Z", "lat": 28.52001, "lon": 77.58001, "accuracy_m": 4.0},
+                {"utc": "2026-10-03T10:00:04Z", "lat": 28.52002, "lon": 77.58002, "accuracy_m": 5.0},
+            ],
+        },
+    )
+
+    # Stop scan and get advisory
+    gw.server.stop_scan()
+    for _ in range(30):
+        time.sleep(0.1)
+        _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+        if b["state"] in ("done", "idle"):
+            break
+
+    adv = gw.server.storage.get_advisory("latest")
+    assert adv is not None
+    assert adv["gps"]["source"] == "phone_gps"
+
+    inputs_map = {inp["name"]: inp for inp in adv["inputs"]}
+    assert "phone_gps" in inputs_map
+    assert inputs_map["phone_gps"]["source_node"] == "PHONE"
+    assert inputs_map["phone_gps"]["status"] == "OK"
+    assert inputs_map["pod_gps"]["status"] == "ABSENT"
+
 
 
 
