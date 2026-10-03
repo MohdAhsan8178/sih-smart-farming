@@ -48,6 +48,7 @@ from edge.storage import (
     get_utc_iso_now,
     resolve_data_directory,
 )
+from configs.classes import IDX
 from gateway.server import EdgeGateway, ThreadedHTTPServer
 
 
@@ -1124,4 +1125,497 @@ def test_pod_ready_stays_true_after_scan_error(running_gateway, monkeypatch):
     assert s_h == 200
     assert b_h["scan_state"] == "error"
     assert b_h["pod_ready"] is True
+
+
+# =============================================================================
+# Stage 2 Part 1 Tests
+# =============================================================================
+
+def test_stage2_stretch_verdicts_and_summary():
+    """
+    Test 1: Stretch verdicts & summary.
+    3 synthetic 20s stretches:
+      - Stretch 0 [0..20s): healthy frames -> verdict HEALTHY
+      - Stretch 1 [20..40s): disease frames -> verdict DISEASE, top_class set
+      - Stretch 2 [40..60s): 0 frames -> verdict NO_DATA
+    summary: stretches_total == 3, healthy == 1, need_look == 1, unclear == 0, not_crop == 0, no_data == 1.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "stretch_test.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T10:00:00Z_F01"
+        started_utc = "2026-10-03T10:00:00Z"
+        ended_utc = "2026-10-03T10:01:00Z"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="wheat",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # Stretch 0: 4 healthy frames at +2s, +4s, +6s, +8s
+        for i in range(4):
+            ts = "2026-10-03T10:00:%02dZ" % (2 + i * 2)
+            storage.record_frame_event(
+                scan_id=scan_id,
+                frame_idx=i,
+                timestamp_utc=ts,
+                cell_id="cell_1",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="HEALTHY",
+                class_id=IDX["wheat__healthy"],
+                confidence=0.95,
+                tile_decisions=[],
+                source_image="frame_%d.jpg" % i,
+            )
+
+        # Stretch 1: 4 disease frames (wheat__yellow_rust) at +22s, +24s, +26s, +28s
+        for i in range(4):
+            ts = "2026-10-03T10:00:%02dZ" % (22 + i * 2)
+            storage.record_frame_event(
+                scan_id=scan_id,
+                frame_idx=4 + i,
+                timestamp_utc=ts,
+                cell_id="cell_2",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="DISEASE",
+                class_id=IDX["wheat__yellow_rust"],
+                confidence=0.92,
+                tile_decisions=[],
+                source_image="frame_%d.jpg" % (4 + i),
+            )
+
+        # Stretch 2: 40s to 60s has NO frames
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=8,
+            frames_evaluated=8,
+            tiles_classified=72,
+            status="complete",
+            stop_reason="user",
+            duration_s=60.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            stop_reason="user",
+            crop_declared="wheat",
+            duration_s=60.0,
+            mode="walk",
+            time_source="phone",
+            ended_utc=ended_utc,
+        )
+
+        assert "stretches" in adv
+        stretches = adv["stretches"]
+        assert len(stretches) == 3
+
+        assert stretches[0]["index"] == 0
+        assert stretches[0]["verdict"] == "HEALTHY"
+        assert stretches[0]["frames_used"] == 4
+
+        assert stretches[1]["index"] == 1
+        assert stretches[1]["verdict"] == "DISEASE"
+        assert stretches[1]["top_class"] == "wheat__yellow_rust"
+        assert stretches[1]["frames_used"] == 4
+
+        assert stretches[2]["index"] == 2
+        assert stretches[2]["verdict"] == "NO_DATA"
+        assert stretches[2]["frames_used"] == 0
+
+        summary = adv["summary"]
+        assert summary["stretches_total"] == 3
+        assert summary["healthy"] == 1
+        assert summary["need_look"] == 1
+        assert summary["unclear"] == 0
+        assert summary["not_crop"] == 0
+        assert summary["no_data"] == 1
+
+
+def test_stage2_declared_crop_masking():
+    """
+    Test 2: Declared crop masking.
+    Sugarcane walk (crop="sugarcane") with wheat disease frames (wheat__brown_rust).
+    - Top class / verdict for those frames must be treated as UNCERTAIN (unclear), never DISEASE.
+    - No alerts triggered.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "masking_test.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T11:00:00Z_F01"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="sugarcane",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # 5 frames of wheat__brown_rust in a sugarcane scan
+        for i in range(5):
+            ts = "2026-10-03T11:00:%02dZ" % (i * 2)
+            storage.record_frame_event(
+                scan_id=scan_id,
+                frame_idx=i,
+                timestamp_utc=ts,
+                cell_id="cell_1",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="DISEASE",
+                class_id=IDX["wheat__brown_rust"],
+                confidence=0.90,
+                tile_decisions=[],
+                source_image="frame_%d.jpg" % i,
+            )
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=5,
+            frames_evaluated=5,
+            tiles_classified=45,
+            status="complete",
+            stop_reason="user",
+            duration_s=20.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            stop_reason="user",
+            crop_declared="sugarcane",
+            duration_s=20.0,
+            mode="walk",
+            time_source="phone",
+        )
+
+        assert adv["scan"]["crop_declared"] == "sugarcane"
+        assert adv["crop_health"]["state"] == "UNCERTAIN"
+        assert adv["crop_health"]["crop"] == "sugarcane"
+        assert adv["crop_health"]["crop_source"] == "declared"
+        assert len(adv["alerts"]) == 0
+        assert adv["stretches"][0]["verdict"] == "UNCERTAIN"
+
+
+def test_stage2_alerts_timing_and_cooldown():
+    """
+    Test 3: Alerts timing and 15s cooldown.
+    - 3 agreeing disease frames within 6s -> 1 alert (alert_id: 1)
+    - Another agreeing frame within 15s cooldown -> does NOT raise new alert
+    - Another 3 agreeing frames after 15s -> raises 2nd alert (alert_id: 2)
+    - alert_ids == [1, 2]
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "alerts_test.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T12:00:00Z_F01"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="wheat",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # Cluster 1: 3 frames at t=0s, 2s, 4s (within 6s window) -> Alert 1
+        for i, s in enumerate([0, 2, 4]):
+            ts = "2026-10-03T12:00:%02dZ" % s
+            storage.record_frame_event(
+                scan_id=scan_id,
+                frame_idx=i,
+                timestamp_utc=ts,
+                cell_id="cell_1",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="DISEASE",
+                class_id=IDX["wheat__yellow_rust"],
+                confidence=0.90,
+                tile_decisions=[],
+                source_image="frame_%d.jpg" % i,
+            )
+
+        # Frame at t=8s (within 15s cooldown of t=4s) -> No alert
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=3,
+            timestamp_utc="2026-10-03T12:00:08Z",
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="DISEASE",
+            class_id=IDX["wheat__yellow_rust"],
+            confidence=0.90,
+            tile_decisions=[],
+            source_image="frame_3.jpg",
+        )
+
+        # Cluster 2: 3 frames at t=20s, 22s, 24s (after 15s cooldown) -> Alert 2
+        for i, s in enumerate([20, 22, 24]):
+            ts = "2026-10-03T12:00:%02dZ" % s
+            storage.record_frame_event(
+                scan_id=scan_id,
+                frame_idx=4 + i,
+                timestamp_utc=ts,
+                cell_id="cell_1",
+                gate_passed=True,
+                gate_metrics={},
+                n_valid_tiles=9,
+                frame_state="DISEASE",
+                class_id=IDX["wheat__yellow_rust"],
+                confidence=0.90,
+                tile_decisions=[],
+                source_image="frame_%d.jpg" % (4 + i),
+            )
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=7,
+            frames_evaluated=7,
+            tiles_classified=63,
+            status="complete",
+            stop_reason="user",
+            duration_s=30.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            stop_reason="user",
+            crop_declared="wheat",
+            duration_s=30.0,
+            mode="walk",
+            time_source="phone",
+        )
+
+        alerts = adv["alerts"]
+        assert len(alerts) == 2
+        assert alerts[0]["alert_id"] == 1
+        assert alerts[0]["class"] == "wheat__yellow_rust"
+        assert alerts[0]["utc"] == "2026-10-03T12:00:04Z"
+
+        assert alerts[1]["alert_id"] == 2
+        assert alerts[1]["class"] == "wheat__yellow_rust"
+        assert alerts[1]["utc"] == "2026-10-03T12:00:24Z"
+
+
+def test_stage2_warnings_sliding_window():
+    """
+    Test 4: Warnings evaluation.
+    - 10 underexposed frames in 5s window -> TOO_DARK active.
+    - Then 10 good frames -> TOO_DARK clears.
+    - Novelty rejections alone do NOT trigger blur/dark/bright warnings.
+    """
+    from edge.pipeline import StatusHeartbeatThread
+    from unittest.mock import MagicMock
+
+    status_thread = StatusHeartbeatThread(
+        status_file=None,
+        scan_id="test_warn",
+        field_id="F01",
+        crop="wheat",
+        source="0",
+        started_utc="2026-10-03T10:00:00Z",
+        max_duration_s=1800,
+        t1_capture=None,
+        t4_decision=None,
+    )
+
+    now_m = time.monotonic()
+    now_iso = "2026-10-03T10:00:05Z"
+
+    # Mock gate with 10 underexposed frames in last 5s
+    mock_gate = MagicMock()
+    mock_gate.gate_history = [
+        (now_m - 4.0 + i * 0.3, False, "exposure_underexposed") for i in range(10)
+    ]
+    status_thread.t2_gate = mock_gate
+
+    warns = status_thread._evaluate_warnings(now_m, now_iso)
+    codes = [w["code"] for w in warns]
+    assert "TOO_DARK" in codes
+
+    # Now replace with 10 good frames
+    mock_gate.gate_history = [
+        (now_m - 4.0 + i * 0.3, True, "OK") for i in range(10)
+    ]
+    warns2 = status_thread._evaluate_warnings(now_m, "2026-10-03T10:00:10Z")
+    codes2 = [w["code"] for w in warns2]
+    assert "TOO_DARK" not in codes2
+
+    # Novelty rejections alone
+    mock_gate.gate_history = [
+        (now_m - 4.0 + i * 0.3, False, "scene_not_novel") for i in range(10)
+    ]
+    warns3 = status_thread._evaluate_warnings(now_m, "2026-10-03T10:00:15Z")
+    codes3 = [w["code"] for w in warns3]
+    assert "BLURRY_SLOW_DOWN" not in codes3
+    assert "TOO_DARK" not in codes3
+    assert "TOO_BRIGHT" not in codes3
+
+
+def test_stage2_zero_frame_walk():
+    """
+    Test 8: Zero-frame walk.
+    When 0 usable frames pass the gate:
+    - crop_health.state == 'NO_DATA' with reason 'NO_USABLE_FRAMES'
+    - vegetation.canopy_cover.mean is None and status == 'NO_DATA'
+    - actions emit only ACT_RESCAN_NO_USABLE_FRAMES (no ACT_MULTICROP_INVESTIGATE)
+    - crop_source == 'declared'
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "zero_frame.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T13:00:00Z_F01"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="rice",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=0,
+            frames_evaluated=0,
+            tiles_classified=0,
+            status="complete",
+            stop_reason="user",
+            duration_s=15.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            stop_reason="user",
+            crop_declared="rice",
+            duration_s=15.0,
+            mode="walk",
+            time_source="phone",
+        )
+
+        assert adv["crop_health"]["state"] == "NO_DATA"
+        assert adv["crop_health"]["reason"] == "NO_USABLE_FRAMES"
+        assert adv["crop_health"]["crop"] == "rice"
+        assert adv["crop_health"]["crop_source"] == "declared"
+
+        assert adv["vegetation"]["canopy_cover"]["mean"] is None
+        assert adv["vegetation"]["canopy_cover"]["status"] == "NO_DATA"
+
+        action_templates = [a["template_id"] for a in adv["actions"]]
+        assert "ACT_RESCAN_NO_USABLE_FRAMES" in action_templates
+        assert "ACT_MULTICROP_INVESTIGATE" not in action_templates
+
+
+def test_stage2_interrupted_recovery_time_and_clock_reset():
+    """
+    Test for Item K: Interrupted walk recovery time & clock reset handling.
+    - ended_utc is set to timestamp of last committed frame event (or status heartbeat), NOT recovery time.
+    - If clock reset occurred (ended_utc < started_utc), duration_s is None with duration_reason == 'CLOCK_RESET_AFTER_POWER_LOSS'.
+    - crop_health with state 'NO_DATA' carries reason == 'NO_USABLE_FRAMES'.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "interrupted_clock.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T14:00:00Z_F01"
+        started_utc = "2026-10-03T14:00:00Z"
+        last_frame_utc = "2026-10-03T14:00:45Z"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="wheat",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+            pid=99999999,  # non-existent dead PID
+        )
+
+        # Record a frame event at +45s
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=0,
+            timestamp_utc=last_frame_utc,
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="HEALTHY",
+            class_id=IDX["wheat__healthy"],
+            confidence=0.95,
+            tile_decisions=[],
+            source_image="frame_0.jpg",
+        )
+
+        recovered = storage.recover_interrupted_scans()
+        assert len(recovered) == 1
+
+        adv = storage.get_advisory(recovered[0])
+        assert adv["scan"]["stop_reason"] == "interrupted"
+        assert adv["scan"]["ended_utc"] == last_frame_utc
+        assert adv["scan"]["duration_s"] == 45.0
+        assert adv["scan"]["duration_reason"] is None
+
+        # Case 2: Clock reset (clock jumped backwards after power cut)
+        scan_id_reset = "2026-10-03T15:00:00Z_F01"
+        storage.record_scan_start(
+            scan_id=scan_id_reset,
+            source="mock",
+            mode="walk",
+            crop="wheat",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+            pid=99999998,
+        )
+        # Event with timestamp earlier than started_utc
+        storage.record_frame_event(
+            scan_id=scan_id_reset,
+            frame_idx=0,
+            timestamp_utc="2026-10-03T14:55:00Z",
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="HEALTHY",
+            class_id=IDX["wheat__healthy"],
+            confidence=0.95,
+            tile_decisions=[],
+            source_image="frame_0.jpg",
+        )
+
+        recovered_reset = storage.recover_interrupted_scans()
+        assert len(recovered_reset) == 1
+
+        adv_reset = storage.get_advisory(recovered_reset[0])
+        assert adv_reset["scan"]["stop_reason"] == "interrupted"
+        assert adv_reset["scan"]["duration_s"] is None
+        assert adv_reset["scan"]["duration_reason"] == "CLOCK_RESET_AFTER_POWER_LOSS"
+
 

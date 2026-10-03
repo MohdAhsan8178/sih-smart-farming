@@ -45,6 +45,18 @@ TEMPLATES: Dict[str, Dict[str, Any]] = {
         "default_confidence": "low",
         "default_rank": 1,
     },
+    "ACT_RESCAN_NO_USABLE_FRAMES": {
+        "template_id": "ACT_RESCAN_NO_USABLE_FRAMES",
+        "action": "No usable pictures were taken during this walk — too dark, blurry, or not pointed at the crop. Scan again in daylight, about 1 m from the leaves.",
+        "rationale": "No usable pictures were taken during this walk — too dark, blurry, or not pointed at the crop. Scan again in daylight, about 1 m from the leaves.",
+        "citation": "SIH-TH10 Contract docs/SCAN_CONTROL_API.md §2; edge/storage.py",
+        "provenance": "verified-operational",
+        "verification_status": "VERIFIED",
+        "url": None,
+        "document_reference": "SIH-TH10 Contract docs/SCAN_CONTROL_API.md §2; edge/storage.py",
+        "default_confidence": "low",
+        "default_rank": 1,
+    },
     "ACT_MULTICROP_INVESTIGATE": {
         "template_id": "ACT_MULTICROP_INVESTIGATE",
         "action": "Inspect plot boundaries or intercropped rows. The camera observed conflicting visual characteristics of multiple crops without a clear supermajority.",
@@ -391,6 +403,17 @@ def evaluate_rules(
     """
     actions: List[Dict[str, Any]] = []
     detections = detections or []
+
+    # 0. Zero usable frames / NO_DATA degradation check
+    if state == "NO_DATA" or reason == "NO_USABLE_FRAMES":
+        tmpl = TEMPLATES["ACT_RESCAN_NO_USABLE_FRAMES"]
+        params = {
+            "crop": crop,
+            "state": state,
+            "reason": reason or "NO_USABLE_FRAMES",
+        }
+        actions.append(_build_action(tmpl, params, rank=1, confidence="low"))
+        return actions
 
     # 1. Multi-crop degradation check
     if reason == "MULTIPLE_CROPS_DETECTED" or crop is None:

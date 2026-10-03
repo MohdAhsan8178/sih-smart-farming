@@ -235,7 +235,7 @@ The advisory document emitted by `GET /api/v1/advisory/<id_or_seq>` and `GET /ap
 
 #### 13. Actions Block (`actions[]`)
 - `rank`: Priority rank (`>= 1`)
-- `template_id`: One of 21 deterministic action templates (`ACT_EXT_OFFICER_CONSULT`, `ACT_IRRIGATE_WATER_DEFICIT`, `ACT_MAINTAIN_ROUTINE`, `ACT_MULTICROP_INVESTIGATE`, `ACT_RESCAN_AMBIGUOUS`, etc.)
+- `template_id`: One of 22 deterministic action templates (`ACT_EXT_OFFICER_CONSULT`, `ACT_IRRIGATE_WATER_DEFICIT`, `ACT_MAINTAIN_ROUTINE`, `ACT_MULTICROP_INVESTIGATE`, `ACT_RESCAN_AMBIGUOUS`, `ACT_RESCAN_NO_USABLE_FRAMES`, etc.)
 - `action`: English action directive (<= 240 chars)
 - `rationale`: Agronomic rationale (<= 400 chars)
 - `params`: Parameter dictionary for deterministic offline translation

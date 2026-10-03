@@ -1,7 +1,7 @@
 [Unit]
 Description=AEGIS Handheld Pod Offline HTTP Gateway
-After=network.target aegis-maxn.service
-Wants=aegis-maxn.service
+After=network.target aegis-maxn.service mnt-aegisdata.mount
+Wants=aegis-maxn.service mnt-aegisdata.mount
 
 [Service]
 Type=simple

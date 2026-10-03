@@ -132,6 +132,7 @@ def assert_advisory_payload_schema_recursive(payload: dict):
         "distance_reason",
         "crop_declared",
         "duration_s",
+        "duration_reason",
         "stop_reason",
     }
     assert set(payload["scan"].keys()) == expected_scan_keys, f"Scan keys mismatch: {set(payload['scan'].keys()) ^ expected_scan_keys}"

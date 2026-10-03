@@ -24,6 +24,7 @@ Key Architectural Properties:
 import collections
 import datetime
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -31,7 +32,7 @@ import sqlite3
 import subprocess
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from configs.classes import CLASS_NAMES, NUM_CLASSES
 from configs.reliability import get_cross_source_reliability
@@ -131,6 +132,24 @@ def _parse_iso_timestamp(ts_str: Optional[str]) -> Optional[datetime.datetime]:
     return None
 
 
+def _extract_iso_from_scan_id(scan_id: Optional[str]) -> Optional[str]:
+    """Extracts ISO timestamp from standard scan_id prefix if present (e.g. 2026-10-03T10:00:00Z_F01)."""
+    if not scan_id:
+        return None
+    part = str(scan_id).split("_")[0]
+    dt = _parse_iso_timestamp(part)
+    if dt:
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return None
+
+
+HEALTHY_CLASSES_BY_CROP: Dict[str, Set[str]] = {
+    "rice": {"rice__normal"},
+    "sugarcane": {"sugarcane__healthy", "sugarcane__dried_leaf"},
+    "wheat": {"wheat__healthy"},
+}
+
+
 class EdgeStorage(object):
     """
     Thread-safe SQLite storage engine for edge pipeline telemetry, detections,
@@ -212,7 +231,9 @@ class EdgeStorage(object):
                         stop_reason TEXT,
                         duration_s REAL,
                         time_source TEXT,
-                        replay INTEGER DEFAULT 0
+                        replay INTEGER DEFAULT 0,
+                        duration_reason TEXT,
+                        replay_loops INTEGER DEFAULT 0
                     );
                     """
                 )
@@ -229,6 +250,8 @@ class EdgeStorage(object):
                         ("duration_s", "REAL"),
                         ("time_source", "TEXT"),
                         ("replay", "INTEGER DEFAULT 0"),
+                        ("duration_reason", "TEXT"),
+                        ("replay_loops", "INTEGER DEFAULT 0"),
                     ]:
                         if scan_cols and col_name not in scan_cols:
                             conn.execute("ALTER TABLE scans ADD COLUMN %s %s;" % (col_name, col_type))
@@ -457,7 +480,7 @@ class EdgeStorage(object):
         replay: Optional[Union[bool, int]] = None,
     ) -> None:
         """Records the beginning of a scanning session safely without wiping gateway columns."""
-        started_utc = started_utc or get_utc_iso_now()
+        started_utc = started_utc or _extract_iso_from_scan_id(scan_id) or get_utc_iso_now()
         conn = self._get_connection()
         initial_mode = mode or "handheld_pod"
         replay_int = int(replay) if replay is not None else 0
@@ -561,6 +584,7 @@ class EdgeStorage(object):
         status: str = "complete",
         stop_reason: Optional[str] = "user",
         duration_s: Optional[float] = None,
+        replay_loops: int = 0,
     ) -> None:
         """Records completion metrics for a scanning session."""
         ended_utc = ended_utc or get_utc_iso_now()
@@ -580,7 +604,8 @@ class EdgeStorage(object):
                     distance_reason = ?,
                     status = ?,
                     stop_reason = ?,
-                    duration_s = ?
+                    duration_s = ?,
+                    replay_loops = ?
                 WHERE scan_id = ?;
                 """,
                 (
@@ -593,6 +618,7 @@ class EdgeStorage(object):
                     str(status),
                     str(stop_reason) if stop_reason else None,
                     float(duration_s) if duration_s is not None else None,
+                    int(replay_loops),
                     scan_id,
                 ),
             )
@@ -810,6 +836,9 @@ class EdgeStorage(object):
         duration_s: Optional[float] = None,
         time_source: Optional[str] = None,
         mode: Optional[str] = None,
+        ended_utc: Optional[str] = None,
+        duration_reason: Optional[str] = None,
+        replay_loops: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Synthesizes a complete frozen Advisory document (schema v1.0) from recorded
@@ -824,6 +853,10 @@ class EdgeStorage(object):
 
         resolved_field_id = field_id or (scan_row["field_id"] if "field_id" in scan_row.keys() and scan_row["field_id"] else "F01")
         resolved_replay = replay if replay is not None else (bool(scan_row["replay"]) if "replay" in scan_row.keys() and scan_row["replay"] is not None else False)
+        resolved_mode = mode or (scan_row["mode"] if "mode" in scan_row.keys() and scan_row["mode"] else "handheld_pod")
+        declared_crop = crop_declared if crop_declared is not None else (scan_row["crop"] if "crop" in scan_row.keys() and scan_row["crop"] else None)
+        is_walk_mode = (resolved_mode == "walk") or (declared_crop is not None)
+        resolved_replay_loops = replay_loops if replay_loops is not None else (scan_row["replay_loops"] if "replay_loops" in scan_row.keys() and scan_row["replay_loops"] is not None else 0)
 
         # Resolve planting date and variety cycle days from scan metadata if omitted
         if scan_row["metadata_json"]:
@@ -838,6 +871,32 @@ class EdgeStorage(object):
                 pass
 
         now_utc = get_utc_iso_now()
+        resolved_ended_utc = ended_utc or scan_row["ended_utc"] or now_utc
+        resolved_stop_reason = (stop_reason if stop_reason in ("user", "time_limit", "error", "interrupted") else (scan_row["stop_reason"] if "stop_reason" in scan_row.keys() and scan_row["stop_reason"] in ("user", "time_limit", "error", "interrupted") else None))
+
+        resolved_duration_s = None
+        resolved_duration_reason = duration_reason or (scan_row["duration_reason"] if "duration_reason" in scan_row.keys() and scan_row["duration_reason"] else None)
+
+        if duration_s is not None:
+            resolved_duration_s = float(duration_s)
+        elif "duration_s" in scan_row.keys() and scan_row["duration_s"] is not None:
+            resolved_duration_s = float(scan_row["duration_s"])
+        else:
+            s_dt = _parse_iso_timestamp(scan_row["started_utc"])
+            e_dt = _parse_iso_timestamp(resolved_ended_utc)
+            if s_dt and e_dt:
+                diff = (e_dt - s_dt).total_seconds()
+                if diff >= 0:
+                    resolved_duration_s = float(round(diff, 2))
+                else:
+                    resolved_duration_s = None
+                    if not resolved_duration_reason:
+                        resolved_duration_reason = "CLOCK_RESET_AFTER_POWER_LOSS"
+            else:
+                resolved_duration_s = None
+                if not resolved_duration_reason:
+                    resolved_duration_reason = "CLOCK_RESET_AFTER_POWER_LOSS"
+
         if not advisory_id:
             candidate_suffix = ("_%s" % resolved_field_id) if resolved_field_id else ""
             candidate_id = "%s%s" % (now_utc, candidate_suffix)
@@ -898,56 +957,101 @@ class EdgeStorage(object):
         # Overall dominant crop derivation
         dominant_crop = None
         crop_health_reason = None
+        crop_source = None
 
-        if crop_counts:
-            total_crop_detections = sum(crop_counts.values())
-            sorted_crops = sorted(crop_counts.items(), key=lambda x: x[1], reverse=True)
-            top_crop, top_count = sorted_crops[0]
+        if is_walk_mode and declared_crop:
+            dominant_crop = declared_crop
+            crop_source = "declared"
 
-            if len(sorted_crops) == 1:
-                dominant_crop = top_crop
-            else:
-                # Detections span multiple distinct crops.
-                # Only assert a dominant crop if it represents a clear supermajority (>=85%)
-                if (top_count / float(total_crop_detections)) >= 0.85:
-                    dominant_crop = top_crop
-                else:
-                    # Degrade honestly: do not assert a dominant crop when detections are mixed/conflicting
-                    dominant_crop = None
-                    crop_health_reason = "MULTIPLE_CROPS_DETECTED"
-
-        # Overall crop_health state derivation
         max_agree = max([c["n_agree"] for c in cells] or [0])
         cell_states = set(c["state"] for c in cells)
-
         overall_state = "NO_DATA"
-        if events:
-            if cells:
-                if "DISEASE" in cell_states:
-                    overall_state = "DISEASE"
-                elif "HEALTHY" in cell_states:
-                    overall_state = "HEALTHY"
-                elif state_counts["NOT_CROP"] == len(events):
-                    overall_state = "NOT_CROP"
-                else:
-                    overall_state = "UNCERTAIN"
-                    if not crop_health_reason:
-                        if max_agree == 0 and (state_counts["DISEASE"] > 0 or state_counts["HEALTHY"] > 0):
-                            crop_health_reason = "UNCONFIRMED_DETECTIONS"
+
+        if not events:
+            overall_state = "NO_DATA"
+            crop_health_reason = "NO_USABLE_FRAMES"
+        else:
+            if is_walk_mode and declared_crop:
+                healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set())
+                disease_events = []
+                healthy_events = []
+                not_crop_events = []
+                uncertain_events = []
+                for e in events:
+                    cname = e["class_name"] or ""
+                    f_state = e["frame_state"]
+                    if cname == "not_crop" or f_state == "NOT_CROP":
+                        not_crop_events.append(e)
+                    elif cname.startswith(declared_crop + "__"):
+                        if cname in healthy_set or f_state == "HEALTHY":
+                            healthy_events.append(e)
                         else:
+                            disease_events.append(e)
+                    else:
+                        uncertain_events.append(e)
+
+                if cells:
+                    if "DISEASE" in cell_states and len(disease_events) > 0:
+                        overall_state = "DISEASE"
+                    elif "HEALTHY" in cell_states:
+                        overall_state = "HEALTHY"
+                    elif len(not_crop_events) == len(events):
+                        overall_state = "NOT_CROP"
+                    else:
+                        overall_state = "UNCERTAIN"
+                        if not crop_health_reason:
+                            crop_health_reason = "HIGH_UNCERTAINTY"
+                else:
+                    if len(disease_events) > 0:
+                        overall_state = "DISEASE"
+                    elif len(healthy_events) > 0:
+                        overall_state = "HEALTHY"
+                    elif len(not_crop_events) == len(events):
+                        overall_state = "NOT_CROP"
+                    else:
+                        overall_state = "UNCERTAIN"
+                        if not crop_health_reason:
                             crop_health_reason = "HIGH_UNCERTAINTY"
             else:
-                # Fallback when no cell verdicts exist (e.g. short test scans)
-                if state_counts["DISEASE"] > 0:
-                    overall_state = "DISEASE"
-                elif state_counts["HEALTHY"] > 0:
-                    overall_state = "HEALTHY"
-                elif state_counts["NOT_CROP"] == len(events):
-                    overall_state = "NOT_CROP"
+                if crop_counts:
+                    total_crop_detections = sum(crop_counts.values())
+                    sorted_crops = sorted(crop_counts.items(), key=lambda x: x[1], reverse=True)
+                    top_crop, top_count = sorted_crops[0]
+
+                    if len(sorted_crops) == 1:
+                        dominant_crop = top_crop
+                    else:
+                        if (top_count / float(total_crop_detections)) >= 0.85:
+                            dominant_crop = top_crop
+                        else:
+                            dominant_crop = None
+                            crop_health_reason = "MULTIPLE_CROPS_DETECTED"
+
+                if cells:
+                    if "DISEASE" in cell_states:
+                        overall_state = "DISEASE"
+                    elif "HEALTHY" in cell_states:
+                        overall_state = "HEALTHY"
+                    elif state_counts["NOT_CROP"] == len(events):
+                        overall_state = "NOT_CROP"
+                    else:
+                        overall_state = "UNCERTAIN"
+                        if not crop_health_reason:
+                            if max_agree == 0 and (state_counts["DISEASE"] > 0 or state_counts["HEALTHY"] > 0):
+                                crop_health_reason = "UNCONFIRMED_DETECTIONS"
+                            else:
+                                crop_health_reason = "HIGH_UNCERTAINTY"
                 else:
-                    overall_state = "UNCERTAIN"
-                    if not crop_health_reason:
-                        crop_health_reason = "HIGH_UNCERTAINTY"
+                    if state_counts["DISEASE"] > 0:
+                        overall_state = "DISEASE"
+                    elif state_counts["HEALTHY"] > 0:
+                        overall_state = "HEALTHY"
+                    elif state_counts["NOT_CROP"] == len(events):
+                        overall_state = "NOT_CROP"
+                    else:
+                        overall_state = "UNCERTAIN"
+                        if not crop_health_reason:
+                            crop_health_reason = "HIGH_UNCERTAINTY"
 
         # Actions block: Evaluated deterministically by Step 27 (edge/rules_engine.py)
         from edge.rules_engine import evaluate_rules
@@ -968,24 +1072,38 @@ class EdgeStorage(object):
         dgcis = [float(e["dgci"]) for e in events if e["dgci"] is not None]
         dgci_oods = [float(e["dgci_ood_frac"]) for e in events if e["dgci_ood_frac"] is not None]
 
-        mean_canopy = float(np.mean(canopy_covers)) if canopy_covers else 0.0
-        p10_canopy = float(np.percentile(canopy_covers, 10)) if canopy_covers else 0.0
-        p50_canopy = float(np.percentile(canopy_covers, 50)) if canopy_covers else 0.0
-        p90_canopy = float(np.percentile(canopy_covers, 90)) if canopy_covers else 0.0
+        if not canopy_covers:
+            mean_canopy = 0.0
+            canopy_cover_block = {
+                "mean": None,
+                "p10": None,
+                "p50": None,
+                "p90": None,
+                "min_fraction_threshold": train_config.PROVISIONAL_MIN_CANOPY_FRACTION,
+                "status": "NO_DATA",
+                "threshold_source": "PROVISIONAL — uncalibrated ExG threshold = %d" % train_config.PROVISIONAL_EXG_VEG_THRESHOLD,
+                "threshold_confirmed": False,
+                "source": "measured",
+            }
+        else:
+            mean_canopy = float(np.mean(canopy_covers))
+            p10_canopy = float(np.percentile(canopy_covers, 10))
+            p50_canopy = float(np.percentile(canopy_covers, 50))
+            p90_canopy = float(np.percentile(canopy_covers, 90))
 
-        canopy_cover_block = {
-            "mean": round(mean_canopy, 4),
-            "p10": round(p10_canopy, 4),
-            "p50": round(p50_canopy, 4),
-            "p90": round(p90_canopy, 4),
-            "min_fraction_threshold": train_config.PROVISIONAL_MIN_CANOPY_FRACTION,
-            "status": "OK" if mean_canopy >= train_config.PROVISIONAL_MIN_CANOPY_FRACTION else "INSUFFICIENT_CANOPY",
-            "threshold_source": "PROVISIONAL — uncalibrated ExG threshold = %d" % train_config.PROVISIONAL_EXG_VEG_THRESHOLD,
-            "threshold_confirmed": False,
-            "source": "measured",
-        }
+            canopy_cover_block = {
+                "mean": round(mean_canopy, 4),
+                "p10": round(p10_canopy, 4),
+                "p50": round(p50_canopy, 4),
+                "p90": round(p90_canopy, 4),
+                "min_fraction_threshold": train_config.PROVISIONAL_MIN_CANOPY_FRACTION,
+                "status": "OK" if mean_canopy >= train_config.PROVISIONAL_MIN_CANOPY_FRACTION else "INSUFFICIENT_CANOPY",
+                "threshold_source": "PROVISIONAL — uncalibrated ExG threshold = %d" % train_config.PROVISIONAL_EXG_VEG_THRESHOLD,
+                "threshold_confirmed": False,
+                "source": "measured",
+            }
 
-        if mean_canopy < train_config.PROVISIONAL_MIN_CANOPY_FRACTION or not varis:
+        if (not canopy_covers) or (mean_canopy < train_config.PROVISIONAL_MIN_CANOPY_FRACTION) or not varis:
             vari_block = {
                 "mean": None,
                 "reason": "INSUFFICIENT_CANOPY_FRACTION",
@@ -1366,6 +1484,193 @@ class EdgeStorage(object):
         if resolved_pest is None:
             resolved_pest = []
 
+        # Construct stretches, summary, alerts
+        if is_walk_mode:
+            start_dt = _parse_iso_timestamp(scan_row["started_utc"])
+            if events:
+                first_event_dt = _parse_iso_timestamp(events[0]["timestamp_utc"])
+                if first_event_dt and (not start_dt or first_event_dt < start_dt):
+                    start_dt = first_event_dt
+            start_ts = start_dt.timestamp() if start_dt else 0.0
+            dur = resolved_duration_s if resolved_duration_s is not None else 0.0
+            if dur > 0:
+                num_stretches = max(1, min(int(math.ceil(dur / 20.0)), 90))
+            elif len(events) > 0:
+                last_dt = _parse_iso_timestamp(events[-1]["timestamp_utc"])
+                last_ts = last_dt.timestamp() if last_dt else start_ts
+                num_stretches = max(1, min(int(math.ceil(max(1.0, last_ts - start_ts) / 20.0)), 90))
+            else:
+                num_stretches = 1
+
+            stretches = []
+            healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set()) if declared_crop else set()
+            for i in range(num_stretches):
+                s_start_ts = start_ts + 20.0 * i
+                s_end_ts = start_ts + 20.0 * (i + 1)
+                s_start_utc = datetime.datetime.fromtimestamp(s_start_ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                s_end_utc = datetime.datetime.fromtimestamp(s_end_ts, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                s_events = []
+                for e in events:
+                    e_dt = _parse_iso_timestamp(e["timestamp_utc"])
+                    e_ts = e_dt.timestamp() if e_dt else 0.0
+                    if i == num_stretches - 1:
+                        if s_start_ts <= e_ts:
+                            s_events.append(e)
+                    else:
+                        if s_start_ts <= e_ts < s_end_ts:
+                            s_events.append(e)
+
+                if len(s_events) == 0:
+                    s_verdict = "NO_DATA"
+                    s_top_class = None
+                    s_agreeing = 0
+                else:
+                    nc_cnt = sum(1 for e in s_events if (e["class_name"] == "not_crop" or e["frame_state"] == "NOT_CROP"))
+                    if nc_cnt / float(len(s_events)) >= 0.80:
+                        s_verdict = "NOT_CROP"
+                        s_top_class = None
+                        s_agreeing = nc_cnt
+                    else:
+                        dis_counts = collections.defaultdict(int)
+                        hl_cnt = 0
+                        for e in s_events:
+                            cname = e["class_name"] or ""
+                            if declared_crop:
+                                if not cname.startswith(declared_crop + "__"):
+                                    continue
+                                if cname in healthy_set or e["frame_state"] == "HEALTHY":
+                                    hl_cnt += 1
+                                elif cname != "not_crop":
+                                    dis_counts[cname] += 1
+                            else:
+                                if "normal" in cname or "healthy" in cname or "dried" in cname or e["frame_state"] == "HEALTHY":
+                                    hl_cnt += 1
+                                elif cname != "not_crop":
+                                    dis_counts[cname] += 1
+
+                        s_verdict = None
+                        s_top_class = None
+                        s_agreeing = 0
+                        if dis_counts:
+                            top_d, top_c = max(dis_counts.items(), key=lambda x: x[1])
+                            if top_c >= 3:
+                                s_verdict = "DISEASE"
+                                s_top_class = top_d
+                                s_agreeing = top_c
+                        if s_verdict is None:
+                            if hl_cnt >= 3:
+                                s_verdict = "HEALTHY"
+                                s_top_class = None
+                                s_agreeing = hl_cnt
+                            else:
+                                s_verdict = "UNCERTAIN"
+                                s_top_class = None
+                                s_agreeing = 0
+
+                stretches.append({
+                    "index": i,
+                    "start_utc": s_start_utc,
+                    "end_utc": s_end_utc,
+                    "frames_used": len(s_events),
+                    "verdict": s_verdict,
+                    "top_class": s_top_class,
+                    "frames_agreeing": s_agreeing,
+                    "thermal_median_c": None,
+                    "lat": None,
+                    "lon": None,
+                    "pos_accuracy_m": None,
+                    "pos_source": None,
+                })
+
+            summary = {
+                "stretches_total": len(stretches),
+                "healthy": sum(1 for s in stretches if s["verdict"] == "HEALTHY"),
+                "need_look": sum(1 for s in stretches if s["verdict"] == "DISEASE"),
+                "unclear": sum(1 for s in stretches if s["verdict"] == "UNCERTAIN"),
+                "not_crop": sum(1 for s in stretches if s["verdict"] == "NOT_CROP"),
+                "no_data": sum(1 for s in stretches if s["verdict"] == "NO_DATA"),
+            }
+
+            all_alerts = []
+            last_alert_time = {}
+            parsed_events = []
+            for e in events:
+                dt = _parse_iso_timestamp(e["timestamp_utc"])
+                t = dt.timestamp() if dt else 0.0
+                parsed_events.append((t, e))
+            parsed_events.sort(key=lambda x: x[0])
+
+            for t_curr, e in parsed_events:
+                cname = e["class_name"] or ""
+                if declared_crop:
+                    if not cname.startswith(declared_crop + "__"):
+                        continue
+                    if cname in healthy_set:
+                        continue
+                else:
+                    if "healthy" in cname or "normal" in cname or "dried" in cname or cname == "not_crop":
+                        continue
+                if cname:
+                    agreeing = [ev for t_prev, ev in parsed_events if (t_curr - 6.0 <= t_prev <= t_curr and ev["class_name"] == cname)]
+                    if len(agreeing) >= 3:
+                        if t_curr - last_alert_time.get(cname, -999.0) >= 15.0:
+                            last_alert_time[cname] = t_curr
+                            alert_id = len(all_alerts) + 1
+                            all_alerts.append({
+                                "alert_id": alert_id,
+                                "utc": e["timestamp_utc"],
+                                "class": cname,
+                                "frames_agreeing": len(agreeing),
+                                "lat": e["lat"],
+                                "lon": e["lon"],
+                                "pos_accuracy_m": None,
+                            })
+            alerts = all_alerts
+        else:
+            stretches = []
+            summary = {
+                "stretches_total": 0,
+                "healthy": 0,
+                "need_look": 0,
+                "unclear": 0,
+                "not_crop": 0,
+                "no_data": 0,
+            }
+            alerts = []
+
+        if overall_state == "NO_DATA" and not crop_health_reason:
+            crop_health_reason = "NO_USABLE_FRAMES"
+
+        crop_health_block = {
+            "state": overall_state,
+            "reason": crop_health_reason if (overall_state not in ("HEALTHY", "DISEASE") or crop_health_reason) else None,
+            "crop": dominant_crop,
+            "frames_evaluated": len(events),
+            "frames_agreeing": max_agree if len(events) > 0 else 0,
+            "frames_rejected_ood": state_counts["UNCERTAIN"] if len(events) > 0 else 0,
+            "frames_rejected_not_crop": state_counts["NOT_CROP"] if len(events) > 0 else 0,
+            "frames_uncertain": state_counts["UNCERTAIN"] if len(events) > 0 else 0,
+            "source": "measured",
+        }
+        if crop_source:
+            crop_health_block["crop_source"] = crop_source
+
+        scan_payload = {
+            "started_utc": scan_row["started_utc"],
+            "ended_utc": resolved_ended_utc,
+            "mode": resolved_mode,
+            "crop_declared": declared_crop,
+            "duration_s": resolved_duration_s,
+            "duration_reason": resolved_duration_reason,
+            "stop_reason": resolved_stop_reason,
+            "frames_captured": int(scan_row["frames_captured"] or len(events)),
+            "frames_evaluated": len(events),
+            "tiles_classified": int(scan_row["tiles_classified"] or len(events) * train_config.N_TILES),
+            "distance_walked_m": scan_row["distance_walked_m"],
+            "distance_reason": scan_row["distance_reason"] or ("GPS_TRACK_NOT_RECORDED" if gps_points == 0 else None),
+        }
+
         # Construct payload strictly according to ans_for_vitthal.md §8 and data_flow_architecture.md §7.3
         payload = {
             "schema_version": "1.0",
@@ -1374,30 +1679,11 @@ class EdgeStorage(object):
             "generated_at_utc": now_utc,
             "inference_backend": str(inference_backend),
             "replay": bool(resolved_replay),
-            "scan": {
-                "started_utc": scan_row["started_utc"],
-                "ended_utc": scan_row["ended_utc"] or now_utc,
-                "mode": mode or (scan_row["mode"] if "mode" in scan_row.keys() and scan_row["mode"] else "handheld_pod"),
-                "crop_declared": crop_declared if crop_declared is not None else (scan_row["crop"] if "crop" in scan_row.keys() and scan_row["crop"] else None),
-                "duration_s": duration_s if duration_s is not None else (scan_row["duration_s"] if "duration_s" in scan_row.keys() and scan_row["duration_s"] is not None else int(round(abs(((_parse_iso_timestamp(scan_row["ended_utc"] or now_utc) or _parse_iso_timestamp(now_utc)) - (_parse_iso_timestamp(scan_row["started_utc"]) or _parse_iso_timestamp(now_utc))).total_seconds())))),
-                "stop_reason": (stop_reason if stop_reason in ("user", "time_limit", "error", "interrupted") else (scan_row["stop_reason"] if "stop_reason" in scan_row.keys() and scan_row["stop_reason"] in ("user", "time_limit", "error", "interrupted") else None)),
-                "frames_captured": int(scan_row["frames_captured"] or len(events)),
-                "frames_evaluated": len(events),
-                "tiles_classified": int(scan_row["tiles_classified"] or len(events) * train_config.N_TILES),
-                "distance_walked_m": scan_row["distance_walked_m"],
-                "distance_reason": scan_row["distance_reason"] or ("GPS_TRACK_NOT_RECORDED" if gps_points == 0 else None),
-            },
+            "scan": scan_payload,
             "time_source": (scan_row["time_source"] if "time_source" in scan_row.keys() and scan_row["time_source"] else time_source) or getattr(self, "clock_source", "filesystem"),
-            "summary": {
-                "stretches_total": 0,
-                "healthy": 0,
-                "need_look": 0,
-                "unclear": 0,
-                "not_crop": 0,
-                "no_data": 0,
-            },
-            "stretches": [],
-            "alerts": [],
+            "summary": summary,
+            "stretches": stretches,
+            "alerts": alerts,
             "field_conditions": {
                 "available": False,
                 "reason": "NO_VALID_MAST_READING",
@@ -1413,17 +1699,7 @@ class EdgeStorage(object):
                 "soil_units": "raw_volts_uncalibrated",
                 "source": None,
             },
-            "crop_health": {
-                "state": overall_state,
-                "reason": crop_health_reason if (overall_state not in ("HEALTHY", "DISEASE") or crop_health_reason) else None,
-                "crop": dominant_crop,
-                "frames_evaluated": len(events),
-                "frames_agreeing": max_agree,
-                "frames_rejected_ood": state_counts["UNCERTAIN"],
-                "frames_rejected_not_crop": state_counts["NOT_CROP"],
-                "frames_uncertain": state_counts["UNCERTAIN"],
-                "source": "measured",
-            },
+            "crop_health": crop_health_block,
             "growth_stage": growth_stage,
             "vegetation": vegetation,
             "thermal": thermal_block,
@@ -1725,24 +2001,76 @@ class EdgeStorage(object):
                     conn.execute("UPDATE scans SET status = 'interrupted', stop_reason = 'interrupted' WHERE scan_id = ?;", (scan_id,))
                 continue
 
+            # Find last event or status timestamp
+            last_event = conn.execute("SELECT timestamp_utc FROM frame_events WHERE scan_id = ? ORDER BY id DESC LIMIT 1;", (scan_id,)).fetchone()
+            last_event_utc = last_event["timestamp_utc"] if last_event else None
+
+            # Also check if status file exists and has newer timestamp or status
+            status_file = self.data_dir / "status" / (scan_id + ".json")
+            status_utc = None
+            if status_file.exists():
+                try:
+                    with open(str(status_file), "r", encoding="utf-8") as sf:
+                        st_data = json.load(sf)
+                        st_started = st_data.get("started_utc")
+                        st_elapsed = st_data.get("elapsed_s", 0)
+                        if st_started and st_elapsed > 0:
+                            s_dt = _parse_iso_timestamp(st_started)
+                            if s_dt:
+                                status_utc = datetime.datetime.fromtimestamp(s_dt.timestamp() + st_elapsed, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                except Exception:
+                    pass
+
+            ended_utc = None
+            if last_event_utc and status_utc:
+                dt_ev = _parse_iso_timestamp(last_event_utc)
+                dt_st = _parse_iso_timestamp(status_utc)
+                if dt_ev and dt_st:
+                    ended_utc = last_event_utc if dt_ev >= dt_st else status_utc
+                else:
+                    ended_utc = last_event_utc
+            elif last_event_utc:
+                ended_utc = last_event_utc
+            elif status_utc:
+                ended_utc = status_utc
+            else:
+                ended_utc = row["started_utc"]
+
+            dur_s = None
+            dur_reason = None
+            s_dt = _parse_iso_timestamp(row["started_utc"])
+            e_dt = _parse_iso_timestamp(ended_utc)
+            if s_dt and e_dt:
+                diff = (e_dt - s_dt).total_seconds()
+                if diff >= 0:
+                    dur_s = float(round(diff, 2))
+                else:
+                    dur_s = None
+                    dur_reason = "CLOCK_RESET_AFTER_POWER_LOSS"
+            else:
+                dur_reason = "CLOCK_RESET_AFTER_POWER_LOSS"
+
             try:
                 is_replay = bool(row["replay"]) if ("replay" in row.keys() and row["replay"] is not None) else False
                 advisory = self.create_advisory(
                     scan_id=scan_id,
                     stop_reason="interrupted",
                     replay=is_replay,
+                    ended_utc=ended_utc,
+                    duration_s=dur_s,
+                    duration_reason=dur_reason,
                 )
                 with conn:
                     conn.execute(
-                        "UPDATE scans SET status = 'interrupted', stop_reason = 'interrupted', ended_utc = ? WHERE scan_id = ?;",
-                        (get_utc_iso_now(), scan_id),
+                        "UPDATE scans SET status = 'interrupted', stop_reason = 'interrupted', ended_utc = ?, duration_s = ?, duration_reason = ? WHERE scan_id = ?;",
+                        (ended_utc, dur_s, dur_reason, scan_id),
                     )
                 recovered_ids.append(advisory["advisory_id"])
             except Exception:
                 with conn:
                     conn.execute(
-                        "UPDATE scans SET status = 'interrupted', stop_reason = 'interrupted', ended_utc = ? WHERE scan_id = ?;",
-                        (get_utc_iso_now(), scan_id),
+                        "UPDATE scans SET status = 'interrupted', stop_reason = 'interrupted', ended_utc = ?, duration_s = ?, duration_reason = ? WHERE scan_id = ?;",
+                        (ended_utc, dur_s, dur_reason, scan_id),
                     )
         return recovered_ids
 

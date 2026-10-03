@@ -96,7 +96,15 @@ try:
 except ImportError:
     GPS = None
 
-from edge.storage import DEFAULT_DB_PATH, EdgeStorage
+from edge.storage import (
+    DEFAULT_DATA_DIR,
+    DEFAULT_DB_PATH,
+    DEFAULT_STORAGE_CARD_MISSING,
+    HEALTHY_CLASSES_BY_CROP,
+    EdgeStorage,
+    get_storage_free_mb,
+    get_utc_iso_now,
+)
 
 
 # Distinct sentinel for queue timeout vs stream EOF (None)
@@ -344,6 +352,7 @@ class CaptureThread(threading.Thread):
         self.error = None
 
         self.frames_read = 0
+        self.replay_loops = 0
         self.running = True
         self.gps = None
         if GPS is not None:
@@ -413,6 +422,7 @@ class CaptureThread(threading.Thread):
                 self.t_read_s += (time.time() - t_rd0)
                 if not ret or frame is None:
                     if self.until_stopped and not self.is_camera:
+                        self.replay_loops += 1
                         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                         ret, frame = cap.read()
                         if not ret or frame is None:
@@ -544,6 +554,7 @@ class GateTileThread(threading.Thread):
         self.frames_evaluated = 0
         self.frames_passed = 0
         self.rejections_by_reason = collections.defaultdict(int)
+        self.gate_history = collections.deque(maxlen=2000)
 
         self.t_queue_wait_s = 0.0
         self.t_gate_eval_s = 0.0
@@ -571,8 +582,10 @@ class GateTileThread(threading.Thread):
 
                 # On handheld pod: telemetry is None (or GPS only, no altitude/roll/pitch)
                 t_g0 = time.time()
+                t_mono = time.monotonic()
                 passed, reason, metrics = self.frame_gate.evaluate(frame, telemetry=None)
                 self.t_gate_eval_s += (time.time() - t_g0)
+                self.gate_history.append((t_mono, passed, reason))
 
                 if not passed:
                     self.rejections_by_reason[reason] += 1
@@ -825,9 +838,36 @@ def write_pipeline_status(
     thermal_c_latest: Optional[float] = None,
     advisory_id: Optional[str] = None,
     stop_reason: Optional[str] = None,
+    counts: Optional[Dict[str, int]] = None,
+    warnings: Optional[List[Dict[str, Any]]] = None,
+    alerts: Optional[List[Dict[str, Any]]] = None,
+    field_station: Optional[Dict[str, Any]] = None,
 ) -> None:
     if not status_file:
         return
+
+    counts_payload = {
+        "frames_seen": int(frames_seen),
+        "frames_used": int(frames_used),
+        "stretches": 0,
+        "healthy": 0,
+        "need_look": 0,
+        "unclear": 0,
+        "not_crop": 0,
+    }
+    if counts:
+        counts_payload.update(counts)
+    counts_payload["frames_seen"] = int(frames_seen)
+    counts_payload["frames_used"] = int(frames_used)
+
+    field_station_payload = {
+        "reachable": None,
+        "readings_collected": None,
+        "last_reading_utc": None,
+    }
+    if field_station:
+        field_station_payload.update(field_station)
+
     payload = {
         "state": state,
         "scan_id": scan_id,
@@ -837,23 +877,11 @@ def write_pipeline_status(
         "started_utc": started_utc,
         "elapsed_s": int(elapsed_s),
         "max_duration_s": int(max_duration_s),
-        "counts": {
-            "frames_seen": int(frames_seen),
-            "frames_used": int(frames_used),
-            "stretches": 0,
-            "healthy": 0,
-            "need_look": 0,
-            "unclear": 0,
-            "not_crop": 0,
-        },
+        "counts": counts_payload,
         "thermal_c_latest": thermal_c_latest,
-        "field_station": {
-            "reachable": None,
-            "readings_collected": None,
-            "last_reading_utc": None,
-        },
-        "warnings": [],
-        "alerts": [],
+        "field_station": field_station_payload,
+        "warnings": warnings if warnings is not None else [],
+        "alerts": alerts if alerts is not None else [],
         "advisory_id": advisory_id,
         "stop_reason": stop_reason,
     }
@@ -886,6 +914,7 @@ class StatusHeartbeatThread(threading.Thread):
         max_duration_s: int,
         t1_capture: Optional[CaptureThread],
         t4_decision: Optional["DecisionAggregateStoreThread"],
+        t2_gate: Optional[GateTileThread] = None,
     ):
         super(StatusHeartbeatThread, self).__init__(name="StatusHeartbeatThread")
         self.daemon = True
@@ -898,8 +927,17 @@ class StatusHeartbeatThread(threading.Thread):
         self.max_duration_s = int(max_duration_s)
         self.t1_capture = t1_capture
         self.t4_decision = t4_decision
+        self.t2_gate = t2_gate
         self.stop_event = threading.Event()
         self.start_mono = time.monotonic()
+        self.active_warnings = {}  # type: Dict[str, str]
+        self.thermal_sensor = None
+        if is_camera_source(self.source):
+            try:
+                from edge.thermal_capture import MLX90640
+                self.thermal_sensor = MLX90640(mock=False)
+            except Exception:
+                self.thermal_sensor = None
 
     def run(self) -> None:
         self._write_heartbeat()
@@ -919,14 +957,155 @@ class StatusHeartbeatThread(threading.Thread):
 
             self._write_heartbeat()
 
+    def _sample_thermal(self) -> Optional[float]:
+        if not is_camera_source(self.source) or self.thermal_sensor is None:
+            return None
+        try:
+            tf = self.thermal_sensor.capture_frame()
+            if tf.get("available") and tf.get("temperature_array") is not None:
+                t_val = float(np.median(tf["temperature_array"]))
+                if self.t4_decision is not None:
+                    self.t4_decision.thermal_c_latest = t_val
+                    self.t4_decision.thermal_frame_data = tf
+                return t_val
+        except Exception:
+            pass
+        return None
+
+    def _evaluate_warnings(self, now_mono: float, now_iso: str) -> List[Dict[str, Any]]:
+        current_codes = set()
+
+        # 1. Gate history (5s window) -> TOO_DARK, TOO_BRIGHT, BLURRY_SLOW_DOWN
+        if self.t2_gate is not None and hasattr(self.t2_gate, "gate_history"):
+            window_5s = [e for e in self.t2_gate.gate_history if e[0] >= now_mono - 5.0]
+            if len(window_5s) >= 10:
+                tot = float(len(window_5s))
+                dark_cnt = sum(1 for e in window_5s if e[2] == "exposure_underexposed")
+                bright_cnt = sum(1 for e in window_5s if e[2] == "exposure_overexposed")
+                blurry_cnt = sum(1 for e in window_5s if e[2] == "frame_blurry")
+
+                if (dark_cnt / tot) >= 0.60:
+                    current_codes.add("TOO_DARK")
+                if (bright_cnt / tot) >= 0.60:
+                    current_codes.add("TOO_BRIGHT")
+                if (blurry_cnt / tot) >= 0.50:
+                    current_codes.add("BLURRY_SLOW_DOWN")
+
+        # 2. Tile / decision history (10s window) -> NOT_SEEING_CROP
+        if self.t4_decision is not None and hasattr(self.t4_decision, "used_history"):
+            window_10s = [e for e in self.t4_decision.used_history if e[0] >= now_mono - 10.0]
+            if len(window_10s) >= 10:
+                tot_10 = float(len(window_10s))
+                not_crop_cnt = sum(1 for e in window_10s if (e[1] == "NOT_CROP" or e[2] == "not_crop"))
+                if (not_crop_cnt / tot_10) >= 0.80:
+                    current_codes.add("NOT_SEEING_CROP")
+
+        # 3. POD_HOT (Nano temperature > 80C)
+        for zone_path in ("/sys/devices/virtual/thermal/thermal_zone0/temp", "/sys/class/thermal/thermal_zone0/temp"):
+            try:
+                zp = Path(zone_path)
+                if zp.exists():
+                    temp_c = float(zp.read_text().strip()) / 1000.0
+                    if temp_c > 80.0:
+                        current_codes.add("POD_HOT")
+                    break
+            except Exception:
+                pass
+
+        # 4. STORAGE_LOW (< 500 MB) & STORAGE_CARD_MISSING
+        try:
+            free_mb = get_storage_free_mb(DEFAULT_DATA_DIR)
+            if free_mb < 500:
+                current_codes.add("STORAGE_LOW")
+        except Exception:
+            pass
+
+        if DEFAULT_STORAGE_CARD_MISSING:
+            current_codes.add("STORAGE_CARD_MISSING")
+
+        # Update active_warnings dict
+        for code in current_codes:
+            if code not in self.active_warnings:
+                self.active_warnings[code] = now_iso
+        for code in list(self.active_warnings.keys()):
+            if code not in current_codes:
+                del self.active_warnings[code]
+
+        return [{"code": c, "since_utc": self.active_warnings[c]} for c in sorted(self.active_warnings.keys())]
+
+    def _calculate_stretch_counts(self, elapsed_s: int) -> Dict[str, int]:
+        num_closed = int(elapsed_s / 20)
+        healthy_count = 0
+        need_look_count = 0
+        unclear_count = 0
+        not_crop_count = 0
+
+        if self.t4_decision is not None and hasattr(self.t4_decision, "used_history"):
+            history = list(self.t4_decision.used_history)
+            start_m = self.start_mono
+            declared_crop = self.crop
+            healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set()) if declared_crop else set()
+
+            for i in range(num_closed):
+                s_t0 = start_m + 20.0 * i
+                s_t1 = start_m + 20.0 * (i + 1)
+                s_events = [e for e in history if s_t0 <= e[0] < s_t1]
+                if not s_events:
+                    continue
+                nc_cnt = sum(1 for e in s_events if (e[1] == "NOT_CROP" or e[2] == "not_crop"))
+                if (nc_cnt / float(len(s_events))) >= 0.80:
+                    not_crop_count += 1
+                else:
+                    dis_cnt = 0
+                    hl_cnt = 0
+                    for e in s_events:
+                        cname = e[2] or ""
+                        f_st = e[1]
+                        if declared_crop:
+                            if not cname.startswith(declared_crop + "__"):
+                                continue
+                            if cname in healthy_set or f_st == "HEALTHY":
+                                hl_cnt += 1
+                            elif cname != "not_crop":
+                                dis_cnt += 1
+                        else:
+                            if "healthy" in cname or "normal" in cname or "dried" in cname or f_st == "HEALTHY":
+                                hl_cnt += 1
+                            elif cname != "not_crop":
+                                dis_cnt += 1
+
+                    if dis_cnt > 0 and dis_cnt >= hl_cnt:
+                        need_look_count += 1
+                    elif hl_cnt > 0:
+                        healthy_count += 1
+                    else:
+                        unclear_count += 1
+
+        return {
+            "stretches": num_closed,
+            "healthy": healthy_count,
+            "need_look": need_look_count,
+            "unclear": unclear_count,
+            "not_crop": not_crop_count,
+        }
+
     def _write_heartbeat(self) -> None:
         if not self.status_file or self.stop_event.is_set():
             return
+        now_mono = time.monotonic()
+        now_iso = get_utc_iso_now()
         frames_seen = getattr(self.t1_capture, "frames_read", 0)
         frames_used = getattr(self.t4_decision, "events_written", 0)
-        thermal_c = getattr(self.t4_decision, "thermal_c_latest", None)
-        elapsed_s = int(time.monotonic() - self.start_mono)
+
+        sampled_thermal = self._sample_thermal()
+        thermal_c = sampled_thermal if sampled_thermal is not None else getattr(self.t4_decision, "thermal_c_latest", None)
+
+        elapsed_s = int(now_mono - self.start_mono)
         state = "scanning" if frames_seen > 0 else "starting"
+
+        warnings = self._evaluate_warnings(now_mono, now_iso)
+        counts = self._calculate_stretch_counts(elapsed_s)
+        alerts = (self.t4_decision.alerts[-20:]) if (self.t4_decision is not None and hasattr(self.t4_decision, "alerts")) else []
 
         write_pipeline_status(
             status_file=self.status_file,
@@ -943,6 +1122,9 @@ class StatusHeartbeatThread(threading.Thread):
             thermal_c_latest=thermal_c,
             advisory_id=None,
             stop_reason=None,
+            counts=counts,
+            warnings=warnings,
+            alerts=alerts,
         )
 
 
@@ -996,6 +1178,10 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.heartbeat_thread = None
         self.started_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.thermal_c_latest = None
+        self.thermal_frame_data = None
+        self.used_history = collections.deque(maxlen=2000)
+        self.alerts = []
+        self.last_alert_mono = {}
 
         if isinstance(storage, (str, Path)):
             self.storage = EdgeStorage(db_path=storage)
@@ -1029,6 +1215,9 @@ class DecisionAggregateStoreThread(threading.Thread):
         thermal_c_latest: Optional[float] = None,
         advisory_id: Optional[str] = None,
         stop_reason: Optional[str] = None,
+        counts: Optional[Dict[str, int]] = None,
+        warnings: Optional[List[Dict[str, Any]]] = None,
+        alerts: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         write_pipeline_status(
             status_file=self.status_file,
@@ -1045,6 +1234,9 @@ class DecisionAggregateStoreThread(threading.Thread):
             thermal_c_latest=thermal_c_latest,
             advisory_id=advisory_id,
             stop_reason=stop_reason,
+            counts=counts,
+            warnings=warnings,
+            alerts=alerts,
         )
 
     def run(self) -> None:
@@ -1202,6 +1394,39 @@ class DecisionAggregateStoreThread(threading.Thread):
 
                 self.events_written += 1
 
+                t_now_mono = time.monotonic()
+                cname_top = CLASS_NAMES[frame_class_id] if frame_class_id is not None else None
+                gps_obj = metadata.get("gps")
+                lat_v = gps_obj.get("latitude") if (gps_obj and isinstance(gps_obj, dict)) else None
+                lon_v = gps_obj.get("longitude") if (gps_obj and isinstance(gps_obj, dict)) else None
+                self.used_history.append((t_now_mono, frame_state, cname_top, lat_v, lon_v, None, True))
+
+                # Realtime Alert Tracking: ≥3 frames agree on the same disease of the declared crop within 6 s; 15 s cooldown per disease
+                if frame_state == "DISEASE" and cname_top:
+                    is_candidate_disease = False
+                    if self.crop:
+                        if cname_top.startswith(self.crop + "__") and cname_top not in HEALTHY_CLASSES_BY_CROP.get(self.crop, set()):
+                            is_candidate_disease = True
+                    else:
+                        if not ("healthy" in cname_top or "normal" in cname_top or "dried" in cname_top or cname_top == "not_crop"):
+                            is_candidate_disease = True
+
+                    if is_candidate_disease:
+                        agreeing = [e for e in self.used_history if (e[0] >= t_now_mono - 6.0 and e[2] == cname_top)]
+                        if len(agreeing) >= 3:
+                            if t_now_mono - self.last_alert_mono.get(cname_top, -999.0) >= 15.0:
+                                self.last_alert_mono[cname_top] = t_now_mono
+                                alert_id = len(self.alerts) + 1
+                                self.alerts.append({
+                                    "alert_id": alert_id,
+                                    "utc": timestamp_utc,
+                                    "class": cname_top,
+                                    "frames_agreeing": len(agreeing),
+                                    "lat": lat_v,
+                                    "lon": lon_v,
+                                    "pos_accuracy_m": None,
+                                })
+
                 if jsonl_file is not None:
                     t_jw0 = time.time()
                     event = {
@@ -1241,6 +1466,7 @@ class DecisionAggregateStoreThread(threading.Thread):
                 total_duration_s = round(time.monotonic() - start_mono, 2)
                 effective_stop_reason = (self.stop_reason or "user") if self.until_stopped else None
                 mode_val = "walk" if self.until_stopped else "handheld_pod"
+                replay_loops_val = getattr(self.t1_capture, "replay_loops", 0)
                 self.storage.record_scan_end(
                     scan_id=self.scan_id,
                     frames_captured=getattr(self.t1_capture, "frames_read", self.events_written),
@@ -1249,6 +1475,7 @@ class DecisionAggregateStoreThread(threading.Thread):
                     status="complete" if not self.aborted else "error",
                     stop_reason=effective_stop_reason,
                     duration_s=total_duration_s,
+                    replay_loops=replay_loops_val,
                 )
                 replay_flag = not is_camera_source(self.source)
                 self.last_advisory = self.storage.create_advisory(
@@ -1258,16 +1485,33 @@ class DecisionAggregateStoreThread(threading.Thread):
                     days_since_planting=self.days_since_planting,
                     total_cycle_days=self.total_cycle_days,
                     inference_backend=self.inference_backend,
+                    thermal_frame_data=self.thermal_frame_data,
                     stop_reason=effective_stop_reason,
                     crop_declared=self.crop,
                     duration_s=total_duration_s,
                     mode=mode_val,
                     time_source=self.time_source,
+                    replay_loops=replay_loops_val,
                 )
                 self.storage.prune_retained_data()
                 self.t_advisory_s = (time.time() - t_adv0)
 
                 if self.status_file:
+                    final_counts = None
+                    final_alerts = None
+                    if self.last_advisory:
+                        adv_sum = self.last_advisory.get("summary", {})
+                        final_counts = {
+                            "frames_seen": getattr(self.t1_capture, "frames_read", self.events_written),
+                            "frames_used": self.events_written,
+                            "stretches": adv_sum.get("stretches_total", 0),
+                            "healthy": adv_sum.get("healthy", 0),
+                            "need_look": adv_sum.get("need_look", 0),
+                            "unclear": adv_sum.get("unclear", 0),
+                            "not_crop": adv_sum.get("not_crop", 0),
+                        }
+                        final_alerts = self.last_advisory.get("alerts", [])[-20:]
+
                     self._write_status(
                         state="done" if not self.aborted else "error",
                         elapsed_s=int(time.monotonic() - start_mono),
@@ -1276,6 +1520,8 @@ class DecisionAggregateStoreThread(threading.Thread):
                         thermal_c_latest=self.thermal_c_latest,
                         advisory_id=self.last_advisory.get("advisory_id") if self.last_advisory else None,
                         stop_reason=effective_stop_reason,
+                        counts=final_counts,
+                        alerts=final_alerts,
                     )
 
         finally:
@@ -1450,6 +1696,7 @@ class EdgePipeline(object):
                 max_duration_s=self.max_duration_s,
                 t1_capture=self.t1_capture,
                 t4_decision=self.t4_decision,
+                t2_gate=self.t2_gate_tile,
             )
             self.t4_decision.heartbeat_thread = self.t_heartbeat
         else:

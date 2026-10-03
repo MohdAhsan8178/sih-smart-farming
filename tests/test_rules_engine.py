@@ -49,7 +49,7 @@ def test_every_template_has_verifiable_citation_and_provenance():
         counts[prov] += 1
 
     # Exact honest breakdown
-    assert counts["verified-operational"] == 2  # RESCAN_AMBIGUOUS, MULTICROP_INVESTIGATE
+    assert counts["verified-operational"] == 3  # RESCAN_AMBIGUOUS, RESCAN_NO_USABLE_FRAMES, MULTICROP_INVESTIGATE
     assert counts["verified-calculation"] == 1  # IRRIGATE_WATER_DEFICIT (FAO-56 in edge/irrigation_model.py)
     assert counts["web-verified"] == 11         # 11 agronomic templates verified against CIB&RC / PPQS stored in docs/sources/
     assert counts["recalled-unverified"] == 5   # 5 unverified templates (4 sugarcane + 1 rice brown spot)
@@ -307,12 +307,12 @@ def test_standing_guard_chemical_doses_never_verified_without_repo_source():
 
 
 def test_template_provenance_counts():
-    """Assert exact counts: 3 VERIFIED, 11 WEB_VERIFIED, 5 RECALLED_UNVERIFIED, 2 UNSOURCED."""
+    """Assert exact counts: 4 VERIFIED, 11 WEB_VERIFIED, 5 RECALLED_UNVERIFIED, 2 UNSOURCED."""
     counts = {"VERIFIED": 0, "WEB_VERIFIED": 0, "RECALLED_UNVERIFIED": 0, "UNSOURCED": 0}
     for defn in TEMPLATES.values():
         st = defn.get("verification_status")
         counts[st] = counts.get(st, 0) + 1
-    assert counts["VERIFIED"] == 3
+    assert counts["VERIFIED"] == 4
     assert counts["WEB_VERIFIED"] == 11, f"Expected 11 WEB_VERIFIED, got {counts['WEB_VERIFIED']}"
     assert counts["RECALLED_UNVERIFIED"] == 5, f"Expected 5 RECALLED_UNVERIFIED, got {counts['RECALLED_UNVERIFIED']}"
     assert counts["UNSOURCED"] == 2
@@ -346,7 +346,7 @@ def test_all_template_ids_valid_format_and_no_typo_collisions():
     id_pattern = re.compile(r"^ACT_[A-Z_]+$")
 
     tids = list(TEMPLATES.keys())
-    assert len(tids) == 21, "Expected exactly 21 templates in TEMPLATES"
+    assert len(tids) == 22, "Expected exactly 22 templates in TEMPLATES"
 
     for tid in tids:
         assert id_pattern.match(tid), "Template ID %s does not match ^ACT_[A-Z_]+$" % tid
