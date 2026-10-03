@@ -25,6 +25,7 @@ Key Architectural Properties:
 """
 
 import argparse
+import concurrent.futures
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import datetime
 import json
@@ -32,6 +33,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import socket
 import socketserver
 import subprocess
 import sys
@@ -39,6 +41,7 @@ import threading
 import time
 from typing import Any, Dict, Optional, Tuple, Union
 import urllib.parse
+import urllib.request
 
 # Ensure repo root is on sys.path
 ROOT = Path(__file__).resolve().parent.parent
@@ -50,6 +53,97 @@ from edge.storage import DEFAULT_DB_PATH, EdgeStorage, _parse_iso_timestamp, get
 DEFAULT_GATEWAY_HOST = "0.0.0.0"
 DEFAULT_GATEWAY_PORT = 8080
 
+
+def _get_wlan_subnet_prefix():
+    """Finds the local /24 subnet prefix for wlan0 or active network."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        parts = ip.split(".")
+        if len(parts) == 4:
+            return ".".join(parts[:3])
+    except Exception:
+        pass
+    return "192.168.43"
+
+
+def probe_for_field_station(subnet_prefix="192.168.43", timeout_per_host=0.5, max_workers=32, total_timeout=8.0):
+    """Probes /24 subnet in parallel for ESP32 Field Station node_id == 'SIH-NODE-01'."""
+    def _probe_host(host_ip):
+        url = "http://%s/api/v1/health" % host_ip
+        req = urllib.request.Request(url)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_per_host) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if isinstance(data, dict) and data.get("node_id") == "SIH-NODE-01":
+                        return "http://%s/api/v1" % host_ip
+        except Exception:
+            pass
+        return None
+
+    hosts = ["%s.%d" % (subnet_prefix, i) for i in range(1, 255)]
+    found_url = None
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_host = {executor.submit(_probe_host, h): h for h in hosts}
+        try:
+            for fut in concurrent.futures.as_completed(future_to_host, timeout=total_timeout):
+                res = fut.result()
+                if res:
+                    found_url = res
+                    break
+        except Exception:
+            pass
+    return found_url
+
+
+def discover_field_station_url(data_dir, mast_base_url_override=None):
+    """
+    Discovery fallback order (Spec §1.2 / Fix 1):
+      a) /etc/sih/field_station.json
+      b) <data_dir>/field_station.json
+      c) parallel wlan0 /24 subnet probe (max 32 threads, 0.5s timeout, whole probe <= 8s)
+    """
+    if mast_base_url_override:
+        return mast_base_url_override
+
+    # a) /etc/sih/field_station.json
+    etc_path = Path("/etc/sih/field_station.json")
+    if etc_path.exists():
+        try:
+            with open(str(etc_path), "r", encoding="utf-8") as f:
+                d = json.load(f)
+                if isinstance(d, dict) and d.get("base_url"):
+                    return d["base_url"].rstrip("/")
+        except Exception:
+            pass
+
+    # b) <data_dir>/field_station.json
+    data_path = Path(data_dir) / "field_station.json"
+    if data_path.exists():
+        try:
+            with open(str(data_path), "r", encoding="utf-8") as f:
+                d = json.load(f)
+                if isinstance(d, dict) and d.get("base_url"):
+                    return d["base_url"].rstrip("/")
+        except Exception:
+            pass
+
+    # c) probe subnet in parallel
+    prefix = _get_wlan_subnet_prefix()
+    found = probe_for_field_station(subnet_prefix=prefix, timeout_per_host=0.5, max_workers=32, total_timeout=8.0)
+    if found:
+        try:
+            data_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(str(data_path), "w", encoding="utf-8") as f:
+                json.dump({"base_url": found}, f)
+        except Exception:
+            pass
+        return found
+
+    return None
 
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
@@ -362,14 +456,24 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                 replay=1 if replay_flag else 0,
             )
 
-            # Background field station discovery & telemetry poll (Spec §1.2 / Item G)
+            # Background field station discovery & telemetry poll (Spec §1.2 / Item G / Fix 1)
             self.field_station_warning = False
 
             def _poll_fs_on_start():
                 try:
                     from edge.mast_collector import MastCollector
-                    mast_url = getattr(self, "mast_base_url", "http://192.168.9.1/api/v1")
-                    collector = MastCollector(base_url=mast_url, storage=self.storage, timeout=1.5, max_retries=0)
+                    override = getattr(self, "mast_base_url", None)
+                    base_url = discover_field_station_url(self.storage.data_dir, mast_base_url_override=override)
+                    if not base_url:
+                        self.field_station_status = {
+                            "reachable": False,
+                            "readings_collected": 0,
+                            "last_reading_utc": None,
+                        }
+                        self.field_station_warning = True
+                        return
+
+                    collector = MastCollector(base_url=base_url, storage=self.storage, timeout=1.5, max_retries=0)
                     res = collector.collect()
                     if isinstance(res, dict) and res.get("status") == "ok":
                         latest = self.storage.get_latest_mast_telemetry()
@@ -380,6 +484,13 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                             "last_reading_utc": last_utc,
                         }
                         self.field_station_warning = False
+
+                        # Set ESP32 clock if phone or gps (Fix 1)
+                        if self.clock_source in ("phone", "gps"):
+                            try:
+                                collector.set_time(int(time.time()))
+                            except Exception:
+                                pass
                     else:
                         self.field_station_status = {
                             "reachable": False,
@@ -417,6 +528,21 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
             return row is not None
         except Exception:
             return False
+
+    def _poll_fs_on_finalize(self):
+        """Collect once more at stop/finalize (max 5s, non-blocking) so advisory gets latest readings."""
+        def _bg_stop_poll():
+            try:
+                from edge.mast_collector import MastCollector
+                override = getattr(self, "mast_base_url", None)
+                base_url = discover_field_station_url(self.storage.data_dir, mast_base_url_override=override)
+                if base_url:
+                    collector = MastCollector(base_url=base_url, storage=self.storage, timeout=1.5, max_retries=0)
+                    collector.collect()
+            except Exception:
+                pass
+        t = threading.Thread(target=_bg_stop_poll, daemon=True, name="FieldStationStopPoll")
+        t.start()
 
     def _build_final_status(self, final_st, scan_id, state, stop_reason, adv_id):
         """Build the final status dict, preferring pipeline's own status file."""
@@ -1157,6 +1283,16 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                     return
                 if fixes is None or not isinstance(fixes, list):
                     self._send_error_json(400, "bad_request", "fixes list is required")
+                    return
+                if len(fixes) > 500:
+                    self._send_error_json(400, "bad_request", "Batch size exceeds maximum limit of 500 fixes")
+                    return
+
+                # Check if scan exists in DB (Fix 8: 404 unknown_scan)
+                conn = self.server.storage._get_connection()
+                srow = conn.execute("SELECT scan_id FROM scans WHERE scan_id = ?;", (scan_id.strip(),)).fetchone()
+                if not srow:
+                    self._send_error_json(404, "unknown_scan", "Scan ID '%s' not found" % scan_id)
                     return
 
                 res = self.server.storage.record_scan_track(scan_id=scan_id.strip(), fixes=fixes)

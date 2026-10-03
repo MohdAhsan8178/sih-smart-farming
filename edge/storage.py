@@ -164,6 +164,90 @@ HEALTHY_CLASSES_BY_CROP: Dict[str, Set[str]] = {
 }
 
 
+def evaluate_stretch_verdict(
+    stretch_events: List[Any],
+    declared_crop: Optional[str] = None,
+) -> Tuple[str, Optional[str], int]:
+    """
+    Evaluates the verdict of a 20-second stretch from its frame events.
+    Rules:
+      - NO_DATA if 0 used frames;
+      - NOT_CROP if not_crop_count / used >= 0.8;
+      - DISEASE if diseased_frames >= 2 AND diseased_ratio >= 0.20 (for declared crop in walk mode);
+      - HEALTHY if healthy_frames >= 2 AND healthy_ratio >= 0.50;
+      - else UNCERTAIN.
+    Returns: (verdict, top_class, agreeing_count)
+      verdict in ("NO_DATA", "NOT_CROP", "DISEASE", "HEALTHY", "UNCERTAIN")
+    """
+    if not stretch_events:
+        return "NO_DATA", None, 0
+
+    total_used = len(stretch_events)
+    not_crop_cnt = 0
+    dis_counts = collections.defaultdict(int)
+    hl_cnt = 0
+    healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set()) if declared_crop else set()
+
+    for item in stretch_events:
+        cname = ""
+        f_st = ""
+        if isinstance(item, sqlite3.Row) or hasattr(item, "keys"):
+            keys = set(item.keys())
+            f_st = item["frame_state"] if "frame_state" in keys and item["frame_state"] else ""
+            cname = item["class_name"] if "class_name" in keys and item["class_name"] else ""
+            if not cname and "class_id" in keys and item["class_id"] is not None:
+                cid = item["class_id"]
+                if 0 <= cid < len(CLASS_NAMES):
+                    cname = CLASS_NAMES[cid]
+        elif isinstance(item, dict):
+            f_st = item.get("frame_state") or ""
+            cname = item.get("class_name") or ""
+            if not cname and "class_id" in item and item["class_id"] is not None:
+                cid = item["class_id"]
+                if 0 <= cid < len(CLASS_NAMES):
+                    cname = CLASS_NAMES[cid]
+        elif isinstance(item, (list, tuple)):
+            f_st = item[1] if len(item) > 1 and item[1] else ""
+            cname = item[2] if len(item) > 2 and item[2] else ""
+        else:
+            cname = getattr(item, "class_name", "") or ""
+            f_st = getattr(item, "frame_state", "") or ""
+            if not cname and hasattr(item, "class_id"):
+                cid = getattr(item, "class_id")
+                if cid is not None and 0 <= cid < len(CLASS_NAMES):
+                    cname = CLASS_NAMES[cid]
+
+        if cname == "not_crop" or f_st == "NOT_CROP":
+            not_crop_cnt += 1
+            continue
+
+        if declared_crop:
+            if not cname.startswith(declared_crop + "__"):
+                continue
+            if cname in healthy_set or f_st == "HEALTHY":
+                hl_cnt += 1
+            elif cname != "not_crop":
+                dis_counts[cname] += 1
+        else:
+            if "healthy" in cname or "normal" in cname or "dried" in cname or f_st == "HEALTHY":
+                hl_cnt += 1
+            elif cname != "not_crop":
+                dis_counts[cname] += 1
+
+    if (not_crop_cnt / float(total_used)) >= 0.80:
+        return "NOT_CROP", None, not_crop_cnt
+
+    total_diseased = sum(dis_counts.values())
+    if total_diseased >= 2 and (float(total_diseased) / float(total_used)) >= 0.20:
+        top_d, top_c = max(dis_counts.items(), key=lambda x: x[1])
+        return "DISEASE", top_d, top_c
+
+    if hl_cnt >= 2 and (float(hl_cnt) / float(total_used)) >= 0.50:
+        return "HEALTHY", None, hl_cnt
+
+    return "UNCERTAIN", None, 0
+
+
 class EdgeStorage(object):
     """
     Thread-safe SQLite storage engine for edge pipeline telemetry, detections,
@@ -886,6 +970,10 @@ class EdgeStorage(object):
                 rejected_count += 1
                 continue
 
+            if lat_f < -90.0 or lat_f > 90.0 or lon_f < -180.0 or lon_f > 180.0:
+                rejected_count += 1
+                continue
+
             acc = fix.get("accuracy_m")
             acc_f = None
             if acc is not None:
@@ -1005,6 +1093,7 @@ class EdgeStorage(object):
         ended_utc: Optional[str] = None,
         duration_reason: Optional[str] = None,
         replay_loops: Optional[int] = None,
+        thermal_samples: Optional[List[Tuple[str, float]]] = None,
     ) -> Dict[str, Any]:
         """
         Synthesizes a complete frozen Advisory document (schema v1.0) from recorded
@@ -1117,6 +1206,7 @@ class EdgeStorage(object):
         phone_gps_points = 0
         crop_counts = collections.defaultdict(int)
         event_positions = {}
+        healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set()) if declared_crop else set()
 
         for e in events:
             e_lat = e["lat"]
@@ -1150,8 +1240,13 @@ class EdgeStorage(object):
             if e["frame_state"] in ("DISEASE", "HEALTHY"):
                 cname = e["class_name"] or "unknown"
                 if "__" in cname:
-                    crop = cname.split("__")[0]
-                    crop_counts[crop] += 1
+                    crop_name = cname.split("__")[0]
+                    crop_counts[crop_name] += 1
+
+                # In walk mode with declared crop, mask out other crop detections (Fix 3)
+                if is_walk_mode and declared_crop:
+                    if not cname.startswith(declared_crop + "__"):
+                        continue
 
                 detections.append({
                     "class": cname,
@@ -1183,46 +1278,27 @@ class EdgeStorage(object):
             crop_health_reason = "NO_USABLE_FRAMES"
         else:
             if is_walk_mode and declared_crop:
-                healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set())
-                disease_events = []
-                healthy_events = []
-                not_crop_events = []
-                uncertain_events = []
-                for e in events:
-                    cname = e["class_name"] or ""
-                    f_state = e["frame_state"]
-                    if cname == "not_crop" or f_state == "NOT_CROP":
-                        not_crop_events.append(e)
-                    elif cname.startswith(declared_crop + "__"):
-                        if cname in healthy_set or f_state == "HEALTHY":
-                            healthy_events.append(e)
-                        else:
-                            disease_events.append(e)
-                    else:
-                        uncertain_events.append(e)
+                declared_events = [e for e in events if (e["class_name"] or "").startswith(declared_crop + "__")]
+                declared_healthy = [e for e in declared_events if (e["class_name"] in healthy_set or e["frame_state"] == "HEALTHY")]
+                declared_disease = [e for e in declared_events if (e["class_name"] not in healthy_set and e["frame_state"] != "HEALTHY" and e["class_name"] != "not_crop")]
+                not_crop_events = [e for e in events if (e["class_name"] == "not_crop" or e["frame_state"] == "NOT_CROP")]
 
-                if cells:
-                    if "DISEASE" in cell_states and len(disease_events) > 0:
-                        overall_state = "DISEASE"
-                    elif "HEALTHY" in cell_states:
-                        overall_state = "HEALTHY"
-                    elif len(not_crop_events) == len(events):
-                        overall_state = "NOT_CROP"
-                    else:
-                        overall_state = "UNCERTAIN"
-                        if not crop_health_reason:
-                            crop_health_reason = "HIGH_UNCERTAINTY"
+                # Only cells matching declared crop state affect overall state
+                if len(declared_events) == 0 and len(not_crop_events) == len(events):
+                    overall_state = "NOT_CROP"
+                    crop_health_reason = None
+                elif len(declared_events) == 0:
+                    overall_state = "UNCERTAIN"
+                    crop_health_reason = "HIGH_UNCERTAINTY"
+                elif len(declared_disease) > 0:
+                    overall_state = "DISEASE"
+                    crop_health_reason = None
+                elif len(declared_healthy) > 0:
+                    overall_state = "HEALTHY"
+                    crop_health_reason = None
                 else:
-                    if len(disease_events) > 0:
-                        overall_state = "DISEASE"
-                    elif len(healthy_events) > 0:
-                        overall_state = "HEALTHY"
-                    elif len(not_crop_events) == len(events):
-                        overall_state = "NOT_CROP"
-                    else:
-                        overall_state = "UNCERTAIN"
-                        if not crop_health_reason:
-                            crop_health_reason = "HIGH_UNCERTAINTY"
+                    overall_state = "UNCERTAIN"
+                    crop_health_reason = "HIGH_UNCERTAINTY"
             else:
                 if crop_counts:
                     total_crop_detections = sum(crop_counts.values())
@@ -1426,7 +1502,7 @@ class EdgeStorage(object):
         # Growth Stage block: Deterministic lookup via core/growth_stage.py (Step 28 / FAO-56)
         from core.growth_stage import estimate_growth_stage
         growth_stage = estimate_growth_stage(
-            crop=dominant_crop,
+            crop=declared_crop or dominant_crop,
             days_since_planting=days_since_planting,
             canopy_cover=mean_canopy,
             total_cycle_days=total_cycle_days,
@@ -1714,7 +1790,6 @@ class EdgeStorage(object):
                 num_stretches = 1
 
             stretches = []
-            healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set()) if declared_crop else set()
             for i in range(num_stretches):
                 s_start_ts = start_ts + 20.0 * i
                 s_end_ts = start_ts + 20.0 * (i + 1)
@@ -1732,52 +1807,19 @@ class EdgeStorage(object):
                         if s_start_ts <= e_ts < s_end_ts:
                             s_events.append(e)
 
-                if len(s_events) == 0:
-                    s_verdict = "NO_DATA"
-                    s_top_class = None
-                    s_agreeing = 0
-                else:
-                    nc_cnt = sum(1 for e in s_events if (e["class_name"] == "not_crop" or e["frame_state"] == "NOT_CROP"))
-                    if nc_cnt / float(len(s_events)) >= 0.80:
-                        s_verdict = "NOT_CROP"
-                        s_top_class = None
-                        s_agreeing = nc_cnt
-                    else:
-                        dis_counts = collections.defaultdict(int)
-                        hl_cnt = 0
-                        for e in s_events:
-                            cname = e["class_name"] or ""
-                            if declared_crop:
-                                if not cname.startswith(declared_crop + "__"):
-                                    continue
-                                if cname in healthy_set or e["frame_state"] == "HEALTHY":
-                                    hl_cnt += 1
-                                elif cname != "not_crop":
-                                    dis_counts[cname] += 1
-                            else:
-                                if "normal" in cname or "healthy" in cname or "dried" in cname or e["frame_state"] == "HEALTHY":
-                                    hl_cnt += 1
-                                elif cname != "not_crop":
-                                    dis_counts[cname] += 1
+                s_verdict, s_top_class, s_agreeing = evaluate_stretch_verdict(s_events, declared_crop=declared_crop)
 
-                        s_verdict = None
-                        s_top_class = None
-                        s_agreeing = 0
-                        if dis_counts:
-                            top_d, top_c = max(dis_counts.items(), key=lambda x: x[1])
-                            if top_c >= 3:
-                                s_verdict = "DISEASE"
-                                s_top_class = top_d
-                                s_agreeing = top_c
-                        if s_verdict is None:
-                            if hl_cnt >= 3:
-                                s_verdict = "HEALTHY"
-                                s_top_class = None
-                                s_agreeing = hl_cnt
-                            else:
-                                s_verdict = "UNCERTAIN"
-                                s_top_class = None
-                                s_agreeing = 0
+                # Thermal median calculation for stretch (Fix 6)
+                s_thermal_median = None
+                if not resolved_replay and thermal_samples:
+                    s_t_vals = []
+                    for ts_item, t_val in thermal_samples:
+                        t_dt = _parse_iso_timestamp(ts_item) if isinstance(ts_item, str) else None
+                        t_sec = t_dt.timestamp() if t_dt else (float(ts_item) if isinstance(ts_item, (int, float)) else 0.0)
+                        if s_start_ts <= t_sec <= s_end_ts:
+                            s_t_vals.append(float(t_val))
+                    if s_t_vals:
+                        s_thermal_median = round(float(np.median(s_t_vals)), 1)
 
                 s_lats = []
                 s_lons = []
@@ -1832,7 +1874,7 @@ class EdgeStorage(object):
                     "verdict": s_verdict,
                     "top_class": s_top_class,
                     "frames_agreeing": s_agreeing,
-                    "thermal_median_c": None,
+                    "thermal_median_c": s_thermal_median,
                     "lat": str_lat,
                     "lon": str_lon,
                     "pos_accuracy_m": str_acc,
@@ -1902,6 +1944,13 @@ class EdgeStorage(object):
         if overall_state == "NO_DATA" and not crop_health_reason:
             crop_health_reason = "NO_USABLE_FRAMES"
 
+        # Calculate uncertain frames (including other crops in declared walk mode)
+        if is_walk_mode and declared_crop:
+            other_or_ood = sum(1 for e in events if not (e["class_name"] or "").startswith(declared_crop + "__") and (e["class_name"] != "not_crop" and e["frame_state"] != "NOT_CROP"))
+            frames_uncertain_count = other_or_ood + state_counts["UNCERTAIN"]
+        else:
+            frames_uncertain_count = state_counts["UNCERTAIN"]
+
         crop_health_block = {
             "state": overall_state,
             "reason": crop_health_reason if (overall_state not in ("HEALTHY", "DISEASE") or crop_health_reason) else None,
@@ -1910,7 +1959,7 @@ class EdgeStorage(object):
             "frames_agreeing": max_agree if len(events) > 0 else 0,
             "frames_rejected_ood": state_counts["UNCERTAIN"] if len(events) > 0 else 0,
             "frames_rejected_not_crop": state_counts["NOT_CROP"] if len(events) > 0 else 0,
-            "frames_uncertain": state_counts["UNCERTAIN"] if len(events) > 0 else 0,
+            "frames_uncertain": frames_uncertain_count if len(events) > 0 else 0,
             "source": "measured",
         }
         if crop_source:
@@ -1962,26 +2011,34 @@ class EdgeStorage(object):
             "distance_reason": distance_reason,
         }
 
-        # Field conditions block (ESP32 Mast / Guide §6 / Spec §2)
-        if mast_reading and mast_reading.get("air_temp_c") is not None:
-            reading_utc = mast_reading.get("utc") or mast_reading.get("received_at") or mast_reading.get("timestamp_utc")
-            age_min = None
-            if reading_utc:
-                r_dt = _parse_iso_timestamp(reading_utc)
-                if r_dt:
-                    age_min = round(max(0.0, (datetime.datetime.now(datetime.timezone.utc) - r_dt).total_seconds() / 60.0), 1)
+        # Field conditions block (ESP32 Mast / Guide §6 / Spec §2 / Fix 2: valid clock and age <= 60 min relative to scan start)
+        valid_mast_reading = None
+        age_min = None
+        rows_mast = conn.execute("SELECT * FROM mast_telemetry WHERE rtc_valid = 1 ORDER BY id DESC LIMIT 50;").fetchall()
+        ref_dt = (_parse_iso_timestamp(scan_row["started_utc"]) if (scan_row and "started_utc" in scan_row.keys() and scan_row["started_utc"]) else None) or _parse_iso_timestamp(now_utc) or datetime.datetime.now(datetime.timezone.utc)
+        for r_row in rows_mast:
+            if r_row["utc"]:
+                r_dt = _parse_iso_timestamp(r_row["utc"])
+                if r_dt is not None:
+                    age_s = (ref_dt - r_dt).total_seconds()
+                    if 0 <= age_s <= 3600.0:
+                        valid_mast_reading = r_row
+                        age_min = round(max(0.0, age_s / 60.0), 1)
+                        break
+
+        if valid_mast_reading is not None and valid_mast_reading["air_temp_c"] is not None:
             field_conditions_block = {
                 "available": True,
                 "reason": None,
-                "node_id": mast_reading.get("node_id", "SIH-NODE-01"),
-                "reading_utc": reading_utc,
+                "node_id": valid_mast_reading["node_id"] or "SIH-NODE-01",
+                "reading_utc": valid_mast_reading["utc"],
                 "age_minutes": age_min,
-                "air_temp_c": mast_reading.get("air_temp_c"),
-                "rh_pct": mast_reading.get("rh_pct"),
-                "lux": mast_reading.get("lux"),
-                "soil1_v": mast_reading.get("soil1_v"),
-                "soil2_v": mast_reading.get("soil2_v"),
-                "battery_v": mast_reading.get("battery_v"),
+                "air_temp_c": valid_mast_reading["air_temp_c"],
+                "rh_pct": valid_mast_reading["rh_pct"],
+                "lux": valid_mast_reading["lux"],
+                "soil1_v": valid_mast_reading["soil1_v"],
+                "soil2_v": valid_mast_reading["soil2_v"],
+                "battery_v": valid_mast_reading["battery_v"],
                 "soil_units": "raw_volts_uncalibrated",
                 "source": "measured",
             }
@@ -2327,15 +2384,18 @@ class EdgeStorage(object):
             last_event = conn.execute("SELECT timestamp_utc FROM frame_events WHERE scan_id = ? ORDER BY id DESC LIMIT 1;", (scan_id,)).fetchone()
             last_event_utc = last_event["timestamp_utc"] if last_event else None
 
-            # Also check if status file exists and has newer timestamp or status
-            status_file = self.data_dir / "status" / (scan_id + ".json")
+            # Also check if status file exists and has newer timestamp or status (Fix 5)
+            status_file = self.data_dir / "status" / ("scan_status_%s.json" % scan_id)
+            if not status_file.exists():
+                status_file = self.data_dir / "status" / (scan_id + ".json")
             status_utc = None
+            st_elapsed = 0
             if status_file.exists():
                 try:
                     with open(str(status_file), "r", encoding="utf-8") as sf:
                         st_data = json.load(sf)
                         st_started = st_data.get("started_utc")
-                        st_elapsed = st_data.get("elapsed_s", 0)
+                        st_elapsed = float(st_data.get("elapsed_s", 0) or 0)
                         if st_started and st_elapsed > 0:
                             s_dt = _parse_iso_timestamp(st_started)
                             if s_dt:
@@ -2360,17 +2420,22 @@ class EdgeStorage(object):
 
             dur_s = None
             dur_reason = None
-            s_dt = _parse_iso_timestamp(row["started_utc"])
-            e_dt = _parse_iso_timestamp(ended_utc)
-            if s_dt and e_dt:
-                diff = (e_dt - s_dt).total_seconds()
-                if diff >= 0:
-                    dur_s = float(round(diff, 2))
-                else:
-                    dur_s = None
-                    dur_reason = "CLOCK_RESET_AFTER_POWER_LOSS"
+            if not last_event_utc and st_elapsed > 0:
+                # 0 events recorded, duration taken from status file elapsed_s (Fix 5 / Test e)
+                dur_s = float(st_elapsed)
+                dur_reason = None
             else:
-                dur_reason = "CLOCK_RESET_AFTER_POWER_LOSS"
+                s_dt = _parse_iso_timestamp(row["started_utc"])
+                e_dt = _parse_iso_timestamp(ended_utc)
+                if s_dt and e_dt:
+                    diff = (e_dt - s_dt).total_seconds()
+                    if diff >= 0:
+                        dur_s = float(round(diff, 2))
+                    else:
+                        dur_s = None
+                        dur_reason = "CLOCK_RESET_AFTER_POWER_LOSS"
+                else:
+                    dur_reason = "CLOCK_RESET_AFTER_POWER_LOSS"
 
             try:
                 is_replay = bool(row["replay"]) if ("replay" in row.keys() and row["replay"] is not None) else False

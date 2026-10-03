@@ -2001,4 +2001,150 @@ def test_stage2_field_station_http_discovery_and_telemetry(running_gateway):
         mock_server.server_close()
 
 
+def test_stage2_field_conditions_validity_and_cutoff():
+    """
+    Test 10: Field conditions validity rules.
+    - rtc_valid=True and age <= 60 min -> available=True with weather metrics.
+    - rtc_valid=False -> available=False, reason="NO_VALID_MAST_READING", weather fields null.
+    - age > 60 min -> available=False, reason="NO_VALID_MAST_READING", weather fields null.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "field_cond.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T12:00:00Z_F01"
+        scan_start = "2026-10-03T12:00:00Z"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="wheat",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # 1. Stale reading (70 minutes before scan start)
+        storage.record_mast_reading(
+            record={
+                "seq": 1,
+                "rtc_valid": True,
+                "utc": "2026-10-03T10:50:00Z",
+                "air_temp_c": 25.0,
+                "rh_pct": 60.0,
+                "lux": 1000.0,
+                "soil1_v": 2.4,
+                "soil2_v": 2.3,
+                "battery_v": 3.3,
+            },
+            log_epoch=1,
+            received_at="2026-10-03T10:50:00Z",
+        )
+        adv_stale = storage.create_advisory(scan_id=scan_id, replay=True, field_id="F01", crop_declared="wheat")
+        assert adv_stale["field_conditions"]["available"] is False
+        assert adv_stale["field_conditions"]["reason"] == "NO_VALID_MAST_READING"
+        assert adv_stale["field_conditions"]["air_temp_c"] is None
+
+        # 2. Invalid RTC reading (10 minutes before scan start, but rtc_valid=0)
+        storage.record_mast_reading(
+            record={
+                "seq": 2,
+                "rtc_valid": False,
+                "utc": "2026-10-03T11:50:00Z",
+                "air_temp_c": 26.0,
+                "rh_pct": 55.0,
+                "lux": 1200.0,
+                "soil1_v": 2.4,
+                "soil2_v": 2.3,
+                "battery_v": 3.3,
+            },
+            log_epoch=1,
+            received_at="2026-10-03T11:50:00Z",
+        )
+        adv_invalid_rtc = storage.create_advisory(scan_id=scan_id, replay=True, field_id="F01", crop_declared="wheat")
+        assert adv_invalid_rtc["field_conditions"]["available"] is False
+        assert adv_invalid_rtc["field_conditions"]["reason"] == "NO_VALID_MAST_READING"
+
+        # 3. Valid reading (15 minutes before scan start, rtc_valid=1)
+        storage.record_mast_reading(
+            record={
+                "seq": 3,
+                "rtc_valid": True,
+                "utc": "2026-10-03T11:45:00Z",
+                "air_temp_c": 27.5,
+                "rh_pct": 52.0,
+                "lux": 1400.0,
+                "soil1_v": 2.45,
+                "soil2_v": 2.38,
+                "battery_v": 3.28,
+            },
+            log_epoch=1,
+            received_at="2026-10-03T11:45:00Z",
+        )
+        adv_valid = storage.create_advisory(scan_id=scan_id, replay=True, field_id="F01", crop_declared="wheat")
+        assert adv_valid["field_conditions"]["available"] is True
+        assert adv_valid["field_conditions"]["air_temp_c"] == 27.5
+        assert adv_valid["field_conditions"]["rh_pct"] == 52.0
+
+
+def test_stage2_scan_track_validation_errors(running_gateway):
+    """
+    Test 11: POST /api/v1/scan/track error paths and bounds checks.
+    - Non-existent scan_id returns 404 unknown_scan.
+    - Fixes > 500 returns 400.
+    - Fixes with out-of-bounds lat/lon are ignored.
+    """
+    gw, base_url = running_gateway
+
+    # 1. Non-existent scan_id -> 404
+    status, body, _ = http_post_json(
+        f"{base_url}/api/v1/scan/track",
+        {
+            "scan_id": "non_existent_scan_id_999",
+            "fixes": [{"utc": "2026-10-03T10:00:00Z", "lat": 28.5, "lon": 77.5, "accuracy_m": 5.0}],
+        },
+    )
+    assert status == 404
+    assert body["error"] == "unknown_scan"
+
+    # Start a real scan
+    s_start, b_start, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s_start == 202
+    active_scan_id = b_start["scan_id"]
+
+    # 2. Batch size > 500 fixes -> 400
+    too_many_fixes = [
+        {"utc": "2026-10-03T10:00:00Z", "lat": 28.5, "lon": 77.5, "accuracy_m": 5.0}
+        for _ in range(501)
+    ]
+    s_huge, _, _ = http_post_json(
+        f"{base_url}/api/v1/scan/track",
+        {"scan_id": active_scan_id, "fixes": too_many_fixes},
+    )
+    assert s_huge == 400
+
+    # 3. Fixes with out-of-bounds lat/lon ignored
+    invalid_coords_fixes = [
+        {"utc": "2026-10-03T10:00:01Z", "lat": 95.0, "lon": 77.5, "accuracy_m": 5.0},
+        {"utc": "2026-10-03T10:00:02Z", "lat": 28.5, "lon": 195.0, "accuracy_m": 5.0},
+        {"utc": "2026-10-03T10:00:03Z", "lat": 28.5, "lon": 77.5, "accuracy_m": 5.0},
+    ]
+    s_inv, b_inv, _ = http_post_json(
+        f"{base_url}/api/v1/scan/track",
+        {"scan_id": active_scan_id, "fixes": invalid_coords_fixes},
+    )
+    assert s_inv == 200
+    assert b_inv["accepted"] == 1
+
+    tracks = gw.server.storage.get_scan_track(active_scan_id, only_accepted=False)
+    assert len(tracks) == 1
+    assert tracks[0]["lat"] == 28.5
+
+    gw.server.stop_scan()
+
+
+
 

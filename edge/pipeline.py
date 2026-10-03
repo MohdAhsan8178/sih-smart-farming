@@ -102,6 +102,8 @@ from edge.storage import (
     DEFAULT_STORAGE_CARD_MISSING,
     HEALTHY_CLASSES_BY_CROP,
     EdgeStorage,
+    _parse_iso_timestamp,
+    evaluate_stretch_verdict,
     get_storage_free_mb,
     get_utc_iso_now,
 )
@@ -897,6 +899,40 @@ def write_pipeline_status(
         pass
 
 
+class ThermalSamplingThread(threading.Thread):
+    """
+    Dedicated 1 Hz daemon thread continuously sampling MLX90640 thermal sensor
+    during a live camera walk (Spec §2.2 / Fix 6).
+    """
+
+    def __init__(self, sensor: Any, t4_decision: Optional["DecisionAggregateStoreThread"]):
+        super(ThermalSamplingThread, self).__init__(name="ThermalSamplingThread")
+        self.daemon = True
+        self.sensor = sensor
+        self.t4_decision = t4_decision
+        self.stop_event = threading.Event()
+        self.samples = []  # type: List[Tuple[str, float]]
+
+    def run(self) -> None:
+        if self.sensor is None:
+            return
+        while not self.stop_event.wait(1.0):
+            if self.stop_event.is_set():
+                break
+            try:
+                tf = self.sensor.capture_frame()
+                if tf.get("available") and tf.get("temperature_array") is not None:
+                    t_val = round(float(np.median(tf["temperature_array"])), 1)
+                    now_iso = get_utc_iso_now()
+                    self.samples.append((now_iso, t_val))
+                    if self.t4_decision is not None:
+                        self.t4_decision.thermal_c_latest = t_val
+                        self.t4_decision.thermal_frame_data = tf
+                        self.t4_decision.thermal_samples.append((now_iso, t_val))
+            except Exception:
+                pass
+
+
 class StatusHeartbeatThread(threading.Thread):
     """
     Independent daemon heartbeat thread that writes status file every 1s
@@ -915,6 +951,7 @@ class StatusHeartbeatThread(threading.Thread):
         t1_capture: Optional[CaptureThread],
         t4_decision: Optional["DecisionAggregateStoreThread"],
         t2_gate: Optional[GateTileThread] = None,
+        storage: Optional[EdgeStorage] = None,
     ):
         super(StatusHeartbeatThread, self).__init__(name="StatusHeartbeatThread")
         self.daemon = True
@@ -928,16 +965,10 @@ class StatusHeartbeatThread(threading.Thread):
         self.t1_capture = t1_capture
         self.t4_decision = t4_decision
         self.t2_gate = t2_gate
+        self.storage = storage
         self.stop_event = threading.Event()
         self.start_mono = time.monotonic()
         self.active_warnings = {}  # type: Dict[str, str]
-        self.thermal_sensor = None
-        if is_camera_source(self.source):
-            try:
-                from edge.thermal_capture import MLX90640
-                self.thermal_sensor = MLX90640(mock=False)
-            except Exception:
-                self.thermal_sensor = None
 
     def run(self) -> None:
         self._write_heartbeat()
@@ -957,21 +988,6 @@ class StatusHeartbeatThread(threading.Thread):
 
             self._write_heartbeat()
 
-    def _sample_thermal(self) -> Optional[float]:
-        if not is_camera_source(self.source) or self.thermal_sensor is None:
-            return None
-        try:
-            tf = self.thermal_sensor.capture_frame()
-            if tf.get("available") and tf.get("temperature_array") is not None:
-                t_val = float(np.median(tf["temperature_array"]))
-                if self.t4_decision is not None:
-                    self.t4_decision.thermal_c_latest = t_val
-                    self.t4_decision.thermal_frame_data = tf
-                return t_val
-        except Exception:
-            pass
-        return None
-
     def _evaluate_warnings(self, now_mono: float, now_iso: str) -> List[Dict[str, Any]]:
         current_codes = set()
 
@@ -990,6 +1006,26 @@ class StatusHeartbeatThread(threading.Thread):
                     current_codes.add("TOO_BRIGHT")
                 if (blurry_cnt / tot) >= 0.50:
                     current_codes.add("BLURRY_SLOW_DOWN")
+
+        # 1b. Speed rule for BLURRY_SLOW_DOWN (Fix 9 / Test h: scan_track fix speed > 1.2 m/s within 10s age)
+        if self.storage is not None and self.scan_id:
+            try:
+                conn = self.storage._get_connection()
+                row = conn.execute(
+                    "SELECT utc, speed_mps FROM scan_track WHERE scan_id = ? AND accepted = 1 ORDER BY id DESC LIMIT 1;",
+                    (self.scan_id,),
+                ).fetchone()
+                if row and row["speed_mps"] is not None:
+                    spd = float(row["speed_mps"])
+                    fix_utc = row["utc"]
+                    if spd > 1.2 and fix_utc:
+                        dt_fix = _parse_iso_timestamp(fix_utc)
+                        if dt_fix is not None:
+                            age_s = abs((datetime.datetime.now(datetime.timezone.utc) - dt_fix).total_seconds())
+                            if age_s < 10.0:
+                                current_codes.add("BLURRY_SLOW_DOWN")
+            except Exception:
+                pass
 
         # 2. Tile / decision history (10s window) -> NOT_SEEING_CROP
         if self.t4_decision is not None and hasattr(self.t4_decision, "used_history"):
@@ -1044,7 +1080,6 @@ class StatusHeartbeatThread(threading.Thread):
             history = list(self.t4_decision.used_history)
             start_m = self.start_mono
             declared_crop = self.crop
-            healthy_set = HEALTHY_CLASSES_BY_CROP.get(declared_crop, set()) if declared_crop else set()
 
             for i in range(num_closed):
                 s_t0 = start_m + 20.0 * i
@@ -1052,34 +1087,15 @@ class StatusHeartbeatThread(threading.Thread):
                 s_events = [e for e in history if s_t0 <= e[0] < s_t1]
                 if not s_events:
                     continue
-                nc_cnt = sum(1 for e in s_events if (e[1] == "NOT_CROP" or e[2] == "not_crop"))
-                if (nc_cnt / float(len(s_events))) >= 0.80:
+                v, _, _ = evaluate_stretch_verdict(s_events, declared_crop=declared_crop)
+                if v == "HEALTHY":
+                    healthy_count += 1
+                elif v == "DISEASE":
+                    need_look_count += 1
+                elif v == "NOT_CROP":
                     not_crop_count += 1
-                else:
-                    dis_cnt = 0
-                    hl_cnt = 0
-                    for e in s_events:
-                        cname = e[2] or ""
-                        f_st = e[1]
-                        if declared_crop:
-                            if not cname.startswith(declared_crop + "__"):
-                                continue
-                            if cname in healthy_set or f_st == "HEALTHY":
-                                hl_cnt += 1
-                            elif cname != "not_crop":
-                                dis_cnt += 1
-                        else:
-                            if "healthy" in cname or "normal" in cname or "dried" in cname or f_st == "HEALTHY":
-                                hl_cnt += 1
-                            elif cname != "not_crop":
-                                dis_cnt += 1
-
-                    if dis_cnt > 0 and dis_cnt >= hl_cnt:
-                        need_look_count += 1
-                    elif hl_cnt > 0:
-                        healthy_count += 1
-                    else:
-                        unclear_count += 1
+                elif v == "UNCERTAIN":
+                    unclear_count += 1
 
         return {
             "stretches": num_closed,
@@ -1097,8 +1113,7 @@ class StatusHeartbeatThread(threading.Thread):
         frames_seen = getattr(self.t1_capture, "frames_read", 0)
         frames_used = getattr(self.t4_decision, "events_written", 0)
 
-        sampled_thermal = self._sample_thermal()
-        thermal_c = sampled_thermal if sampled_thermal is not None else getattr(self.t4_decision, "thermal_c_latest", None)
+        thermal_c = getattr(self.t4_decision, "thermal_c_latest", None)
 
         elapsed_s = int(now_mono - self.start_mono)
         state = "scanning" if frames_seen > 0 else "starting"
@@ -1179,6 +1194,7 @@ class DecisionAggregateStoreThread(threading.Thread):
         self.started_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.thermal_c_latest = None
         self.thermal_frame_data = None
+        self.thermal_samples = []  # type: List[Tuple[str, float]]
         self.used_history = collections.deque(maxlen=2000)
         self.alerts = []
         self.last_alert_mono = {}
@@ -1492,6 +1508,7 @@ class DecisionAggregateStoreThread(threading.Thread):
                     mode=mode_val,
                     time_source=self.time_source,
                     replay_loops=replay_loops_val,
+                    thermal_samples=self.thermal_samples,
                 )
                 self.storage.prune_retained_data()
                 self.t_advisory_s = (time.time() - t_adv0)
@@ -1685,6 +1702,17 @@ class EdgePipeline(object):
             time_source=self.time_source,
         )
 
+        self.thermal_sensor = None
+        self.t_thermal = None
+        if self.is_camera:
+            try:
+                from edge.thermal_capture import MLX90640
+                self.thermal_sensor = MLX90640(mock=False)
+                self.t_thermal = ThermalSamplingThread(sensor=self.thermal_sensor, t4_decision=self.t4_decision)
+            except Exception:
+                self.thermal_sensor = None
+                self.t_thermal = None
+
         if self.status_file:
             self.t_heartbeat = StatusHeartbeatThread(
                 status_file=self.status_file,
@@ -1697,6 +1725,7 @@ class EdgePipeline(object):
                 t1_capture=self.t1_capture,
                 t4_decision=self.t4_decision,
                 t2_gate=self.t2_gate_tile,
+                storage=self.storage,
             )
             self.t4_decision.heartbeat_thread = self.t_heartbeat
         else:
@@ -1713,6 +1742,8 @@ class EdgePipeline(object):
             self.t1_capture.running = False
         if getattr(self, "t_heartbeat", None) is not None:
             self.t_heartbeat.stop_event.set()
+        if getattr(self, "t_thermal", None) is not None:
+            self.t_thermal.stop_event.set()
 
     def run(self) -> Dict[str, Any]:
         """Runs the pipeline to completion and returns performance metrics."""
@@ -1731,6 +1762,8 @@ class EdgePipeline(object):
 
         if self.t_heartbeat is not None:
             self.t_heartbeat.start()
+        if self.t_thermal is not None:
+            self.t_thermal.start()
 
         try:
             for t in self.threads:
@@ -1739,6 +1772,9 @@ class EdgePipeline(object):
             for t in self.threads:
                 t.join()
         finally:
+            if self.t_thermal is not None:
+                self.t_thermal.stop_event.set()
+                self.t_thermal.join(timeout=1.0)
             if self.t_heartbeat is not None:
                 self.t_heartbeat.stop_event.set()
                 self.t_heartbeat.join(timeout=1.0)

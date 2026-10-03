@@ -155,6 +155,20 @@ class MastCollector(object):
             logger.error("Failed to sync mast time: %s", e)
             return False, str(e)
 
+    def set_time(self, utc_ts):
+        """
+        Explicitly sets the DS3231 RTC on the mast node via POST /api/v1/time.
+        """
+        try:
+            code, raw = self._http_request("/time", method="POST", params={"utc": int(utc_ts)})
+            if code == 200:
+                logger.info("Mast RTC synchronized successfully to %d", int(utc_ts))
+                return True, "SYNCED"
+            return False, "HTTP_%d" % code
+        except Exception as e:
+            logger.error("Failed to set mast time: %s", e)
+            return False, str(e)
+
     def pull_readings(self, node_id, log_epoch):
         """
         Pages sensor readings from the mast using the stored cursor.
