@@ -1619,3 +1619,386 @@ def test_stage2_interrupted_recovery_time_and_clock_reset():
         assert adv_reset["scan"]["duration_reason"] == "CLOCK_RESET_AFTER_POWER_LOSS"
 
 
+def test_stage2_scan_track_endpoint_and_storage(running_gateway):
+    """
+    Test 5: POST /api/v1/scan/track & SQLite persistence.
+    - Accepts valid phone breadcrumb GPS fixes.
+    - Fixes with accuracy_m > 25.0 stored but marked accepted=0.
+    - Returns HTTP 200 with {"accepted": count}.
+    - Verifies scan_track table rows.
+    """
+    gw, base_url = running_gateway
+    scan_id = "2026-10-03T16:00:00Z_F01"
+
+    # Start a scan
+    s_start, b_start, _ = http_post_json(
+        f"{base_url}/api/v1/scan/start",
+        {"crop": "wheat", "field_id": "F01", "source": "replay"},
+    )
+    assert s_start == 202
+    active_scan_id = b_start["scan_id"]
+
+    # Send track fixes: 2 valid (accuracy 4.0, 10.0) and 1 inaccurate (accuracy 35.0)
+    fixes_payload = {
+        "scan_id": active_scan_id,
+        "fixes": [
+            {"utc": "2026-10-03T16:00:02Z", "lat": 28.52001, "lon": 77.58001, "accuracy_m": 4.0, "speed_mps": 0.8},
+            {"utc": "2026-10-03T16:00:04Z", "lat": 28.52002, "lon": 77.58002, "accuracy_m": 35.0, "speed_mps": 0.9},
+            {"utc": "2026-10-03T16:00:06Z", "lat": 28.52003, "lon": 77.58003, "accuracy_m": 10.0, "speed_mps": 0.7},
+        ],
+    }
+
+    status, body, _ = http_post_json(f"{base_url}/api/v1/scan/track", fixes_payload)
+    assert status == 200
+    assert body["accepted"] == 2
+
+    # Query DB directly
+    tracks = gw.server.storage.get_scan_track(active_scan_id, only_accepted=False)
+    assert len(tracks) == 3
+    accepted_tracks = gw.server.storage.get_scan_track(active_scan_id, only_accepted=True)
+    assert len(accepted_tracks) == 2
+    assert accepted_tracks[0]["accuracy_m"] == 4.0
+    assert accepted_tracks[1]["accuracy_m"] == 10.0
+
+    # Test error cases: missing scan_id or missing fixes
+    s_err1, _, _ = http_post_json(f"{base_url}/api/v1/scan/track", {"fixes": []})
+    assert s_err1 == 400
+    s_err2, _, _ = http_post_json(f"{base_url}/api/v1/scan/track", {"scan_id": "test"})
+    assert s_err2 == 400
+
+    gw.server.stop_scan()
+
+
+def test_stage2_position_interpolation_and_priority():
+    """
+    Test 6: Position interpolation and priority (Pod GPS -> Phone GPS -> None).
+    - Event 0 with Pod GPS: uses Pod GPS coordinates.
+    - Event 1 without Pod GPS, within ±3s of Phone fix: uses Phone GPS coordinates (pos_source: phone_gps).
+    - Event 2 without Pod GPS, 15s away from nearest Phone fix: remains None (never interpolated > ±3s).
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "pos_priority.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T17:00:00Z_F01"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="wheat",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # Upload phone track fixes at t=0s, 10s
+        storage.record_scan_track(
+            scan_id=scan_id,
+            fixes=[
+                {"utc": "2026-10-03T17:00:00Z", "lat": 28.52000, "lon": 77.58000, "accuracy_m": 5.0},
+                {"utc": "2026-10-03T17:00:10Z", "lat": 28.52050, "lon": 77.58050, "accuracy_m": 4.0},
+            ],
+        )
+
+        # Event 0 at t=0s with Pod GPS (lat=28.51111, lon=77.51111) -> Pod GPS takes priority!
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=0,
+            timestamp_utc="2026-10-03T17:00:00Z",
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="DISEASE",
+            class_id=IDX["wheat__yellow_rust"],
+            confidence=0.95,
+            tile_decisions=[],
+            source_image="frame_0.jpg",
+            gps={"latitude": 28.51111, "longitude": 77.51111, "fix_quality": 1, "hdop": 1.1},
+        )
+
+        # Event 1 at t=11s (within 1.0s <= 3.0s of Phone fix at t=10s) without Pod GPS -> Interpolates Phone GPS!
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=1,
+            timestamp_utc="2026-10-03T17:00:11Z",
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="DISEASE",
+            class_id=IDX["wheat__yellow_rust"],
+            confidence=0.92,
+            tile_decisions=[],
+            source_image="frame_1.jpg",
+            gps=None,
+        )
+
+        # Event 2 at t=30s (20s away from nearest phone fix) without Pod GPS -> Position is None!
+        storage.record_frame_event(
+            scan_id=scan_id,
+            frame_idx=2,
+            timestamp_utc="2026-10-03T17:00:30Z",
+            cell_id="cell_1",
+            gate_passed=True,
+            gate_metrics={},
+            n_valid_tiles=9,
+            frame_state="HEALTHY",
+            class_id=IDX["wheat__healthy"],
+            confidence=0.90,
+            tile_decisions=[],
+            source_image="frame_2.jpg",
+            gps=None,
+        )
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=3,
+            frames_evaluated=3,
+            tiles_classified=27,
+            status="complete",
+            stop_reason="user",
+            duration_s=35.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            stop_reason="user",
+            crop_declared="wheat",
+            duration_s=35.0,
+            mode="walk",
+            time_source="phone",
+        )
+
+        dets = adv["detections"]
+        assert len(dets) >= 2
+        # Event 0: uses Pod GPS
+        assert abs(dets[0]["lat"] - 28.51111) < 1e-4
+        assert abs(dets[0]["lon"] - 77.51111) < 1e-4
+        # Event 1: uses Phone GPS
+        assert abs(dets[1]["lat"] - 28.52050) < 1e-4
+        assert abs(dets[1]["lon"] - 77.58050) < 1e-4
+
+        # Stretch 0 [0..20s) gets position from events
+        stretches = adv["stretches"]
+        assert len(stretches) >= 1
+        assert stretches[0]["lat"] is not None
+        assert stretches[0]["lon"] is not None
+
+
+def test_stage2_haversine_distance_walked():
+    """
+    Test 7: Haversine distance walked calculation.
+    - Fix 1: lat 28.00000, lon 77.00000
+    - Fix 2: lat 28.00100, lon 77.00000 (0.001 deg lat ~ 111.2 m north)
+    - distance_walked_m in scan payload == ~111.2 m (within 1.0m tolerance).
+    - Scan without GPS has distance_walked_m None with distance_reason == 'GPS_TRACK_NOT_RECORDED'.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "haversine_test.db"
+        storage = EdgeStorage(db_path=db_path)
+        scan_id = "2026-10-03T18:00:00Z_F01"
+
+        storage.record_scan_start(
+            scan_id=scan_id,
+            source="mock",
+            mode="walk",
+            crop="wheat",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+
+        # Upload 2 track points roughly 111.2 meters apart
+        storage.record_scan_track(
+            scan_id=scan_id,
+            fixes=[
+                {"utc": "2026-10-03T18:00:00Z", "lat": 28.00000, "lon": 77.00000, "accuracy_m": 3.0},
+                {"utc": "2026-10-03T18:01:00Z", "lat": 28.00100, "lon": 77.00000, "accuracy_m": 3.0},
+            ],
+        )
+
+        storage.record_scan_end(
+            scan_id=scan_id,
+            frames_captured=10,
+            frames_evaluated=10,
+            tiles_classified=90,
+            status="complete",
+            stop_reason="user",
+            duration_s=60.0,
+        )
+
+        adv = storage.create_advisory(
+            scan_id=scan_id,
+            replay=True,
+            field_id="F01",
+            stop_reason="user",
+            crop_declared="wheat",
+            duration_s=60.0,
+            mode="walk",
+            time_source="phone",
+        )
+
+        dist = adv["scan"]["distance_walked_m"]
+        assert dist is not None
+        assert abs(dist - 111.2) <= 1.0
+        assert adv["scan"]["distance_reason"] is None
+
+        # Case 2: Scan with NO GPS points
+        scan_id_no_gps = "2026-10-03T19:00:00Z_F01"
+        storage.record_scan_start(
+            scan_id=scan_id_no_gps,
+            source="mock",
+            mode="walk",
+            crop="wheat",
+            field_id="F01",
+            time_source="phone",
+            replay=True,
+        )
+        storage.record_scan_end(
+            scan_id=scan_id_no_gps,
+            frames_captured=5,
+            frames_evaluated=5,
+            tiles_classified=45,
+            status="complete",
+            stop_reason="user",
+            duration_s=20.0,
+        )
+        adv_no_gps = storage.create_advisory(
+            scan_id=scan_id_no_gps,
+            replay=True,
+            field_id="F01",
+            stop_reason="user",
+            crop_declared="wheat",
+            duration_s=20.0,
+            mode="walk",
+            time_source="phone",
+        )
+        assert adv_no_gps["scan"]["distance_walked_m"] is None
+        assert adv_no_gps["scan"]["distance_reason"] == "GPS_TRACK_NOT_RECORDED"
+
+
+def test_stage2_field_station_http_discovery_and_telemetry(running_gateway):
+    """
+    Test 9: Field station pure-HTTP discovery & background telemetry collection.
+    - When mock ESP32 server is reachable: polls /health and /readings, sets field_station reachable=True in status.
+    - When unreachable: field_station reachable=False and warning FIELD_STATION_NOT_FOUND is active.
+    """
+    gw, base_url = running_gateway
+
+    # 1. Setup mock ESP32 HTTP server
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    class MockESP32Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/api/v1/health":
+                body = json.dumps({
+                    "node_id": "SIH-NODE-01",
+                    "log_epoch": 1,
+                    "rtc_valid": True,
+                    "utc": "2026-10-03T20:00:00Z",
+                    "battery_v": 3.28,
+                }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            elif "/api/v1/readings" in self.path:
+                body = json.dumps({
+                    "records": [
+                        {
+                            "seq": 101,
+                            "utc": "2026-10-03T20:00:00Z",
+                            "rtc_valid": 1,
+                            "air_temp_c": 26.5,
+                            "rh_pct": 58.0,
+                            "lux": 1500.0,
+                            "soil1_v": 2.40,
+                            "soil2_v": 2.35,
+                            "battery_v": 3.28,
+                        }
+                    ],
+                    "count": 1,
+                    "truncated": False,
+                    "next_since": 102,
+                }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            elif "/api/v1/trap/list" in self.path:
+                body = json.dumps({"images": []}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def log_message(self, format, *args):
+            pass
+
+    mock_server = HTTPServer(("127.0.0.1", 0), MockESP32Handler)
+    mock_port = mock_server.server_address[1]
+    mock_thread = threading.Thread(target=mock_server.serve_forever, daemon=True)
+    mock_thread.start()
+
+    try:
+        # Point gateway's mast base URL to mock ESP32 server
+        gw.server.mast_base_url = f"http://127.0.0.1:{mock_port}/api/v1"
+
+        # Start scan
+        s_start, b_start, _ = http_post_json(
+            f"{base_url}/api/v1/scan/start",
+            {"crop": "wheat", "field_id": "F01", "source": "replay"},
+        )
+        assert s_start == 202
+
+        # Give background poll thread 1s to execute
+        time.sleep(1.0)
+
+        # Check GET /api/v1/scan/status
+        s_st, b_st, _ = http_get(f"{base_url}/api/v1/scan/status")
+        assert s_st == 200
+        fs = b_st["field_station"]
+        assert fs["reachable"] is True
+        assert fs["readings_collected"] >= 1
+
+        gw.server.stop_scan()
+        for _ in range(30):
+            time.sleep(0.1)
+            _, b, _ = http_get(f"{base_url}/api/v1/scan/status")
+            if b["state"] in ("done", "idle", "error"):
+                break
+
+        # 2. Test unreachable field station (points to unused closed port)
+        gw.server.mast_base_url = "http://127.0.0.1:59999/api/v1"
+        s_start2, _, _ = http_post_json(
+            f"{base_url}/api/v1/scan/start",
+            {"crop": "wheat", "field_id": "F01", "source": "replay"},
+        )
+        assert s_start2 == 202
+        time.sleep(1.0)
+
+        s_st2, b_st2, _ = http_get(f"{base_url}/api/v1/scan/status")
+        assert s_st2 == 200
+        fs2 = b_st2["field_station"]
+        assert fs2["reachable"] is False
+
+        # Warning FIELD_STATION_NOT_FOUND should be active
+        warn_codes = [w["code"] for w in b_st2["warnings"] if isinstance(w, dict)]
+        assert "FIELD_STATION_NOT_FOUND" in warn_codes
+
+        gw.server.stop_scan()
+
+    finally:
+        mock_server.shutdown()
+        mock_server.server_close()
+
+
+

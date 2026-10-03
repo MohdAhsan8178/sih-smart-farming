@@ -143,6 +143,20 @@ def _extract_iso_from_scan_id(scan_id: Optional[str]) -> Optional[str]:
     return None
 
 
+def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculates the great-circle distance between two GPS coordinates in meters."""
+    R = 6371000.0  # Earth radius in meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+
+    a = (math.sin(delta_phi / 2.0) ** 2 +
+         math.cos(phi1) * math.cos(phi2) * (math.sin(delta_lambda / 2.0) ** 2))
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return R * c
+
+
 HEALTHY_CLASSES_BY_CROP: Dict[str, Set[str]] = {
     "rice": {"rice__normal"},
     "sugarcane": {"sugarcane__healthy", "sugarcane__dried_leaf"},
@@ -450,8 +464,29 @@ class EdgeStorage(object):
                     """
                 )
 
+                # 10. Breadcrumb GPS Track Fixes (Stage 2 / Spec §1.4)
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS scan_track (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        scan_id TEXT NOT NULL,
+                        utc TEXT NOT NULL,
+                        lat REAL NOT NULL,
+                        lon REAL NOT NULL,
+                        accuracy_m REAL,
+                        speed_mps REAL,
+                        altitude_m REAL,
+                        bearing_deg REAL,
+                        accepted INTEGER DEFAULT 1,
+                        created_at TEXT NOT NULL,
+                        FOREIGN KEY (scan_id) REFERENCES scans(scan_id) ON DELETE CASCADE
+                    );
+                    """
+                )
+
                 # Performance indexes
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_satellite_ndvi_date ON satellite_ndvi(scene_date);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_scan_track_scan_utc ON scan_track(scan_id, utc);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_frame_events_scan ON frame_events(scan_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_frame_events_cell ON frame_events(cell_id);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_advisories_seq ON advisories(seq);")
@@ -816,6 +851,137 @@ class EdgeStorage(object):
                 ),
             )
 
+    def record_scan_track(
+        self,
+        scan_id: str,
+        fixes: List[Dict[str, Any]],
+    ) -> Dict[str, int]:
+        """
+        Records breadcrumb GPS track fixes from phone client (Stage 2 / Spec §1.4).
+        Fixes with accuracy_m > 25.0 are stored with accepted=0 (not used for position tagging).
+        Returns {'accepted': accepted_count, 'rejected': rejected_count}.
+        """
+        if not fixes:
+            return {"accepted": 0, "rejected": 0}
+        conn = self._get_connection()
+        now_utc = get_utc_iso_now()
+        accepted_count = 0
+        rejected_count = 0
+        rows = []
+
+        for fix in fixes:
+            if not isinstance(fix, dict):
+                rejected_count += 1
+                continue
+            utc = fix.get("utc")
+            lat = fix.get("lat")
+            lon = fix.get("lon")
+            if utc is None or lat is None or lon is None:
+                rejected_count += 1
+                continue
+            try:
+                lat_f = float(lat)
+                lon_f = float(lon)
+            except (ValueError, TypeError):
+                rejected_count += 1
+                continue
+
+            acc = fix.get("accuracy_m")
+            acc_f = None
+            if acc is not None:
+                try:
+                    acc_f = float(acc)
+                except (ValueError, TypeError):
+                    acc_f = None
+
+            speed = fix.get("speed_mps")
+            speed_f = None
+            if speed is not None:
+                try:
+                    speed_f = float(speed)
+                except (ValueError, TypeError):
+                    speed_f = None
+
+            alt = fix.get("altitude_m")
+            alt_f = None
+            if alt is not None:
+                try:
+                    alt_f = float(alt)
+                except (ValueError, TypeError):
+                    alt_f = None
+
+            bearing = fix.get("bearing_deg")
+            bearing_f = None
+            if bearing is not None:
+                try:
+                    bearing_f = float(bearing)
+                except (ValueError, TypeError):
+                    bearing_f = None
+
+            is_accepted = 1
+            if acc_f is not None and acc_f > 25.0:
+                is_accepted = 0
+
+            rows.append((
+                str(scan_id),
+                str(utc),
+                lat_f,
+                lon_f,
+                acc_f,
+                speed_f,
+                alt_f,
+                bearing_f,
+                is_accepted,
+                now_utc,
+            ))
+            if is_accepted == 1:
+                accepted_count += 1
+            else:
+                rejected_count += 1
+
+        if rows:
+            with conn:
+                conn.executemany(
+                    """
+                    INSERT INTO scan_track (
+                        scan_id, utc, lat, lon, accuracy_m, speed_mps, altitude_m, bearing_deg, accepted, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    rows,
+                )
+
+        return {"accepted": accepted_count, "rejected": rejected_count}
+
+    def get_scan_track(
+        self,
+        scan_id: str,
+        only_accepted: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Fetches breadcrumb GPS track points for a given scan."""
+        conn = self._get_connection()
+        query = "SELECT * FROM scan_track WHERE scan_id = ?"
+        params = [str(scan_id)]
+        if only_accepted:
+            query += " AND accepted = 1"
+        query += " ORDER BY utc ASC;"
+        rows = conn.execute(query, params).fetchall()
+        result = []
+        for r in rows:
+            result.append({
+                "id": r["id"],
+                "scan_id": r["scan_id"],
+                "utc": r["utc"],
+                "lat": r["lat"],
+                "lon": r["lon"],
+                "accuracy_m": r["accuracy_m"],
+                "speed_mps": r["speed_mps"],
+                "altitude_m": r["altitude_m"],
+                "bearing_deg": r["bearing_deg"],
+                "accepted": bool(r["accepted"]),
+                "created_at": r["created_at"],
+            })
+        return result
+
     # -------------------------------------------------------------------------
     # Advisory Document Generation & Assembly (§8 / §7.3)
     # -------------------------------------------------------------------------
@@ -916,6 +1082,24 @@ class EdgeStorage(object):
             (scan_id,),
         ).fetchall()
 
+        # Fetch accepted GPS track fixes from scan_track
+        track_fixes = conn.execute(
+            "SELECT * FROM scan_track WHERE scan_id = ? AND accepted = 1 ORDER BY utc ASC;",
+            (scan_id,),
+        ).fetchall()
+        track_points = []
+        for tf in track_fixes:
+            dt = _parse_iso_timestamp(tf["utc"])
+            if dt is not None:
+                track_points.append((
+                    dt.timestamp(),
+                    float(tf["lat"]),
+                    float(tf["lon"]),
+                    float(tf["accuracy_m"]) if tf["accuracy_m"] is not None else None,
+                    float(tf["speed_mps"]) if tf["speed_mps"] is not None else None,
+                ))
+        track_points.sort(key=lambda x: x[0])
+
         # Aggregate cell verdicts
         cells = conn.execute(
             "SELECT * FROM cell_verdicts WHERE scan_id = ?;",
@@ -930,11 +1114,38 @@ class EdgeStorage(object):
         # Point-event detections list with GPS (ans_for_vitthal.md §8 S3)
         detections = []
         gps_points = 0
+        phone_gps_points = 0
         crop_counts = collections.defaultdict(int)
+        event_positions = {}
 
         for e in events:
-            if e["lat"] is not None and e["lon"] is not None:
+            e_lat = e["lat"]
+            e_lon = e["lon"]
+            e_acc = e["gps_hdop"]
+            e_src = "pod_gps" if (e_lat is not None and e_lon is not None) else None
+
+            if e_lat is not None and e_lon is not None:
                 gps_points += 1
+            elif track_points:
+                e_dt = _parse_iso_timestamp(e["timestamp_utc"])
+                if e_dt is not None:
+                    e_ts = e_dt.timestamp()
+                    # Match nearest track fix within ±3.0s (never beyond ±3s per spec §1.4)
+                    best_diff = 3.01
+                    best_tp = None
+                    for tp in track_points:
+                        diff = abs(tp[0] - e_ts)
+                        if diff <= 3.0 and diff < best_diff:
+                            best_diff = diff
+                            best_tp = tp
+                    if best_tp is not None:
+                        e_lat = best_tp[1]
+                        e_lon = best_tp[2]
+                        e_acc = best_tp[3]
+                        e_src = "phone_gps"
+                        phone_gps_points += 1
+
+            event_positions[e["frame_idx"]] = (e_lat, e_lon, e_acc, e_src)
 
             if e["frame_state"] in ("DISEASE", "HEALTHY"):
                 cname = e["class_name"] or "unknown"
@@ -946,10 +1157,10 @@ class EdgeStorage(object):
                     "class": cname,
                     "confidence": round(float(e["confidence"]), 4),
                     "cross_source_reliability": get_cross_source_reliability(cname),
-                    "lat": e["lat"],
-                    "lon": e["lon"],
-                    "fix_quality": e["gps_fix_quality"],
-                    "hdop": e["gps_hdop"],
+                    "lat": e_lat,
+                    "lon": e_lon,
+                    "fix_quality": e["gps_fix_quality"] if e_src == "pod_gps" else (1 if e_src == "phone_gps" else None),
+                    "hdop": e_acc,
                     "captured_utc": e["timestamp_utc"],
                     "source": "measured",
                 })
@@ -1568,6 +1779,51 @@ class EdgeStorage(object):
                                 s_top_class = None
                                 s_agreeing = 0
 
+                s_lats = []
+                s_lons = []
+                s_accs = []
+                s_srcs = []
+                for ev in s_events:
+                    pos = event_positions.get(ev["frame_idx"])
+                    if pos and pos[0] is not None and pos[1] is not None:
+                        s_lats.append(pos[0])
+                        s_lons.append(pos[1])
+                        if pos[2] is not None:
+                            s_accs.append(pos[2])
+                        if pos[3] is not None:
+                            s_srcs.append(pos[3])
+
+                if s_lats:
+                    str_lat = round(float(np.mean(s_lats)), 6)
+                    str_lon = round(float(np.mean(s_lons)), 6)
+                    str_acc = round(float(np.mean(s_accs)), 1) if s_accs else None
+                    str_src = s_srcs[0] if s_srcs else "pod_gps"
+                elif track_points:
+                    # Match stretch midpoint within ±10s
+                    s_mid_ts = (s_start_ts + s_end_ts) / 2.0
+                    best_diff = 10.01
+                    best_tp = None
+                    for tp in track_points:
+                        diff = abs(tp[0] - s_mid_ts)
+                        if diff <= 10.0 and diff < best_diff:
+                            best_diff = diff
+                            best_tp = tp
+                    if best_tp is not None:
+                        str_lat = round(best_tp[1], 6)
+                        str_lon = round(best_tp[2], 6)
+                        str_acc = best_tp[3]
+                        str_src = "phone_gps"
+                    else:
+                        str_lat = None
+                        str_lon = None
+                        str_acc = None
+                        str_src = None
+                else:
+                    str_lat = None
+                    str_lon = None
+                    str_acc = None
+                    str_src = None
+
                 stretches.append({
                     "index": i,
                     "start_utc": s_start_utc,
@@ -1577,10 +1833,10 @@ class EdgeStorage(object):
                     "top_class": s_top_class,
                     "frames_agreeing": s_agreeing,
                     "thermal_median_c": None,
-                    "lat": None,
-                    "lon": None,
-                    "pos_accuracy_m": None,
-                    "pos_source": None,
+                    "lat": str_lat,
+                    "lon": str_lon,
+                    "pos_accuracy_m": str_acc,
+                    "pos_source": str_src,
                 })
 
             summary = {
@@ -1616,15 +1872,19 @@ class EdgeStorage(object):
                     if len(agreeing) >= 3:
                         if t_curr - last_alert_time.get(cname, -999.0) >= 15.0:
                             last_alert_time[cname] = t_curr
+                            pos = event_positions.get(e["frame_idx"])
+                            a_lat = pos[0] if pos else e["lat"]
+                            a_lon = pos[1] if pos else e["lon"]
+                            a_acc = pos[2] if pos else None
                             alert_id = len(all_alerts) + 1
                             all_alerts.append({
                                 "alert_id": alert_id,
                                 "utc": e["timestamp_utc"],
                                 "class": cname,
                                 "frames_agreeing": len(agreeing),
-                                "lat": e["lat"],
-                                "lon": e["lon"],
-                                "pos_accuracy_m": None,
+                                "lat": a_lat,
+                                "lon": a_lon,
+                                "pos_accuracy_m": a_acc,
                             })
             alerts = all_alerts
         else:
@@ -1656,6 +1916,37 @@ class EdgeStorage(object):
         if crop_source:
             crop_health_block["crop_source"] = crop_source
 
+        # Distance walked calculation (haversine along path)
+        distance_walked_m = None
+        distance_reason = None
+        if len(track_points) >= 2:
+            total_dist = 0.0
+            for idx in range(len(track_points) - 1):
+                p1 = track_points[idx]
+                p2 = track_points[idx + 1]
+                total_dist += _haversine_distance(p1[1], p1[2], p2[1], p2[2])
+            distance_walked_m = round(float(total_dist), 1)
+            distance_reason = None
+        elif gps_points >= 2:
+            valid_gps_evs = [e for e in events if e["lat"] is not None and e["lon"] is not None]
+            if len(valid_gps_evs) >= 2:
+                total_dist = 0.0
+                for idx in range(len(valid_gps_evs) - 1):
+                    e1 = valid_gps_evs[idx]
+                    e2 = valid_gps_evs[idx + 1]
+                    total_dist += _haversine_distance(e1["lat"], e1["lon"], e2["lat"], e2["lon"])
+                distance_walked_m = round(float(total_dist), 1)
+                distance_reason = None
+            else:
+                distance_walked_m = 0.0
+                distance_reason = "INSUFFICIENT_GPS_POINTS"
+        elif "distance_walked_m" in scan_row.keys() and scan_row["distance_walked_m"] is not None:
+            distance_walked_m = float(scan_row["distance_walked_m"])
+            distance_reason = scan_row["distance_reason"]
+        else:
+            distance_walked_m = 0.0 if (len(track_points) == 1 or gps_points == 1) else None
+            distance_reason = "GPS_TRACK_NOT_RECORDED" if (len(track_points) == 0 and gps_points == 0) else "INSUFFICIENT_GPS_POINTS"
+
         scan_payload = {
             "started_utc": scan_row["started_utc"],
             "ended_utc": resolved_ended_utc,
@@ -1667,9 +1958,54 @@ class EdgeStorage(object):
             "frames_captured": int(scan_row["frames_captured"] or len(events)),
             "frames_evaluated": len(events),
             "tiles_classified": int(scan_row["tiles_classified"] or len(events) * train_config.N_TILES),
-            "distance_walked_m": scan_row["distance_walked_m"],
-            "distance_reason": scan_row["distance_reason"] or ("GPS_TRACK_NOT_RECORDED" if gps_points == 0 else None),
+            "distance_walked_m": distance_walked_m,
+            "distance_reason": distance_reason,
         }
+
+        # Field conditions block (ESP32 Mast / Guide §6 / Spec §2)
+        if mast_reading and mast_reading.get("air_temp_c") is not None:
+            reading_utc = mast_reading.get("utc") or mast_reading.get("received_at") or mast_reading.get("timestamp_utc")
+            age_min = None
+            if reading_utc:
+                r_dt = _parse_iso_timestamp(reading_utc)
+                if r_dt:
+                    age_min = round(max(0.0, (datetime.datetime.now(datetime.timezone.utc) - r_dt).total_seconds() / 60.0), 1)
+            field_conditions_block = {
+                "available": True,
+                "reason": None,
+                "node_id": mast_reading.get("node_id", "SIH-NODE-01"),
+                "reading_utc": reading_utc,
+                "age_minutes": age_min,
+                "air_temp_c": mast_reading.get("air_temp_c"),
+                "rh_pct": mast_reading.get("rh_pct"),
+                "lux": mast_reading.get("lux"),
+                "soil1_v": mast_reading.get("soil1_v"),
+                "soil2_v": mast_reading.get("soil2_v"),
+                "battery_v": mast_reading.get("battery_v"),
+                "soil_units": "raw_volts_uncalibrated",
+                "source": "measured",
+            }
+        else:
+            field_conditions_block = {
+                "available": False,
+                "reason": "NO_VALID_MAST_READING",
+                "node_id": None,
+                "reading_utc": None,
+                "age_minutes": None,
+                "air_temp_c": None,
+                "rh_pct": None,
+                "lux": None,
+                "soil1_v": None,
+                "soil2_v": None,
+                "battery_v": None,
+                "soil_units": "raw_volts_uncalibrated",
+                "source": None,
+            }
+
+        total_gps = gps_points + phone_gps_points
+        if total_gps == 0 and len(track_points) > 0:
+            total_gps = len(track_points)
+        gps_status = "OK" if total_gps > 0 else "ABSENT"
 
         # Construct payload strictly according to ans_for_vitthal.md §8 and data_flow_architecture.md §7.3
         payload = {
@@ -1684,21 +2020,7 @@ class EdgeStorage(object):
             "summary": summary,
             "stretches": stretches,
             "alerts": alerts,
-            "field_conditions": {
-                "available": False,
-                "reason": "NO_VALID_MAST_READING",
-                "node_id": None,
-                "reading_utc": None,
-                "age_minutes": None,
-                "air_temp_c": None,
-                "rh_pct": None,
-                "lux": None,
-                "soil1_v": None,
-                "soil2_v": None,
-                "battery_v": None,
-                "soil_units": "raw_volts_uncalibrated",
-                "source": None,
-            },
+            "field_conditions": field_conditions_block,
             "crop_health": crop_health_block,
             "growth_stage": growth_stage,
             "vegetation": vegetation,
@@ -1708,8 +2030,8 @@ class EdgeStorage(object):
             "irrigation": irrigation_block,
             "detections": detections,
             "gps": {
-                "status": "OK" if gps_points > 0 else "ABSENT",
-                "point_count": gps_points,
+                "status": gps_status,
+                "point_count": total_gps,
                 "accuracy_note": "Point tagging only, approximately 2.5 m CEP. Not a survey-grade position.",
             },
             "disease": [

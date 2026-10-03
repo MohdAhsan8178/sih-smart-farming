@@ -104,6 +104,8 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
         self.last_scan_status = None
         self.current_stop_reason = None
         self.scan_lock = threading.Lock()
+        self.field_station_status = {"reachable": None, "readings_collected": None, "last_reading_utc": None}
+        self.field_station_warning = False
 
         # Interrupted recovery on startup (Point 5)
         try:
@@ -190,14 +192,33 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                 "readings_collected": None,
                 "last_reading_utc": None,
             }
-        for k in ("reachable", "readings_collected", "last_reading_utc"):
-            if k not in status["field_station"]:
-                status["field_station"][k] = None
+        # If status file has null field_station or missing, check server's live status
+        if status["field_station"].get("reachable") is None:
+            fs_live = getattr(self, "field_station_status", None)
+            if fs_live and fs_live.get("reachable") is not None:
+                status["field_station"] = dict(fs_live)
+            else:
+                for k in ("reachable", "readings_collected", "last_reading_utc"):
+                    if k not in status["field_station"]:
+                        status["field_station"][k] = None
+        else:
+            for k in ("reachable", "readings_collected", "last_reading_utc"):
+                if k not in status["field_station"]:
+                    status["field_station"][k] = None
 
         if "warnings" not in status or not isinstance(status["warnings"], list):
             status["warnings"] = []
         if "alerts" not in status or not isinstance(status["alerts"], list):
             status["alerts"] = []
+
+        # Add FIELD_STATION_NOT_FOUND warning if active
+        if getattr(self, "field_station_warning", False):
+            has_fs_warn = any(w.get("code") == "FIELD_STATION_NOT_FOUND" for w in status["warnings"] if isinstance(w, dict))
+            if not has_fs_warn:
+                status["warnings"].append({
+                    "code": "FIELD_STATION_NOT_FOUND",
+                    "since_utc": self.current_scan_info.get("started_utc", self.init_utc) if getattr(self, "current_scan_info", None) else self.init_utc,
+                })
 
         # Add STORAGE_CARD_MISSING warning if storage is internal
         if getattr(self.storage, "storage_location", "internal") == "internal":
@@ -340,6 +361,42 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
                 time_source=self.clock_source,
                 replay=1 if replay_flag else 0,
             )
+
+            # Background field station discovery & telemetry poll (Spec §1.2 / Item G)
+            self.field_station_warning = False
+
+            def _poll_fs_on_start():
+                try:
+                    from edge.mast_collector import MastCollector
+                    mast_url = getattr(self, "mast_base_url", "http://192.168.9.1/api/v1")
+                    collector = MastCollector(base_url=mast_url, storage=self.storage, timeout=1.5, max_retries=0)
+                    res = collector.collect()
+                    if isinstance(res, dict) and res.get("status") == "ok":
+                        latest = self.storage.get_latest_mast_telemetry()
+                        last_utc = latest.get("utc") if latest else None
+                        self.field_station_status = {
+                            "reachable": True,
+                            "readings_collected": int(res.get("records_pulled", 0)),
+                            "last_reading_utc": last_utc,
+                        }
+                        self.field_station_warning = False
+                    else:
+                        self.field_station_status = {
+                            "reachable": False,
+                            "readings_collected": 0,
+                            "last_reading_utc": None,
+                        }
+                        self.field_station_warning = True
+                except Exception:
+                    self.field_station_status = {
+                        "reachable": False,
+                        "readings_collected": 0,
+                        "last_reading_utc": None,
+                    }
+                    self.field_station_warning = True
+
+            t_fs = threading.Thread(target=_poll_fs_on_start, daemon=True, name="FieldStationStartPoll")
+            t_fs.start()
 
             # Spawn background monitor thread
             t = threading.Thread(
@@ -1073,6 +1130,37 @@ class GatewayRequestHandler(BaseHTTPRequestHandler):
                     phone_utc=phone_utc,
                 )
                 self._send_json_response(code, resp)
+                return
+
+            # Route: POST /api/v1/scan/track (Spec §1.4 / Item E)
+            if path == "/api/v1/scan/track":
+                content_length = self.headers.get("Content-Length")
+                if not content_length:
+                    self._send_error_json(400, "bad_request", "Missing Content-Length header")
+                    return
+                try:
+                    length = int(content_length)
+                    raw_body = self.rfile.read(length)
+                    body_json = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+                except Exception as ex:
+                    self._send_error_json(400, "bad_request", "Malformed JSON: %s" % ex)
+                    return
+
+                if not isinstance(body_json, dict):
+                    self._send_error_json(400, "bad_request", "JSON object payload expected")
+                    return
+
+                scan_id = body_json.get("scan_id")
+                fixes = body_json.get("fixes")
+                if not scan_id or not isinstance(scan_id, str):
+                    self._send_error_json(400, "bad_request", "scan_id is required")
+                    return
+                if fixes is None or not isinstance(fixes, list):
+                    self._send_error_json(400, "bad_request", "fixes list is required")
+                    return
+
+                res = self.server.storage.record_scan_track(scan_id=scan_id.strip(), fixes=fixes)
+                self._send_json_response(200, {"accepted": res["accepted"]})
                 return
 
             # Route: POST /api/v1/scan/stop (Spec §1.5)
